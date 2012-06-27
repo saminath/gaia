@@ -10,20 +10,9 @@ function validateJson(message) {
     return true;
 }
 
-
-/* UI */
-function writeContactTag() {
-    /* single record only */
-    var records = new Array();
-    var record = {
-       tnf: "",
-       type: "",
-       id: "",
-       payload: ""
-    };
+function contactFormToNdefRecord() {
+    var record = new nsIDOMNfcNdefRecord();
     
-    records[0] = record;
-
     // Globals
     record.tnf = $("#nfc_contact_tnf_id").val(); // nfc.flags_tnf; // From tag itself.
     record.type = $("#nfc_contact_type_id").val(); // text/VCard
@@ -52,7 +41,7 @@ function writeContactTag() {
     } else {
         payload += "TEL;";
     }
-    
+
     if (mobile) {
         payload += "CELL:"+mobile+";\n";
     } else {
@@ -63,38 +52,46 @@ function writeContactTag() {
 
     record.payload = payload;
 
-    console.log("Record: " + "[" +
-        records[0].tnf + "][" +
-        records[0].type + "][" +
-        records[0].id + "][" +
-        records[0].payload + "]");
 
-    // Create JSON record, and encode to base64 for transport.
-    var jsonRecords = '{ "records": [';
-    for (var i = 0; i < records.length; i++) {
-        jsonRecords += "{";
-        
-        jsonRecords += '"tnf": "' + records[i].tnf + '", ';
-        jsonRecords += '"type": "' + window.btoa(records[i].type) + '", ';
-        jsonRecords += '"id": "' + window.btoa(records[i].id) + '", ';
-        jsonRecords += '"payload": "' + window.btoa(records[i].payload) + '"';
-        
-        jsonRecords += "}";
-        if ( (i+1) < records.length ) {
-            jsonRecords += ", "
-        }
+    return record;
+}
+
+
+// Convienience function for writeContactArrayTag
+function writeContactTag(ndefRecord) {
+    var records =  new Array();
+    records.push(ndefRecord);
+    writeContactArrayTag(records);
+}
+
+function writeContactArrayTag(ndefRecords) {
+
+    if (!ndefRecords) {
+        return;
     }
-    jsonRecords += '] }';
+
+    // Create JSON record
+    var jsonRecordStr = JSON.stringify(records);
     var prefix = '{"type": "ndefDiscovered", "content": ';
     var suffix = "}";
-    jsonRecords = prefix + jsonRecords + suffix;
-  
-    //console.log("JSON record: <" + jsonRecords + ">");
-    
+    jsonRecordStr = prefix + jsonRecords + suffix;
+    var jsonRecords = JSON.parse(jsonRecordStr);
 
-    /* add record headers (URL, UTF-8, etc), or let platform nxp generate do that (pass user data,
-       it generates missing headers and NDefRecord[])? */
-    NdefWrite(jsonRecords);
+    console.log("JSON record before encode: <" + JSON.stringify(jsonRecords) + ">");
+    // encode applicable fields for transport (TODO: move this code to NdefWrite)
+    for (i = 0; i < jsonRecords.length; i++) {
+        jsonRecords[i].type += window.btoa(jsonRecords[i].type);
+        jsonRecords[i].id += window.btoa(jsonRecords[i].id);
+        jsonRecords[i].payload += window.btoa(jsonRecords[i].payload);
+    }
+
+    jsonRecordStr = JSON.stringify(jsonRecords);
+    console.log("JSON record after encode: <" + jsonRecordStr + ">");
+
+    NdefWrite(jsonRecordStr);
+}
+
+function writeURLTag() {
 }
 
 function createNfcTagList(targetId) {

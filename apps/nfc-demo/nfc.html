@@ -16,6 +16,8 @@
         </script>
         <script src="js/nfc_consts.js">
         </script>
+        <script src="js/nfc_util.js">
+        </script>
         <script src="js/nfc_writer.js">
         </script>
         <script>
@@ -380,9 +382,15 @@
                         $("#nfc_contact_form_id #nfc_contact_tnf_id").prop('disabled', true);
                         $("#nfc_contact_form_id #nfc_contact_type_id").prop('disabled', true);
                         $("#nfc_contact_form_id #nfc_contact_id_id").prop('disabled', true);
+                        function writeContactFormToNdef() {
+                            // Single record call.
+                            // writeContactArrayTag will write a contact array as the payload.
+                            var record = contactFormToNdefRecord();
+                            writeContactTag(record);
+                        }
                         </script>
                         <br/>
-                        <button onclick="writeContactTag('#nfc_contact_form_id');">Write Contact Tag</button>
+                        <button onclick="writeContactFormToNdef();">Write Contact Tag</button>
                     </div>
                 </div>
             </div>
