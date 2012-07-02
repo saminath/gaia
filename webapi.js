@@ -178,11 +178,11 @@
 
   /** fake network list, where each network object looks like:
     * {
-    *   ssid         : SSID string (human-readable name)
-    *   bssid        : network identifier string
-    *   capabilities : array of strings (supported authentication methods)
-    *   signal       : 0-100 signal level (integer)
-    *   connected    : boolean state
+    *   ssid              : SSID string (human-readable name)
+    *   bssid             : network identifier string
+    *   capabilities      : array of strings (supported authentication methods)
+    *   relSignalStrength : 0-100 signal level (integer)
+    *   connected         : boolean state
     * }
     */
   var fakeNetworks = {
@@ -190,28 +190,28 @@
       ssid: 'Mozilla-G',
       bssid: 'xx:xx:xx:xx:xx:xx',
       capabilities: ['WPA-EAP'],
-      signal: 67,
+      relSignalStrength: 67,
       connected: false
     },
     'Livebox 6752': {
       ssid: 'Livebox 6752',
       bssid: 'xx:xx:xx:xx:xx:xx',
       capabilities: ['WEP'],
-      signal: 32,
+      relSignalStrength: 32,
       connected: false
     },
     'Mozilla Guest': {
       ssid: 'Mozilla Guest',
       bssid: 'xx:xx:xx:xx:xx:xx',
       capabilities: [],
-      signal: 98,
+      relSignalStrength: 98,
       connected: false
     },
     'Freebox 8953': {
       ssid: 'Freebox 8953',
       bssid: 'xx:xx:xx:xx:xx:xx',
       capabilities: ['WPA2-PSK'],
-      signal: 89,
+      relSignalStrength: 89,
       connected: false
     }
   };
@@ -364,8 +364,7 @@
    */
 
   function parseResource(href, lang, successCallback, failureCallback) {
-    var baseURL = (href.substr(0, 4) === 'http') ?
-        href.replace(/\/[^\/]*$/, '/') : '';
+    var baseURL = href.replace(/\/[^\/]*$/, '/');
 
     // handle escaped characters (backslashes) in a string
     function evalString(text) {
@@ -498,11 +497,16 @@
   // load and parse all resources for the specified locale
   function loadLocale(lang, callback) {
     clear();
+    gLanguage = lang;
 
     // check all <link type="application/l10n" href="..." /> nodes
     // and load the resource files
     var langLinks = getL10nResourceLinks();
     var langCount = langLinks.length;
+    if (langCount == 0) {
+      fireL10nReadyEvent(lang);
+      return;
+    }
 
     // start the callback when all resources are loaded
     var onResourceLoaded = null;
@@ -512,7 +516,7 @@
       if (gResourceCount >= langCount) {
         if (callback) // execute the [optional] callback
           callback();
-        fireL10nReadyEvent(lang); // fire a 'localized' DOM event
+        fireL10nReadyEvent(lang);
       }
     };
 
@@ -530,7 +534,6 @@
       };
     }
 
-    gLanguage = lang;
     for (var i = 0; i < langCount; i++) {
       var resource = new l10nResourceLink(langLinks[i]);
       var rv = resource.load(lang, onResourceLoaded);
@@ -1146,9 +1149,12 @@
   // Public API
   navigator.mozL10n = {
     // get a localized string
-    get: function(key, args, fallback) {
+    get: function l10n_get(key, args, fallback) {
       var data = getL10nData(key, args) || fallback;
-      return data ? data.textContent : '{{' + key + '}}';
+      if (data) {
+        return 'textContent' in data ? data.textContent : '';
+      }
+      return '{{' + key + '}}';
     },
 
     // get|set the document language and direction

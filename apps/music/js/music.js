@@ -133,7 +133,16 @@ var TitleBar = {
         if (!target)
           return;
 
-        changeMode(MODE_PLAYER);
+        switch (target.id) {
+          case 'title-back':
+            changeMode(MODE_LIST);
+
+            break;
+          case 'title-text':
+            changeMode(MODE_PLAYER);
+
+            break;
+        }
 
         break;
 
@@ -196,7 +205,8 @@ var ListView = {
   },
 
   updateList: function lv_updateList(songData) {
-    var songTitle = (songData.title) ? songData.title : 'Unknown';
+    var songTitle = (songData.title) ? songData.title :
+        navigator.mozL10n.get('unknownTitle');
 
     var li = document.createElement('li');
     li.className = 'song';
@@ -262,8 +272,12 @@ var PlayerView = {
   },
 
   init: function pv_init() {
-    this.title = document.getElementById('player-cover-title');
     this.artist = document.getElementById('player-cover-artist');
+    this.album = document.getElementById('player-cover-album');
+
+    this.timeoutID;
+    this.caption = document.getElementById('player-cover-caption');
+    this.coverControl = document.getElementById('player-cover-buttons');
 
     this.seekBar = document.getElementById('player-seek-bar-progress');
     this.seekElapsed = document.getElementById('player-seek-elapsed');
@@ -285,15 +299,49 @@ var PlayerView = {
     this.audio.addEventListener('timeupdate', this);
   },
 
+  // This function is for the animation on the album art (cover).
+  // The info (album, artist) will initially show up when a song being played,
+  // if users does not tap the album art (cover) again,
+  // then it will be disappeared after 5 seconds
+  // however, if a user taps before 5 seconds ends,
+  // then the timeout will be cleared to keep the info on screen.
+  showInfo: function pv_showInfo() {
+    this.caption.classList.remove('resetSilde');
+    this.caption.classList.add('slideDown');
+
+    this.coverControl.classList.remove('resetSilde');
+    this.coverControl.classList.add('slideUp');
+
+    if (this.timeoutID)
+      window.clearTimeout(this.timeoutID);
+
+    this.timeoutID = window.setTimeout(
+      function pv_hideInfo() {
+        this.caption.classList.remove('slideDown');
+        this.caption.classList.add('resetSilde');
+
+        this.coverControl.classList.remove('slideUp');
+        this.coverControl.classList.add('resetSilde');
+      }.bind(this),
+      5000
+    );
+  },
+
   play: function pv_play(target) {
     this.isPlaying = true;
+
+    this.showInfo();
 
     if (target) {
       var targetIndex = parseInt(target.dataset.index);
       var songData = songs[targetIndex];
 
-      this.title.textContent = (songData.title) ? songData.title : 'Unknown';
-      this.artist.textContent = (songData.artist) ? songData.artist : 'Unknown';
+      TitleBar.changeTitleText((songData.title) ?
+        songData.title : navigator.mozL10n.get('unknownTitle'));
+      this.artist.textContent = (songData.artist) ?
+        songData.artist : navigator.mozL10n.get('unknownArtist');
+      this.album.textContent = (songData.album) ?
+        songData.album : navigator.mozL10n.get('unknownAlbum');
       this.currentIndex = targetIndex;
 
       // An object URL must be released by calling window.URL.revokeObjectURL()
@@ -309,12 +357,18 @@ var PlayerView = {
           this.playingFormat = evt.target.result.name.slice(-4);
 
           this.audio.src = window.URL.createObjectURL(evt.target.result);
+
+          // when play a new song, reset the seekBar first
+          // this can prevent showing wrong duration
+          // due to b2g cannot get some mp3's duration
+          // and the seekBar can still show 00:00 to -00:00
+          this.setSeekBar(0, 0, 0);
         }.bind(this);
     } else {
       this.audio.play();
     }
 
-    this.playControl.textContent = 'Pause';
+    this.playControl.innerHTML = '||';
   },
 
   pause: function pv_pause() {
@@ -322,7 +376,7 @@ var PlayerView = {
 
     this.audio.pause();
 
-    this.playControl.textContent = 'Play';
+    this.playControl.innerHTML = '&#9654;';
   },
 
   next: function pv_next() {
@@ -347,6 +401,12 @@ var PlayerView = {
     this.play(songElements[this.currentIndex].firstElementChild);
   },
 
+  updateSeekBar: function pv_updateSeekBar() {
+    if (this.isPlaying) {
+      this.seekAudio();
+    }
+  },
+
   seekAudio: function pv_seekAudio(seekTime) {
     if (seekTime)
       this.audio.currentTime = seekTime;
@@ -361,23 +421,21 @@ var PlayerView = {
     var originalEndTime =
       this.audio.buffered.end(this.audio.buffered.length - 1);
     var endTime = (originalEndTime > 1000000) ?
-      originalEndTime / 1000000 :
+      Math.floor(originalEndTime / 1000000) :
       originalEndTime;
 
     var currentTime = this.audio.currentTime;
 
+    this.setSeekBar(startTime, endTime, currentTime);
+  },
+
+  setSeekBar: function pv_setSeekBar(startTime, endTime, currentTime) {
     this.seekBar.min = startTime;
     this.seekBar.max = endTime;
     this.seekBar.value = currentTime;
 
     this.seekElapsed.textContent = formatTime(currentTime);
     this.seekRemaining.textContent = '-' + formatTime(endTime - currentTime);
-  },
-
-  updateSeekBar: function pv_updateSeekBar() {
-    if (this.isPlaying) {
-      this.seekAudio();
-    }
   },
 
   handleEvent: function pv_handleEvent(evt) {
@@ -388,6 +446,11 @@ var PlayerView = {
     switch (evt.type) {
       case 'click':
         switch (target.id) {
+          case 'player-cover-image':
+            this.showInfo();
+
+            break;
+
           case 'player-seek-bar-progress':
             // target is the seek bar, and evt.layerX is the clicked position
             var seekTime = evt.layerX / target.clientWidth * target.max;

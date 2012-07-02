@@ -279,6 +279,7 @@ var ConversationListView = {
 
   updateConversationList: function cl_updateCL(pendingMsg) {
     var self = this;
+    this._lastHeader = undefined;
     /*
       TODO: Conversation list is always order by contact family names
       not the timestamp.
@@ -302,47 +303,24 @@ var ConversationListView = {
 
         var read = message.read;
         var conversation = conversations[num];
-        if (conversation && !conversation.hidden) {
+        if (conversation) {
           conversation.unreadCount += !read ? 1 : 0;
           continue;
         }
 
-        if (!conversation) {
-          conversations[num] = {
-            'hidden': false,
-            'body': message.body,
-            'name': num,
-            'num': num,
-            'timestamp': message.timestamp.getTime(),
-            'unreadCount': !read ? 1 : 0,
-            'id': i
-          };
-        } else {
-          conversation.hidden = false;
-          conversation.timestamp = message.timestamp.getTime();
-          conversation.body = message.body;
-        }
+        conversations[num] = {
+          'body': message.body,
+          'name': num,
+          'num': num,
+          'timestamp': message.timestamp.getTime(),
+          'unreadCount': !read ? 1 : 0,
+          'id': i
+        };
       }
 
       var fragment = '';
-      var orderedConversations = [];
       for (var num in conversations) {
-        /*
-          Push an array containing [timestamp, conversation]
-          so we can order the list by timestamp.
-        */
-        orderedConversations.push([conversations[num].timestamp,
-                                  conversations[num]]);
-      }
-
-      orderedConversations.sort(function sortByTimestamp(a, b) {
-        return b[0] - a[0];
-      });
-
-      // Now we have the ordered conversations
-      var conversation;
-      for (var i in orderedConversations) {
-        conversation = orderedConversations[i][1];
+        conversation = conversations[num];
         if (self.delNumList.indexOf(conversation.num) > -1) {
           continue;
         }
@@ -371,8 +349,9 @@ var ConversationListView = {
     var patterns = text.match(searchRegExp);
     var str = '';
     for (var i = 0; i < patterns.length; i++) {
-      str = str + escapeHTML(sliceStrs[i]) + '<span class="highlight">' +
-                  escapeHTML(patterns[i]) + '</span>';
+      str = str +
+          escapeHTML(sliceStrs[i]) + '<span class="highlight">' +
+          escapeHTML(patterns[i]) + '</span>';
     }
     str += escapeHTML(sliceStrs.pop());
     return str;
@@ -384,25 +363,23 @@ var ConversationListView = {
     var bodyText = conversation.body.split('\n')[0];
     var bodyHTML = reg ? this.createHighlightHTML(bodyText, reg) :
                            escapeHTML(bodyText);
-    var listClass = '';
-    if (conversation.hidden) {
-      listClass = 'hide';
-    } else if (conversation.unreadCount > 0) {
-      listClass = 'unread';
-    }
 
     return '<a href="#num=' + conversation.num + '"' +
            ' data-num="' + conversation.num + '"' +
            ' data-name="' + dataName + '"' +
            ' data-notempty="' + (conversation.timestamp ? 'true' : '') + '"' +
-           ' class="' + listClass + '">' +
+           ' class="' + (conversation.unreadCount > 0 ? 'unread' : '') + '">' +
+           '<span class="unread-mark"><i class="i-unread-mark"></i></span>' +
            '<input type="checkbox" class="fake-checkbox"/>' + '<span></span>' +
            '  <div class="name">' + name + '</div>' +
-           '  <div class="msg">' + bodyHTML + '</div>' +
            (!conversation.timestamp ? '' :
-           '  <div class="time" data-time="' + conversation.timestamp + '">' +
-             prettyDate(conversation.timestamp) + '</div>') +
-           '<div class="unread-tag">' + conversation.unreadCount + '</div></a>';
+           '  <div class="time ' +
+           (conversation.unreadCount > 0 ? 'unread' : '') +
+           '  " data-time="' + conversation.timestamp + '">' +
+             giveHourMinute(conversation.timestamp) + '</div>') +
+           '  <div class="msg">"' + bodyHTML + '"</div>' +
+           '<div class="unread-tag"></div>' +
+           '<div class="photo"></div></a>';
   },
 
   // Adds a new grouping header if necessary (today, tomorrow, ...)
@@ -422,31 +399,8 @@ var ConversationListView = {
 
     this._lastHeader = conversation.timestamp;
 
-    var now = new Date();
-    // Build the today date starting a 00:00:00
-    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    var diff = today.getTime() - conversation.timestamp;
-    var day = 1000 * 60 * 60 * 24; //Miliseconds for a day
-
-    //TODO: Localize
-    var content;
-    if (diff <= 0) {
-      content = 'TODAY';
-    } else if (diff > 0 && diff < day * 2) {
-      content = 'YESTERDAY';
-    } else if (diff < 4 * day) {
-      var dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday',
-                       'Thursday', 'Friday', 'Saturday'];
-      content = dayOfWeek[new Date(conversation.timestamp).getDay()];
-    } else {
-      var date = new Date(conversation.timestamp);
-      return date.getFullYear() + '-' +
-             (date.getMonth() + 1) + '-' +
-             date.getDate();
-    }
-
-    return '<div class="groupHeader">' + content + '</div>';
-
+    return '<div class="groupHeader">' +
+      giveHeaderDate(conversation.timestamp) + '</div>';
   },
 
   searchConversations: function cl_searchConversations() {
@@ -713,7 +667,8 @@ var ConversationView = {
   },
 
   getNumFromHash: function cv_getNumFromHash() {
-    return (/\bnum=(.+)(&|$)/.exec(window.location.hash) || [])[1];
+    var num = /\bnum=(.+)(&|$)/.exec(window.location.hash);
+    return num ? num[1] : null;
   },
 
   scrollViewToBottom: function cv_scrollViewToBottom(animateFromPos) {
@@ -744,7 +699,7 @@ var ConversationView = {
     var newHeight = input.getBoundingClientRect().height;
     var bottomToolbarHeight = (newHeight + 32) + 'px';
     var bottomToolbar =
-      document.getElementById('view-bottom-toolbar');
+        document.getElementById('view-bottom-toolbar');
 
     bottomToolbar.style.height = bottomToolbarHeight;
 
@@ -753,6 +708,7 @@ var ConversationView = {
   },
 
   showConversation: function cv_showConversation(num, pendingMsg) {
+    delete ConversationListView._lastHeader;
     var self = this;
     var view = this.view;
     var bodyclassList = document.body.classList;
@@ -807,6 +763,14 @@ var ConversationView = {
     });
 
     MessageManager.getMessages(function mm_getMessages(messages) {
+      /** QUICK and dirty fix for the timestamp issues,
+       * it seems that API call does not give the messages ordered
+       * so we need to sort the array
+       */
+      messages.sort(function(a, b) {
+        return a.timestamp - b.timestamp;
+      });
+
       var lastMessage = messages[messages.length - 1];
       if (pendingMsg &&
           (!lastMessage || lastMessage.id !== pendingMsg.id))
@@ -817,42 +781,14 @@ var ConversationView = {
 
       for (var i = 0; i < messages.length; i++) {
         var msg = messages[i];
-
         if (!msg.read)
           unreadList.push(msg.id);
 
-        var dataId = msg.id; // uuid
+        // Add a grouping header if necessary
+        var header = ConversationListView.createNewHeader(msg) || '';
+        fragment += header;
 
-        var outgoing = (msg.delivery == 'sent' || msg.delivery == 'sending');
-        var num = outgoing ? msg.receiver : msg.sender;
-        var dataNum = num;
-
-        var className = (outgoing ? 'receiver' : 'sender') + '"';
-        if (msg.delivery == 'sending')
-          className = 'receiver pending"';
-
-        var pic = 'style/images/contact-placeholder.png';
-
-        //Split body in different lines if the sms contains \n
-        var msgLines = msg.body.split('\n');
-        //Apply the escapeHTML body to each line
-        msgLines.forEach(function(line, index) {
-          msgLines[index] = escapeHTML(line);
-        });
-        //Join them back with <br />
-        var body = msgLines.join('<br />');
-        var timestamp = msg.timestamp.getTime();
-
-        fragment += '<div class="message-block" ' + 'data-num="' + dataNum +
-                    '" data-id="' + dataId + '">' +
-                    '  <input type="checkbox" class="fake-checkbox"/>' +
-                    '  <span></span>' +
-                    '  <div class="message-container ' + className + '>' +
-                    '    <div class="text">' + body + '</div>' +
-                    '    <div class="time" data-time="' + timestamp + '">' +
-                    prettyDate(msg.timestamp) + '</div>' +
-                    '  </div>' +
-                    '</div>';
+        fragment += self.createMessageThread(msg);
       }
 
       view.innerHTML = fragment;
@@ -867,17 +803,54 @@ var ConversationView = {
     }, filter, true);
   },
 
+  createMessageThread: function cv_createMessageThread(message) {
+    var dataId = message.id; // uuid
+    var outgoing = (message.delivery == 'sent' ||
+      message.delivery == 'sending');
+    var num = outgoing ? message.sender : message.receiver;
+    var dataNum = num;
+
+    var className = (outgoing ? 'sender' : 'receiver') + '"';
+    if (message.delivery == 'sending')
+      className = 'sender pending"';
+
+    var pic = 'style/images/contact-placeholder.png';
+
+    //Split body in different lines if the sms contains \n
+    var msgLines = message.body.split('\n');
+    //Apply the escapeHTML body to each line
+    msgLines.forEach(function(line, index) {
+      msgLines[index] = escapeHTML(line);
+    });
+    //Join them back with <br />
+    var body = msgLines.join('<br />');
+    var timestamp = message.timestamp.getTime();
+
+    return '<div class="message-block" ' + 'data-num="' + dataNum +
+           '" data-id="' + dataId + '">' +
+           '  <input type="checkbox" class="fake-checkbox"/>' +
+           '  <span></span>' +
+           '  <div class="message-container ' + className + '>' +
+           '    <div class="message-bubble"></div>' +
+           '    <div class="time" data-time="' + timestamp + '">' +
+                giveHourMinute(message.timestamp) +
+           '    </div>' +
+           '    <div class="text">' + body + '</div>' +
+           '  </div>' +
+           '</div>';
+  },
+
   deleteMessage: function cv_deleteMessage(messageId) {
     if (!messageId)
       return;
 
     MessageManager.deleteMessage(messageId, function(result) {
-        if (result) {
-          console.log('Message id: ' + messageId + ' deleted');
-        } else {
-          console.log('Impossible to delete message ID=' + messageId);
-        }
-      });
+      if (result) {
+        console.log('Message id: ' + messageId + ' deleted');
+      } else {
+        console.log('Impossible to delete message ID=' + messageId);
+      }
+    });
   },
 
   deleteMessages: function cv_deleteMessages() {
@@ -919,9 +892,9 @@ var ConversationView = {
 
       case 'received':
         var msg = evt.message;
-
-        if (this.filter)
+        if (this.filter && this.filter == msg.sender) {
           this.showConversation(ConversationView.filter, msg);
+        }
         break;
 
       case 'transitionend':
@@ -942,6 +915,7 @@ var ConversationView = {
 
         this.showConversation(num);
         break;
+
       case 'resize':
         if (!document.body.classList.contains('conversation'))
           return;
@@ -959,7 +933,7 @@ var ConversationView = {
         if (num) {
           this.showConversation(num);
         }
-      break;
+        break;
 
       case 'click':
         var targetIsMessage = ~evt.target.className.indexOf('message');

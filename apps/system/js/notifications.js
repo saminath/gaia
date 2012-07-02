@@ -78,19 +78,21 @@ var NotificationScreen = {
         target = target.parentNode;
       }
 
-      self.removeNotification(target);
+      var notificationID = target.dataset.notificationID;
 
       var event = document.createEvent('CustomEvent');
       event.initCustomEvent('mozContentEvent', true, true, {
-        type: closing ?
-          'desktop-notification-close' : 'desktop-notification-click',
-        id: target.dataset.notificationID
+        type: 'desktop-notification-' + (closing ? 'close' : 'click'),
+        id: notificationID
       });
       window.dispatchEvent(event);
 
+      self.removeNotification(target);
+
       // And hide the Utility Tray
-      if (!closing)
-        UtilityTray.unlock();
+      if (!closing) {
+        UtilityTray.hide(true);
+      }
     });
   },
 
