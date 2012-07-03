@@ -11,7 +11,8 @@ function validateJson(message) {
 }
 
 function contactFormToNdefRecord() {
-    var record = new nsIDOMNfcNdefRecord();
+    var record = new MozNdefRecord();
+    //var record = new NdefRecord();
     
     // Globals
     record.tnf = $("#nfc_contact_tnf_id").val(); // nfc.flags_tnf; // From tag itself.
