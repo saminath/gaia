@@ -1,0 +1,20 @@
+{
+  "name": "NFC Demo",
+  "description": "NFC Demo",
+  "launch_path": "/nfc.html",
+  "permissions": [
+    "mozbrowser",
+    "telephony",
+    "contacts",
+    "power",
+    "mozApps"
+  ],
+  "developer": {
+    "name": "Deutsche Telekom",
+    "url": "http://www.laboratories.telekom.com"
+  },
+  "icons": {
+    "120": "/style/icons/Nfc.png"
+  },
+  "default_locale": "en"
+}
