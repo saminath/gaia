@@ -292,6 +292,12 @@
             }
           }
 
+          function addTagLostListener() {
+            navigator.mozNfc.ontaglost = function(event) {
+              debug("Tag no longer in range: event:" + event.message);
+            }
+          }
+
           function debug(message) {
             console.log("DEBUG:" + message);
             $('#area').val($('#area').val()+message+"\n"); 
@@ -312,7 +318,7 @@
                 </a>
                 <ul data-role="listview" data-divider-theme="b" data-inset="true">
                     <li data-role="list-divider" role="heading">
-                    Status
+                        Status
                     </li>
                     <li data-theme="c" style="height: 100%">
                       <textarea id="area" placeholder="" style="width:100%; padding: 0; height: auto" rows="6" readonly="readonly" disabled="true"></textarea>
@@ -320,13 +326,13 @@
                 </ul>
                 <ul data-role="listview" data-divider-theme="b" data-inset="true" id="taglist" style="display: none;">
                     <li data-role="list-divider" role="heading">
-                    NdefMessage
+                        NdefMessage
                     </li>
                 </ul>
                 &nbsp;
                 <ul data-role="listview" data-divider-theme="b" data-inset="true" id="actionlist" style="display: none;">
                     <li data-role="list-divider" role="heading">
-                    Action
+                        Action
                     </li>
                 </ul>
             </div>
@@ -355,23 +361,23 @@
                         type="text" name="nfc_contact_payload_name_last" value=""/>
                     <br>
                     <label for="basic">Middle 1</label>
-                    <input id="nfc_contact_payload_name_middle_1_id" 
+                    <input id="nfc_contact_payload_name_middle_1_id"
                         type="text" name="nfc_contact_payload_name_middle_1" value=""/>
                     <br>
                     <label for="basic">Middle 2</label>
-                    <input id="nfc_contact_payload_name_middle_2_id" 
+                    <input id="nfc_contact_payload_name_middle_2_id"
                         type="text" name="nfc_contact_payload_name_middle_2" value=""/>
 
                     <label for="basic">FullName</label>
-                    <input id="nfc_contact_payload_name_fullname_id" 
+                    <input id="nfc_contact_payload_name_fullname_id"
                         type="text" name="nfc_contact_payload_name_fullname" value=""/>
 
                     <label for="basic">Telephone</label>
-                    <input id="nfc_contact_payload_telephone_id" 
+                    <input id="nfc_contact_payload_telephone_id"
                         type="text" name="nfc_contact_payload_telephone" value=""/>
 
                     <label for="basic">Mobile</label>
-                    <input id="nfc_contact_payload_mobile_id" 
+                    <input id="nfc_contact_payload_mobile_id"
                         type="text" name="nfc_contact_payload_mobile" value=""/>
 
                     <div>

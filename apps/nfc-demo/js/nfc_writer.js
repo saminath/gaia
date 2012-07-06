@@ -12,7 +12,6 @@ function validateJson(message) {
 
 function contactFormToNdefRecord() {
     var record = new MozNdefRecord();
-    //var record = new NdefRecord();
     
     // Globals
     record.tnf = $("#nfc_contact_tnf_id").val(); // nfc.flags_tnf; // From tag itself.
@@ -29,7 +28,11 @@ function contactFormToNdefRecord() {
     var telephone = $("#nfc_contact_payload_telephone_id").val();
     var mobile = $("#nfc_contact_payload_mobile_id").val();
 
-    console.log("FN: " + fname + " LN: " + lname + " MN1: " + mname1 + " MN2: " + mname2);
+    console.log("Form processing Results: " +
+                "FirstName: " + fname + " LastName: " + lname +
+                " MiddleName1: " + mname1 + " MiddleName2: " + mname2 +
+                " FullName: " + fullname + " Telephone: " + telephone +
+                " Mobile: " + mobile);
 
     // payload:
     var payload = "BEGIN:VCARD\n";
@@ -53,6 +56,12 @@ function contactFormToNdefRecord() {
 
     record.payload = payload;
 
+    // See if Moz object actually has values:
+    console.log("payload print(intended: " + payload + ")");
+    console.log("tnf(" + record.tnf + ")");
+    console.log("type(" + record.type + ")");
+    console.log("id(" + record.id + ")");
+    console.log("payload(" + record.payload + ")");
 
     return record;
 }
@@ -67,29 +76,11 @@ function writeContactTag(ndefRecord) {
 
 function writeContactArrayTag(ndefRecords) {
 
-    if (!ndefRecords) {
+    if (ndefRecords == null) {
         return;
     }
-
-    // Create JSON record
-    var jsonRecordStr = JSON.stringify(records);
-    var prefix = '{"type": "ndefDiscovered", "content": ';
-    var suffix = "}";
-    jsonRecordStr = prefix + jsonRecords + suffix;
-    var jsonRecords = JSON.parse(jsonRecordStr);
-
-    console.log("JSON record before encode: <" + JSON.stringify(jsonRecords) + ">");
-    // encode applicable fields for transport (TODO: move this code to NdefWrite)
-    for (i = 0; i < jsonRecords.length; i++) {
-        jsonRecords[i].type += window.btoa(jsonRecords[i].type);
-        jsonRecords[i].id += window.btoa(jsonRecords[i].id);
-        jsonRecords[i].payload += window.btoa(jsonRecords[i].payload);
-    }
-
-    jsonRecordStr = JSON.stringify(jsonRecords);
-    console.log("JSON record after encode: <" + jsonRecordStr + ">");
-
-    NdefWrite(jsonRecordStr);
+    navigator.mozNfc.writeNdefTag(ndefRecords);
+    console.log("Returned from writeNdefTag call");
 }
 
 function writeURLTag() {
@@ -98,3 +89,4 @@ function writeURLTag() {
 function createNfcTagList(targetId) {
     $(targetId).append();
 }
+
