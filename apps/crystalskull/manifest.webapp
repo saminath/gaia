@@ -11,6 +11,10 @@
       "name": "CrystalSkull",
       "description": " WebGL \u0639\u0631\u0636"
     },
+    "ca": {
+      "name": "CrystalSkull",
+      "description": "Demo de WebGL"
+    },
     "de": {
       "name": "CrystalSkull",
       "description": "WebGL Demo"
@@ -53,7 +57,6 @@
     }
   },
   "default_locale": "en-US",
-  "hackKillMe": true,
   "icons": {
     "120": "/style/icons/Crystalskull.png",
     "60": "/style/icons/60/Crystalskull.png"

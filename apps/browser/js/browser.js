@@ -19,6 +19,8 @@ var Browser = {
   TABS_SCREEN: 'tabs-screen',
   AWESOME_SCREEN: 'awesome-screen',
 
+  DEFAULT_FAVICON: 'style/images/favicon.png',
+
   urlButtonMode: null,
 
   init: function browser_init() {
@@ -32,6 +34,7 @@ var Browser = {
     this.history = document.getElementById('history');
     this.backButton = document.getElementById('back-button');
     this.forwardButton = document.getElementById('forward-button');
+    this.sslIndicator = document.getElementById('ssl-indicator');
 
     this.tabsBadge = document.getElementById('tabs-badge');
     this.throbber = document.getElementById('throbber');
@@ -162,6 +165,15 @@ var Browser = {
             }
           }).bind(this);
         }
+
+        // If no icon URL found yet, try loading from default location
+        if (!tab.iconUrl) {
+          var a = document.createElement('a');
+          a.href = tab.url;
+          var iconUrl = a.protocol + '//' + a.hostname + '/' + 'favicon.ico';
+          GlobalHistory.setAndLoadIconForPage(tab.url, iconUrl);
+        }
+
         break;
 
       case 'mozbrowserlocationchange':
@@ -193,14 +205,19 @@ var Browser = {
       case 'mozbrowsericonchange':
         if (evt.detail && evt.detail != tab.iconUrl) {
           tab.iconUrl = evt.detail;
-          this.getIcon(tab.iconUrl, function(icon) {
-            GlobalHistory.setPageIcon(tab.url, icon);
-          });
+          GlobalHistory.setAndLoadIconForPage(tab.url, tab.iconUrl);
         }
         break;
 
       case 'mozbrowsercontextmenu':
         this.showContextMenu(evt);
+        break;
+
+      case 'mozbrowsersecuritychange':
+        tab.security = evt.detail;
+        if (isCurrentTab) {
+          this.updateSecurityIcon();
+        }
         break;
       }
     }).bind(this);
@@ -224,17 +241,12 @@ var Browser = {
     }
   },
 
-  getIcon: function browser_getIcon(iconUrl, callback) {
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', iconUrl, true);
-    xhr.responseType = 'blob';
-    xhr.addEventListener('load', function() {
-      if (xhr.status === 200) {
-        var blob = xhr.response;
-        callback(blob);
-      }
-    }, false);
-    xhr.send();
+  updateSecurityIcon: function browser_updateSecurityIcon() {
+    if (!this.currentTab.security) {
+      this.sslIndicator.value = '';
+      return;
+    }
+    this.sslIndicator.value = this.currentTab.security.state;
   },
 
   navigate: function browser_navigate(url) {
@@ -365,11 +377,31 @@ var Browser = {
   },
 
   drawHistoryEntry: function browser_drawHistoryEntry(visit) {
-      var li = document.createElement('li');
-      li.innerHTML = '<a href="' + visit.uri + '"><span>' +
-        (visit.title ? visit.title : visit.uri) +
-        '</span><small>' + visit.uri + '</small></a>';
-      this.history.lastChild.appendChild(li);
+    var entry = document.createElement('li');
+    var link = document.createElement('a');
+    var title = document.createElement('span');
+    var url = document.createElement('small');
+    link.href = visit.uri;
+    title.textContent = visit.title ? visit.title : visit.uri;
+    url.textContent = visit.uri;
+    link.appendChild(title);
+    link.appendChild(url);
+    entry.appendChild(link);
+    this.history.lastChild.appendChild(entry);
+
+    if (!visit.iconUri) {
+      link.style.backgroundImage = 'url(' + this.DEFAULT_FAVICON + ')';
+      return;
+    }
+
+    GlobalHistory.db.getIcon(visit.iconUri, (function(icon) {
+      if (icon && icon.failed != true && icon.data) {
+        var imgUrl = window.URL.createObjectURL(icon.data);
+        link.style.backgroundImage = 'url(' + imgUrl + ')';
+      } else {
+        link.style.backgroundImage = 'url(' + this.DEFAULT_FAVICON + ')';
+      }
+    }).bind(this));
   },
 
   drawHistoryHeading: function browser_drawHistoryHeading(threshold,
@@ -512,7 +544,8 @@ var Browser = {
   createTab: function browser_createTab(url) {
     var iframe = document.createElement('iframe');
     var browserEvents = ['loadstart', 'loadend', 'locationchange',
-                         'titlechange', 'iconchange', 'contextmenu'];
+                         'titlechange', 'iconchange', 'contextmenu',
+                         'securitychange'];
     iframe.mozbrowser = true;
     // FIXME: content shouldn't control this directly
     iframe.setAttribute('remote', 'true');
@@ -528,7 +561,8 @@ var Browser = {
       title: null,
       loading: false,
       session: new SessionHistory(),
-      screenshot: null
+      screenshot: null,
+      security: null
     };
 
     browserEvents.forEach(function attachBrowserEvent(type) {
@@ -572,6 +606,7 @@ var Browser = {
     if (this.currentTab.loading) {
       this.throbber.classList.add('loading');
     }
+    this.updateSecurityIcon();
     this.refreshButtons();
   },
 
@@ -589,7 +624,7 @@ var Browser = {
     GlobalHistory.getHistory(this.showGlobalHistory.bind(this));
     this.urlInput.focus();
     this.setUrlButtonMode(this.GO);
-    this.tabsBadge.innerHTML = '×';
+    this.tabsBadge.innerHTML = '';
     this.switchScreen(this.AWESOME_SCREEN);
     this.tabCover.style.display = 'none';
   },
@@ -614,13 +649,13 @@ var Browser = {
     }
     this.switchScreen(this.PAGE_SCREEN);
     this.urlInput.value = this.currentTab.title || this.currentTab.url;
-    this.tabsBadge.innerHTML = Object.keys(this.tabs).length;
+    this.tabsBadge.innerHTML = Object.keys(this.tabs).length + '&#x203A;';
   },
 
   showTabScreen: function browser_showTabScreen() {
 
     this.hideCurrentTab();
-    this.tabsBadge.innerHTML = '+';
+    this.tabsBadge.innerHTML = '';
 
     this.tabCover.setAttribute('src', this.currentTab.screenshot);
     this.tabCover.style.display = 'block';
@@ -647,6 +682,9 @@ var Browser = {
       if (this.tabs[tab].screenshot) {
         img.setAttribute('src', this.tabs[tab].screenshot);
       }
+
+      if (this.tabs[tab] == this.currentTab)
+        li.classList.add('current');
     }
     this.tabsList.innerHTML = '';
     this.tabsList.appendChild(ul);
