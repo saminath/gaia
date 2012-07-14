@@ -71,16 +71,20 @@ function contactFormToNdefRecord() {
 function writeContactTag(ndefRecord) {
     var records =  new Array();
     records.push(ndefRecord);
-    writeContactArrayTag(records);
+    return writeContactArrayTag(records);
 }
 
+// Returns a request object. To observe the result, define and
+// attach callbacks taking an event to the request's onsuccess
+// and onerror.
 function writeContactArrayTag(ndefRecords) {
 
     if (ndefRecords == null) {
         return;
     }
-    navigator.mozNfc.writeNdefTag(ndefRecords);
+    var req = navigator.mozNfc.writeNdefTag(ndefRecords);
     console.log("Returned from writeNdefTag call");
+    return req;
 }
 
 function writeURLTag() {

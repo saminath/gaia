@@ -29,6 +29,7 @@
                 $("#buttontext").text("Stop Tag Discovery");
                 isListening = true;
                 addNdefListener();
+                addTagLostListener();
               } else {
                 $("#buttontext").text("Start Tag Discovery");
                 $("#taglist").css("display", "none");
@@ -288,13 +289,8 @@
 
           function addTagLostListener() {
 	    navigator.mozNfc.ontaglost = function(event) {
-              debug("Tag no longer in range: event:" + event.message);   
-            }
-          }
-
-          function addTagLostListener() {
-            navigator.mozNfc.ontaglost = function(event) {
-              debug("Tag no longer in range: event:" + event.message);
+              var content = event.message;
+              alert("Tag no longer in range: handle:" + content.handle + ", Explanation: " + content.message);   
             }
           }
 
@@ -391,7 +387,16 @@
                             // Single record call.
                             // writeContactArrayTag will write a contact array as the payload.
                             var record = contactFormToNdefRecord();
-                            writeContactTag(record);
+                            var pending = writeContactTag(record);
+                            if (pending != null) {
+                            pending.onsuccess = function() {
+                                alert("Ndef Write Successful: " + this.result);
+                            }
+                            pending.onerror = function() {
+                                alert("Error writing tag: " + this.error.name);
+                            }
+                            }
+                            // TODO: pending.readyState to get ongoing result
                         }
                         </script>
                         <br/>
