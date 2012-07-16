@@ -393,6 +393,7 @@
                                 alert("Ndef Write Successful: " + this.result);
                             }
                             pending.onerror = function() {
+                                alert("Error writing tag, result: " + this.result);
                                 alert("Error writing tag: " + this.error.name);
                             }
                             }
