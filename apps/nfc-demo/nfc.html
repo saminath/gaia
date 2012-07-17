@@ -289,8 +289,11 @@
 
           function addTagLostListener() {
 	    navigator.mozNfc.ontaglost = function(event) {
-              var content = event.message;
-              alert("Tag no longer in range: handle:" + content.handle + ", Explanation: " + content.message);   
+              var messageType = event.ndefRecords.type;
+              var content = event.ndefRecords.content;
+              if (messageType == "tagLost") {
+                alert("Tag no longer in range. Tag handleId: " + content.handleId);
+              }
             }
           }
 
@@ -390,11 +393,13 @@
                             var pending = writeContactTag(record);
                             if (pending != null) {
                             pending.onsuccess = function() {
-                                alert("Ndef Write Successful: " + this.result);
+                                var msg = this.result;
+                                alert("Ndef Write Successful. RequestId: " + msg.requestId + ", Result: " + msg.status);
                             }
                             pending.onerror = function() {
-                                alert("Error writing tag, result: " + this.result);
-                                alert("Error writing tag: " + this.error.name);
+                                var msg = this.result;
+                                alert("Error writing tag. RequestId: " + msg.requestId + ", Result: " + msg.status);
+                                alert("Error Text: " + this.error.message);
                             }
                             }
                             // TODO: pending.readyState to get ongoing result
