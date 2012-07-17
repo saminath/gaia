@@ -228,8 +228,8 @@
 
               var html ='<li data-role="list-divider" role="heading">NDEF Tag</li>';
 
-              for (var i = 0; i < event.ndefRecords.length; i++) {
-                var record = event.ndefRecords[i];
+              for (var i = 0; i < event.ndefMessages.length; i++) {
+                var record = event.ndefMessages[i];
                 console.log("RECORD: " + JSON.stringify(record));
 
                 //Dump generic data
@@ -289,8 +289,8 @@
 
           function addTagLostListener() {
 	    navigator.mozNfc.ontaglost = function(event) {
-              var messageType = event.ndefRecords.type;
-              var content = event.ndefRecords.content;
+              var messageType = event.ndefMessages.type;
+              var content = event.ndefMessages.content;
               if (messageType == "tagLost") {
                 alert("Tag no longer in range. Tag handleId: " + content.handleId);
               }
