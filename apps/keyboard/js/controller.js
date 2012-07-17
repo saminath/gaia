@@ -369,7 +369,7 @@ const IMEController = (function() {
   function _notifyShowKeyboard(show) {
 
     var message = {
-      action: (show == true) ? 'showKeyboard' : 'hideKeyboard'
+      action: show ? 'showKeyboard' : 'hideKeyboard'
     };
 
     parent.postMessage(JSON.stringify(message), '*');
@@ -1028,6 +1028,7 @@ const IMEController = (function() {
     hideIME: function kc_hideIME(imminent) {
       IMERender.ime.classList.add('hide');
       IMERender.hideIME(imminent);
+      _reset();
     },
 
     // Controlled by IMEManager, i.e. when orientation change

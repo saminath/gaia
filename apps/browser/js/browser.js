@@ -1,5 +1,7 @@
 'use strict';
 
+var _ = navigator.mozL10n.get;
+
 var Browser = {
 
   currentTab: null,
@@ -31,7 +33,12 @@ var Browser = {
     this.urlButton = document.getElementById('url-button');
     this.content = document.getElementById('browser-content');
     this.awesomescreen = document.getElementById('awesomescreen');
+    this.topSites = document.getElementById('top-sites');
+    this.bookmarks = document.getElementById('bookmarks');
     this.history = document.getElementById('history');
+    this.topSitesTab = document.getElementById('top-sites-tab');
+    this.bookmarksTab = document.getElementById('bookmarks-tab');
+    this.historyTab = document.getElementById('history-tab');
     this.backButton = document.getElementById('back-button');
     this.forwardButton = document.getElementById('forward-button');
     this.bookmarkButton = document.getElementById('bookmark-button');
@@ -54,9 +61,16 @@ var Browser = {
     this.forwardButton.addEventListener('click', this.goForward.bind(this));
     this.bookmarkButton.addEventListener('click', this.bookmark.bind(this));
     this.urlInput.addEventListener('focus', this.urlFocus.bind(this));
+    this.topSites.addEventListener('click', this.followLink.bind(this));
+    this.bookmarks.addEventListener('click', this.followLink.bind(this));
     this.history.addEventListener('click', this.followLink.bind(this));
     this.tabsBadge.addEventListener('click',
       this.handleTabsBadgeClicked.bind(this));
+    this.topSitesTab.addEventListener('click',
+      this.showTopSitesTab.bind(this));
+    this.bookmarksTab.addEventListener('click',
+      this.showBookmarksTab.bind(this));
+    this.historyTab.addEventListener('click', this.showHistoryTab.bind(this));
 
     this.tabsSwipeMngr.browser = this;
     ['mousedown', 'pan', 'tap', 'swipe'].forEach(function(evt) {
@@ -110,8 +124,10 @@ var Browser = {
   handleTabsBadgeClicked: function browser_handleTabsBadgeClicked() {
     if (this.currentScreen === this.TABS_SCREEN) {
       var tabId = this.createTab();
-      this.selectTab(tabId);
-      this.showAwesomeScreen();
+      this.showNewTabAnimation((function browser_showNewTabAnimation() {
+        this.selectTab(tabId);
+        this.showAwesomeScreen();
+      }).bind(this));
       return;
     }
     if (this.currentScreen === this.AWESOME_SCREEN &&
@@ -138,7 +154,7 @@ var Browser = {
           return;
         }
         tab.loading = true;
-        if (isCurrentTab) {
+        if (isCurrentTab && this.currentScreen === this.PAGE_SCREEN) {
           this.throbber.classList.add('loading');
           this.setUrlButtonMode(this.STOP);
         }
@@ -151,9 +167,9 @@ var Browser = {
           return;
         }
         tab.loading = false;
-        if (isCurrentTab) {
+        if (isCurrentTab && this.currentScreen === this.PAGE_SCREEN) {
           this.throbber.classList.remove('loading');
-          this.urlInput.value = tab.title;
+          this.urlInput.value = tab.title || tab.url;
           this.setUrlButtonMode(this.REFRESH);
         }
 
@@ -188,7 +204,9 @@ var Browser = {
         tab.url = evt.detail;
         this.updateHistory(evt.detail);
         if (isCurrentTab) {
-          this.urlInput.value = tab.url;
+          if (this.currentScreen === this.PAGE_SCREEN) {
+            this.urlInput.value = tab.url;
+          }
         }
         break;
 
@@ -196,7 +214,8 @@ var Browser = {
         if (evt.detail) {
           tab.title = evt.detail;
           Places.setPageTitle(tab.url, tab.title);
-          if (isCurrentTab && !tab.loading) {
+          if (isCurrentTab && !tab.loading &&
+              this.currentScreen === this.PAGE_SCREEN) {
             this.urlInput.value = tab.title;
           }
           // Refresh the tab screen if we are currently viewing it, for dynamic
@@ -408,6 +427,39 @@ var Browser = {
     }
   },
 
+  deselectAwesomescreenTabs: function browser_deselectAwesomescreenTabs() {
+    this.topSites.classList.remove('selected');
+    this.topSitesTab.classList.remove('selected');
+    this.bookmarks.classList.remove('selected');
+    this.bookmarksTab.classList.remove('selected');
+    this.history.classList.remove('selected');
+    this.historyTab.classList.remove('selected');
+  },
+
+  showTopSitesTab: function browser_showTopSitesTab() {
+    this.deselectAwesomescreenTabs();
+    this.topSitesTab.classList.add('selected');
+    this.topSites.classList.add('selected');
+    Places.getTopSites(this.showTopSites.bind(this));
+  },
+
+  showTopSites: function browser_showTopSites(topSites) {
+    this.topSites.innerHTML = '';
+    var list = document.createElement('ul');
+    list.setAttribute('role', 'listbox');
+    this.topSites.appendChild(list);
+    topSites.forEach(function browser_processTopSite(data) {
+      this.drawAwesomescreenListItem(list, data);
+    }, this);
+  },
+
+  showHistoryTab: function browser_showHistoryTab() {
+    this.deselectAwesomescreenTabs();
+    this.historyTab.classList.add('selected');
+    this.history.classList.add('selected');
+    Places.getHistory(this.showGlobalHistory.bind(this));
+  },
+
   showGlobalHistory: function browser_showGlobalHistory(visits) {
     this.history.innerHTML = '';
     var thresholds = [
@@ -422,27 +474,34 @@ var Browser = {
     var threshold = 0;
     var month = null;
     var year = null;
+    var urls = []; // List of URLs under each heading for de-duplication
 
     visits.forEach(function browser_processVisit(visit) {
-       var timestamp = visit.timestamp;
-       // Draw new heading if new threshold reached
-       if (timestamp > 0 && timestamp < thresholds[threshold]) {
-         threshold = this.incrementHistoryThreshold(timestamp, threshold,
-           thresholds);
-         // Special case for month headings
-         if (threshold != 5)
-           this.drawHistoryHeading(threshold);
-       }
-       if (threshold == 5) {
-         var timestampDate = new Date(timestamp);
-         if (timestampDate.getMonth() != month ||
-           timestampDate.getFullYear() != year) {
-           month = timestampDate.getMonth();
-           year = timestampDate.getFullYear();
-           this.drawHistoryHeading(threshold, timestamp);
-         }
+      var timestamp = visit.timestamp;
+      // Draw new heading if new threshold reached
+      if (timestamp > 0 && timestamp < thresholds[threshold]) {
+        urls = [];
+        threshold = this.incrementHistoryThreshold(timestamp, threshold,
+          thresholds);
+        // Special case for month headings
+        if (threshold != 5)
+          this.drawHistoryHeading(threshold);
       }
-      this.drawHistoryEntry(visit);
+      if (threshold == 5) {
+        var timestampDate = new Date(timestamp);
+        if (timestampDate.getMonth() != month ||
+          timestampDate.getFullYear() != year) {
+          urls = [];
+          month = timestampDate.getMonth();
+          year = timestampDate.getFullYear();
+          this.drawHistoryHeading(threshold, timestamp);
+        }
+      }
+      // If not a duplicate, draw list item & add to list
+      if (urls.indexOf(visit.uri) == -1) {
+        urls.push(visit.uri);
+        this.drawAwesomescreenListItem(this.history.lastChild, visit);
+      }
     }, this);
   },
 
@@ -455,25 +514,27 @@ var Browser = {
     return newThreshold;
   },
 
-  drawHistoryEntry: function browser_drawHistoryEntry(visit) {
+  drawAwesomescreenListItem: function browser_drawAwesomescreenListItem(list,
+    data) {
     var entry = document.createElement('li');
     var link = document.createElement('a');
     var title = document.createElement('span');
     var url = document.createElement('small');
-    link.href = visit.uri;
-    title.textContent = visit.title ? visit.title : visit.uri;
-    url.textContent = visit.uri;
+    entry.setAttribute('role', 'listitem');
+    link.href = data.uri;
+    title.textContent = data.title ? data.title : data.uri;
+    url.textContent = data.uri;
     link.appendChild(title);
     link.appendChild(url);
     entry.appendChild(link);
-    this.history.lastChild.appendChild(entry);
+    list.appendChild(entry);
 
-    if (!visit.iconUri) {
+    if (!data.iconUri) {
       link.style.backgroundImage = 'url(' + this.DEFAULT_FAVICON + ')';
       return;
     }
 
-    Places.db.getIcon(visit.iconUri, (function(icon) {
+    Places.db.getIcon(data.iconUri, (function(icon) {
       if (icon && icon.failed != true && icon.data) {
         var imgUrl = window.URL.createObjectURL(icon.data);
         link.style.backgroundImage = 'url(' + imgUrl + ')';
@@ -487,13 +548,13 @@ var Browser = {
     timestamp) {
     //TODO: localise
     const LABELS = [
-      'Future',
-      'Today',
-      'Yesterday',
-      'Last 7 Days',
-      'This Month',
-      'Last 6 Months',
-      'Older than 6 Months'
+      'future',
+      'today',
+      'yesterday',
+      'last-7-days',
+      'this-month',
+      'last-6-months',
+      'older-than-6-months'
     ];
 
     var text = '';
@@ -503,18 +564,36 @@ var Browser = {
     if (threshold == 5 && timestamp) {
       var date = new Date(timestamp);
       var now = new Date();
-      text = DateHelper.MONTHS[date.getMonth()];
+      text = _('month-' + date.getMonth());
       if (date.getFullYear() != now.getFullYear())
         text += ' ' + date.getFullYear();
     } else {
-      text = LABELS[threshold];
+      text = _(LABELS[threshold]);
     }
 
     var textNode = document.createTextNode(text);
-    h3.appendChild(textNode);
     var ul = document.createElement('ul');
+    ul.setAttribute('role', 'listbox');
+    h3.appendChild(textNode);
     this.history.appendChild(h3);
     this.history.appendChild(ul);
+  },
+
+  showBookmarksTab: function browser_showBookmarksTab() {
+    this.deselectAwesomescreenTabs();
+    this.bookmarksTab.classList.add('selected');
+    this.bookmarks.classList.add('selected');
+    Places.getBookmarks(this.showBookmarks.bind(this));
+  },
+
+  showBookmarks: function browser_showBookmarks(bookmarks) {
+    this.bookmarks.innerHTML = '';
+    var list = document.createElement('ul');
+    list.setAttribute('role', 'listbox');
+    this.bookmarks.appendChild(list);
+    bookmarks.forEach(function browser_processBookmark(data) {
+      this.drawAwesomescreenListItem(list, data);
+    }, this);
   },
 
   openInNewTab: function browser_openInNewTab(url) {
@@ -528,7 +607,7 @@ var Browser = {
       'A' : {
         'open_in_tab': {
           src: 'default',
-          label: 'Open link in New Tab',
+          label: _('open-in-new-tab'),
           selected: this.openInNewTab.bind(this)
         }
       }
@@ -680,6 +759,28 @@ var Browser = {
     }
   },
 
+  // Show a quick animation while creating a new tab to indicate
+  // that a new tab has been created
+  showNewTabAnimation: function browser_showNewTab(showTabCompleteFun) {
+    var ul = this.tabsList.childNodes[0];
+    var li = document.createElement('li');
+    li.innerHTML = '<a><img /><span>New Tab</span></a>';
+    li.style.height = '0px';
+    li.style.transition = 'height 0.2s ease-in';
+    ul.insertBefore(li, ul.childNodes[0]);
+
+    li.addEventListener('transitionend', function() {
+      // Pause so the user has time to see the new tab
+      setTimeout(showTabCompleteFun, 500);
+    });
+
+    // TODO: remove setTimeout
+    //   https://bugzilla.mozilla.org/show_bug.cgi?id=774642)
+    setTimeout(function() {
+      li.style.height = '';
+    }, 50);
+  },
+
   hideCurrentTab: function browser_hideCurrentTab() {
     var tab = this.currentTab;
     this.setTabVisibility(tab, false);
@@ -693,11 +794,6 @@ var Browser = {
     this.urlInput.value = this.currentTab.title;
     this.tabCover.setAttribute('src', this.currentTab.screenshot);
 
-    if (this.currentTab.loading) {
-      this.throbber.classList.add('loading');
-    } else {
-      this.throbber.classList.remove('loading');
-    }
     this.updateSecurityIcon();
     this.refreshButtons();
   },
@@ -713,12 +809,12 @@ var Browser = {
   },
 
   showAwesomeScreen: function browser_showAwesomeScreen() {
-    Places.getHistory(this.showGlobalHistory.bind(this));
     this.urlInput.focus();
     this.setUrlButtonMode(this.GO);
     this.tabsBadge.innerHTML = '';
     this.switchScreen(this.AWESOME_SCREEN);
     this.tabCover.style.display = 'none';
+    this.showTopSitesTab();
   },
 
   showPageScreen: function browser_showPageScreen() {
@@ -739,6 +835,16 @@ var Browser = {
     } else {
       this.setTabVisibility(this.currentTab, true);
     }
+
+    if (this.currentTab.loading) {
+      this.setUrlButtonMode(this.STOP);
+      this.throbber.classList.add('loading');
+    } else {
+      var urlButton = this.currentTab.url ? this.REFRESH : this.GO;
+      this.setUrlButtonMode(urlButton);
+      this.throbber.classList.remove('loading');
+    }
+
     this.switchScreen(this.PAGE_SCREEN);
     this.urlInput.value = this.currentTab.title || this.currentTab.url;
     this.updateTabsCount();
@@ -756,7 +862,7 @@ var Browser = {
     var ul = document.createElement('ul');
 
     for (var tab in this.tabs) {
-      var title = this.tabs[tab].title || this.tabs[tab].url || 'New Tab';
+      var title = this.tabs[tab].title || this.tabs[tab].url || _('new-tab');
       var a = document.createElement('a');
       var li = document.createElement('li');
       var span = document.createElement('span');

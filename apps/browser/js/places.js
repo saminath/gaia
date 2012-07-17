@@ -10,32 +10,31 @@ IDBTransaction.READ = IDBTransaction.READ || 'readonly';
 var Places = {
   DEFAULT_ICON_EXPIRATION: 86400000, // One day
 
-  init: function gh_init(callback) {
+  init: function places_init(callback) {
     this.db.open(callback);
   },
 
-  addPlace: function gh_addPlace(uri, callback) {
-    var place = {
-      uri: uri,
-      // Set the title to the URI for now, until a real title is received.
-      title: uri
-    };
-    this.db.getPlace(place.uri, (function(existingPlace) {
-      if (!existingPlace)
-        this.db.savePlace(place, callback);
-    }).bind(this));
+  addPlace: function places_addPlace(uri, callback) {
+    this.db.createPlace(uri, callback);
   },
 
-  addVisit: function gh_addVisit(uri, callback) {
-    this.addPlace(uri);
+  addVisit: function places_addVisit(uri, callback) {
     var visit = {
       uri: uri,
       timestamp: new Date().getTime()
     };
-    this.db.saveVisit(visit, callback);
+    this.addPlace(uri, (function() {
+      this.db.saveVisit(visit, (function() {
+        this.updateFrecency(uri, callback);
+      }).bind(this));
+    }).bind(this));
   },
 
-  addBookmark: function gh_addBookmark(uri, title, callback) {
+  updateFrecency: function places_updateFrecency(uri, callback) {
+    this.db.updatePlaceFrecency(uri, callback);
+  },
+
+  addBookmark: function places_addBookmark(uri, title, callback) {
     if (!title)
       title = uri;
     var bookmark = {
@@ -43,57 +42,32 @@ var Places = {
       title: title,
       timestamp: new Date().getTime()
     };
-    this.db.saveBookmark(bookmark, callback);
+    this.addPlace(uri, (function() {
+      this.db.saveBookmark(bookmark, callback);
+    }).bind(this));
   },
 
-  getBookmark: function gh_getBookmark(uri, callback) {
+  getBookmark: function places_getBookmark(uri, callback) {
     this.db.getBookmark(uri, callback);
   },
 
-  removeBookmark: function gh_removeBookmark(uri, callback) {
+  getBookmarks: function places_getBookmarks(callback) {
+    this.db.getAllBookmarks(callback);
+  },
+
+  removeBookmark: function places_removeBookmark(uri, callback) {
     this.db.deleteBookmark(uri, callback);
   },
 
-  setPageTitle: function gh_setPageTitle(uri, title, callback) {
-    this.db.getPlace(uri, (function(place) {
-      // If place already exists, just set title
-      if (place) {
-        place.title = title;
-      // otherwise create new place
-      } else {
-        place = {
-          uri: uri,
-          title: title
-        };
-      }
-      this.db.updatePlace(place, callback);
-    }).bind(this));
-
+  setPageTitle: function places_setPageTitle(uri, title, callback) {
+    this.db.updatePlaceTitle(uri, title, callback);
   },
 
-  setPageIconUri: function gh_setPageIconUri(uri, iconUri, callback) {
-    // Set icon URI for corresponding place URI
-    this.db.getPlace(uri, (function(place) {
-      // if place already exists, just set icon
-      if (place) {
-        place.iconUri = iconUri;
-      // otherwise create a new place
-      } else {
-        place = {
-          uri: uri,
-          title: uri,
-          iconUri: iconUri
-        };
-      }
-      if (callback) {
-        this.db.updatePlace(place, callback);
-      } else {
-        this.db.updatePlace(place);
-      }
-    }).bind(this));
+  setPageIconUri: function places_setPageIconUri(uri, iconUri, callback) {
+    this.db.updatePlaceIconUri(uri, iconUri, callback);
   },
 
-  setIconData: function gh_setIconData(iconUri, data, callback, failed) {
+  setIconData: function places_setIconData(iconUri, data, callback, failed) {
     var now = new Date().valueOf();
     var iconEntry = {
       uri: iconUri,
@@ -104,7 +78,7 @@ var Places = {
     this.db.saveIcon(iconEntry, callback);
   },
 
-  setAndLoadIconForPage: function gh_setAndLoadIconForPage(uri,
+  setAndLoadIconForPage: function places_setAndLoadIconForPage(uri,
     iconUri, callback) {
     this.setPageIconUri(uri, iconUri);
     // If icon is not already cached or has expired, load it
@@ -131,7 +105,12 @@ var Places = {
     }).bind(this));
   },
 
-  getHistory: function gh_getHistory(callback) {
+  getTopSites: function places_getTopSites(callback) {
+    // Get the top 20 sites
+    this.db.getPlacesByFrecency(20, callback);
+  },
+
+  getHistory: function places_getHistory(callback) {
     // Just get the most recent 20 for now
     this.db.getHistory(20, callback);
   }
@@ -142,7 +121,7 @@ Places.db = {
   _db: null,
 
   open: function db_open(callback) {
-    const DB_VERSION = 3;
+    const DB_VERSION = 4;
     const DB_NAME = 'browser';
     var request = idb.open(DB_NAME, DB_VERSION);
 
@@ -168,7 +147,10 @@ Places.db = {
     // Create or overwrite places object store
     if (db.objectStoreNames.contains('places'))
       db.deleteObjectStore('places');
-    db.createObjectStore('places', { keyPath: 'uri' });
+    var placesStore = db.createObjectStore('places', { keyPath: 'uri' });
+
+    // Index places by frecency
+    placesStore.createIndex('frecency', 'frecency', { unique: false });
 
     // Create or overwrite visits object store
     if (db.objectStoreNames.contains('visits'))
@@ -192,31 +174,41 @@ Places.db = {
     bookmarkStore.createIndex('timestamp', 'timestamp', { unique: false });
   },
 
-  savePlace: function db_savePlace(place, callback) {
+  createPlace: function db_createPlace(uri, callback) {
     var transaction = this._db.transaction(['places'],
       IDBTransaction.READ_WRITE);
-    transaction.onerror = function dbTransactionError(e) {
-      console.log('Transaction error while trying to save place: ' +
-        place.uri);
-    };
 
     var objectStore = transaction.objectStore('places');
+    var readRequest = objectStore.get(uri);
+    readRequest.onsuccess = function(event) {
+      var place = event.target.result;
+      if (place) {
+        if (callback)
+          callback();
+        return;
+      } else {
+        place = {
+          uri: uri,
+          title: uri,
+          frecency: 0
+        };
+      }
 
-    var request = objectStore.add(place);
+      var writeRequest = objectStore.add(place);
 
-    request.onsuccess = function onsuccess(e) {
-      if (callback)
-        callback();
+      writeRequest.onsuccess = function onsucess(event) {
+        if (callback)
+          callback();
+      };
+
+      writeRequest.onerror = function onerror(event) {
+        console.log('error writing place');
+      };
     };
 
-    request.onerror = function onerror(e) {
-      if (e.target.error.name == 'ConstraintError') {
-        e.preventDefault();
-      } else {
-        console.log(e.target.error.name +
-          ' error while adding place to global history store with URL ' +
-          place.uri);
-      }
+    transaction.onerror = function dbTransactionError(e) {
+      console.log('Transaction error while trying to save place ' +
+        uri);
     };
   },
 
@@ -301,6 +293,24 @@ Places.db = {
         cursor.continue();
       } else {
         callback(history);
+      }
+    };
+  },
+
+  getPlacesByFrecency: function db_getPlacesByFrecency(maximum, callback) {
+    var topSites = [];
+    var db = this._db;
+    var transaction = db.transaction('places');
+    var placesStore = transaction.objectStore('places');
+    var frecencyIndex = placesStore.index('frecency');
+    frecencyIndex.openCursor(null, IDBCursor.PREV).onsuccess = function(e) {
+      var cursor = e.target.result;
+      if (cursor && topSites.length < maximum) {
+        var place = cursor.value;
+        topSites.push(cursor.value);
+        cursor.continue();
+      } else {
+        callback(topSites);
       }
     };
   },
@@ -458,6 +468,149 @@ Places.db = {
 
     request.onerror = function onerror(e) {
       console.log('Error while deleting bookmark');
+    };
+  },
+
+  getAllBookmarks: function db_getAllBookmarks(callback) {
+    var bookmarks = [];
+    var db = this._db;
+
+    function makeBookmarkProcessor(bookmark) {
+      return function(e) {
+        var place = e.target.result;
+        bookmark.title = place.title;
+        bookmark.iconUri = place.iconUri;
+        bookmarks.push(bookmark);
+      };
+    }
+
+    var transaction = db.transaction(['bookmarks', 'places']);
+    var bookmarksStore = transaction.objectStore('bookmarks');
+    var placesStore = transaction.objectStore('places');
+    bookmarksStore.openCursor(null, IDBCursor.PREV).onsuccess = function(e) {
+      var cursor = e.target.result;
+      if (cursor) {
+        var bookmark = cursor.value;
+        placesStore.get(bookmark.uri).onsuccess =
+          makeBookmarkProcessor(bookmark);
+        cursor.continue();
+      }
+    };
+    transaction.oncomplete = function db_bookmarkTransactionComplete() {
+      callback(bookmarks);
+    };
+  },
+
+  updatePlaceFrecency: function db_updatePlaceFrecency(uri, callback) {
+    var transaction = this._db.transaction(['places'],
+      IDBTransaction.READ_WRITE);
+
+    var objectStore = transaction.objectStore('places');
+    var readRequest = objectStore.get(uri);
+
+    readRequest.onsuccess = function(event) {
+      var place = event.target.result;
+      if (!place)
+        return;
+
+      if (!place.frecency) {
+        place.frecency = 1;
+      } else {
+        // currently just frequency
+        place.frecency++;
+      }
+
+      var writeRequest = objectStore.put(place);
+
+      writeRequest.onerror = function() {
+        console.log('Error while saving new frecency for ' + uri);
+      };
+
+      writeRequest.onsuccess = function() {
+        if (callback)
+          callback();
+      };
+
+    };
+
+    transaction.onerror = function dbTransactionError(e) {
+      console.log('Transaction error while trying to update place: ' +
+        place.uri);
+    };
+  },
+
+  updatePlaceIconUri: function db_updatePlaceIconUri(uri, iconUri, callback) {
+    var transaction = this._db.transaction(['places'],
+      IDBTransaction.READ_WRITE);
+
+    var objectStore = transaction.objectStore('places');
+    var readRequest = objectStore.get(uri);
+
+    readRequest.onsuccess = function(event) {
+      var place = event.target.result;
+      if (place) {
+        place.iconUri = iconUri;
+      } else {
+        place = {
+          uri: uri,
+          title: uri,
+          iconUri: iconUri
+        };
+      }
+
+      var writeRequest = objectStore.put(place);
+
+      writeRequest.onerror = function() {
+        console.log('Error while saving iconUri for ' + uri);
+      };
+
+    };
+
+    transaction.onerror = function dbTransactionError(e) {
+      console.log('Transaction error while trying to save iconUri for ' +
+        place.uri);
+    };
+
+    transaction.onsuccess = function dbTransactionSuccess(e) {
+      if (callback)
+        callback();
+    };
+  },
+
+  updatePlaceTitle: function db_updatePlaceTitle(uri, title, callback) {
+    var transaction = this._db.transaction(['places'],
+      IDBTransaction.READ_WRITE);
+
+    var objectStore = transaction.objectStore('places');
+    var readRequest = objectStore.get(uri);
+
+    readRequest.onsuccess = function(event) {
+      var place = event.target.result;
+      if (place) {
+        place.title = title;
+      } else {
+        place = {
+          uri: uri,
+          title: title
+        };
+      }
+
+      var writeRequest = objectStore.put(place);
+
+      writeRequest.onerror = function() {
+        console.log('Error while saving title for ' + uri);
+      };
+
+      writeRequest.onsuccess = function() {
+        if (callback)
+          callback();
+      };
+
+    };
+
+    transaction.onerror = function dbTransactionError(e) {
+      console.log('Transaction error while trying to save title for ' +
+        place.uri);
     };
   }
 
