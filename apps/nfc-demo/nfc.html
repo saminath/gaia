@@ -16,6 +16,10 @@
         </script>
         <script src="js/nfc_consts.js">
         </script>
+        <script src="js/nfc_util.js">
+        </script>
+        <script src="js/nfc_writer.js">
+        </script>
         <script>
           var isListening = false;
 
@@ -25,6 +29,7 @@
                 $("#buttontext").text("Stop Tag Discovery");
                 isListening = true;
                 addNdefListener();
+                addTagLostListener();
               } else {
                 $("#buttontext").text("Start Tag Discovery");
                 $("#taglist").css("display", "none");
@@ -75,11 +80,11 @@
 
           function handleVCardRecord(record) {
             var name = record.payload.substring(record.payload.indexOf("FN:") + "FN:".length);
-            name = name.substring(0, name.indexOf("\r"));
+            name = name.substring(0, name.indexOf("\n"));
             var first = name.substring(0, name.indexOf(" "));
             var last = name.substring(name.indexOf(" ")+1);
             var cell = record.payload.substring(record.payload.indexOf("CELL:") + "CELL:".length);
-            cell = cell.substring(0, cell.indexOf("\r"));
+            cell = cell.substring(0, cell.indexOf("\n"));
             return {'action': 'Add to contacts', 'first': first, 'last': last, 'cell': cell  };
           }
 
@@ -214,6 +219,8 @@
 
           function addNdefListener() {
             debug("Starting Tag Discovery...");
+
+            // Ndef Discovery
             navigator.mozNfc.onndefdiscovered = function(event) {
               debug("Found tag!");
               $("#taglist").css("display", "inline");
@@ -221,8 +228,8 @@
 
               var html ='<li data-role="list-divider" role="heading">NDEF Tag</li>';
 
-              for (var i = 0; i < event.ndefRecords.length; i++) {
-                var record = event.ndefRecords[i];
+              for (var i = 0; i < event.ndefMessages.length; i++) {
+                var record = event.ndefMessages[i];
                 console.log("RECORD: " + JSON.stringify(record));
 
                 //Dump generic data
@@ -256,35 +263,47 @@
                   action +='<li data-role="list-divider" role="heading">Action: Open URI</li>';
                   action +='<li data-theme="c">';
                   action += handleURIRecord(record);
-                  action +='</li>';
-                } else if(record.tnf == nfc.tnf_mime_media) {
-                  if(record.type == "text/x-vCard") {
-                    action +='<li data-role="list-divider" role="heading">Action: Add to Contacts</li>';
-                    action +='<li data-theme="c">';
-                    action += getRecordActionText(record, handleVCardRecord(record));
-                    action +='</li>';
-                  }
-                }
-              }
+		  action +='</li>';
+		} else if(record.tnf == nfc.tnf_mime_media) {
+			if(record.type == "text/x-vCard") {
+				action +='<li data-role="list-divider" role="heading">Action: Add to Contacts</li>';
+				action +='<li data-theme="c">';
+				action += getRecordActionText(record, handleVCardRecord(record));
+				action +='</li>';
+			}
+		}
+	      }
 
-              $("#taglist").html(html);
-              $("#taglist").listview("refresh");
+	      $("#taglist").html(html);
+	      $("#taglist").listview("refresh");
 
-              $("#actionlist").html(action);
-              $("#actionlist").listview("refresh");
-            };
-          }
+	      $("#actionlist").html(action);
+	      $("#actionlist").listview("refresh");
+	    };
+	  }
 
           function removeNdefListener() {
-            debug("Stopping Tag Discovery...");
-            navigator.mozNfc.onndefdiscovered = null;
+	    debug("Stopping Tag Discovery...");
+	    navigator.mozNfc.onndefdiscovered = null;
+          }
+
+          function addTagLostListener() {
+	    navigator.mozNfc.ontaglost = function(event) {
+              var messageType = event.ndefMessages.type;
+              var content = event.ndefMessages.content;
+              if (messageType == "tagLost") {
+                var message = "Tag no longer in range. Tag HandleId: " + content.handleId;
+                console.log(message);
+                $('#area').val($('#area').val()+message+"\n");
+              }
+            }
           }
 
           function debug(message) {
             console.log("DEBUG:" + message);
             $('#area').val($('#area').val()+message+"\n"); 
           }
-        </script>
+	</script>
     </head>
     <body>
         <div data-role="page" id="page1">
@@ -293,30 +312,109 @@
                     NFC Demo - Deutsche Telekom
                 </h3>
             </div>
-            <div data-role="content">
+            <div id="NFCTagReader" data-role="content">
+                <h2>NFC Tag Reader</h2>
                 <a data-role="button" data-transition="fade" href="#page1" id="startbutton">
                     <span id="buttontext">Start Tag Discovery</span>
                 </a>
-	        <ul data-role="listview" data-divider-theme="b" data-inset="true">
-	            <li data-role="list-divider" role="heading">
-	                Status
-	            </li>
+                <ul data-role="listview" data-divider-theme="b" data-inset="true">
+                    <li data-role="list-divider" role="heading">
+                        Status
+                    </li>
                     <li data-theme="c" style="height: 100%">
                       <textarea id="area" placeholder="" style="width:100%; padding: 0; height: auto" rows="6" readonly="readonly" disabled="true"></textarea>
                     </li>
-	        </ul>
-	        <ul data-role="listview" data-divider-theme="b" data-inset="true" id="taglist" style="display: none;">
-	          <li data-role="list-divider" role="heading">
-	              NdefMessage
-	          </li>
-	        </ul>
+                </ul>
+                <ul data-role="listview" data-divider-theme="b" data-inset="true" id="taglist" style="display: none;">
+                    <li data-role="list-divider" role="heading">
+                        NdefMessage
+                    </li>
+                </ul>
                 &nbsp;
-	        <ul data-role="listview" data-divider-theme="b" data-inset="true" id="actionlist" style="display: none;">
-	          <li data-role="list-divider" role="heading">
-	              Action
-	          </li>
-	        </ul>
+                <ul data-role="listview" data-divider-theme="b" data-inset="true" id="actionlist" style="display: none;">
+                    <li data-role="list-divider" role="heading">
+                        Action
+                    </li>
+                </ul>
             </div>
+
+            <!-- NFC Tag Writer div -->
+            <div id="NFCTagWriter" data-role="collapsible">
+                <h2>NFC Tag Writer</h2>
+                <div id="nfc_contact_form_id">
+                    <h3>Contact Write</h3>
+                    <label for="basic">Type Name Format</label>
+                    <input id="nfc_contact_tnf_id" type="text" name="nfc_contact_tnf_name" value="2"/>
+
+                    <label for="basic">Type</label>
+                    <input id="nfc_contact_type_id" type="text" name="nfc_contact_type_name" value="text/x-vCard"/>
+
+                    <label for="basic">Id</label>
+                    <input id="nfc_contact_id_id" type="text" name="nfc_contact_type_name" value=""/>
+
+                    <br>
+                    <label for="basic">First</label>
+                    <input id="nfc_contact_payload_name_first_id"
+                        type="text" name="nfc_contact_payload_name_first" value=""/>
+                    <br>
+                    <label for="basic">Last</label>
+                    <input id="nfc_contact_payload_name_last_id"
+                        type="text" name="nfc_contact_payload_name_last" value=""/>
+                    <br>
+                    <label for="basic">Middle 1</label>
+                    <input id="nfc_contact_payload_name_middle_1_id"
+                        type="text" name="nfc_contact_payload_name_middle_1" value=""/>
+                    <br>
+                    <label for="basic">Middle 2</label>
+                    <input id="nfc_contact_payload_name_middle_2_id"
+                        type="text" name="nfc_contact_payload_name_middle_2" value=""/>
+
+                    <label for="basic">FullName</label>
+                    <input id="nfc_contact_payload_name_fullname_id"
+                        type="text" name="nfc_contact_payload_name_fullname" value=""/>
+
+                    <label for="basic">Telephone</label>
+                    <input id="nfc_contact_payload_telephone_id"
+                        type="text" name="nfc_contact_payload_telephone" value=""/>
+
+                    <label for="basic">Mobile</label>
+                    <input id="nfc_contact_payload_mobile_id"
+                        type="text" name="nfc_contact_payload_mobile" value=""/>
+
+                    <div>
+                        <script>
+                        // inital form logic before submission
+                        // disable some input fields
+                        $("#nfc_contact_form_id #nfc_contact_tnf_id").prop('disabled', true);
+                        $("#nfc_contact_form_id #nfc_contact_type_id").prop('disabled', true);
+                        $("#nfc_contact_form_id #nfc_contact_id_id").prop('disabled', true);
+                        function writeContactFormToNdef() {
+                            // writeContactArrayTag will write a contact array as the payload.
+                            var record = contactFormToNdefRecord();
+                            var pending = writeContactTag(record);
+                            if (pending != null) {
+                                pending.onsuccess = function() {
+                                    var msg = this.result;
+                                    var message = "Ndef Write Successful. RequestId: " + msg.requestId + ", Result: " + msg.status;
+                                    console.log(message);
+                                    $('#area').val($('#area').val()+message+"\n");
+                                }
+                                pending.onerror = function() {
+                                    var msg = this.result;
+                                    var message = "Error writing tag. RequestId: " + msg.requestId + ", Result: " + msg.status + ", Error text: " + this.error.message;
+                                    console.log(message);
+                                    $('#area').val($('#area').val()+message+"\n");
+                                }
+                            }
+                        }
+                        </script>
+                        <br/>
+                        <button onclick="writeContactFormToNdef();">Write Contact Tag</button>
+                    </div>
+                </div>
+            </div>
+
+
             <div data-theme="a" data-role="footer">
                 <h3>
                     by Deutsche Telekom
