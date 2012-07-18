@@ -1,19 +1,74 @@
 
 'use strict';
 
+var ApplicationMock = function(app, launchPath, alternativeOrigin) {
+  this.app = app;
+  this.entry_point = launchPath;
+  this.origin = alternativeOrigin;
+  //Clone the manifest
+  this.manifest = {};
+  for (var field in app.manifest) {
+    this.manifest[field] = app.manifest[field];
+  }
+
+  var entryPoint = app.manifest.entry_points[launchPath];
+  this.manifest.name = entryPoint.name;
+  this.manifest.launch_path = entryPoint.launch_path;
+  this.manifest.icons = entryPoint.icons;
+  this.manifest.origin = alternativeOrigin;
+
+  this.manifestURL = app.manifestURL;
+  this.receipts = app.receipts;
+  this.installOrigin = app.installOrigin;
+  this.installTime = app.installTime;
+
+  this.manifest.use_manifest = true;
+};
+
+ApplicationMock.prototype = {
+  launch: function _launch(startPoint) {
+    this.app.launch(this.entry_point + this.manifest.launch_path);
+  },
+
+  uninstall: function _uninstall() {
+    this.app.uninstall();
+  }
+};
+
 var Applications = (function() {
   var installedApps = {};
 
-  var callbacks = [];
+  var callbacks = [], ready = false;
 
   var installer = navigator.mozApps.mgmt;
   installer.getAll().onsuccess = function onSuccess(e) {
     var apps = e.target.result;
     apps.forEach(function parseApp(app) {
-      if (app.manifest.icons) {
+      var manifest = app.manifest;
+      if (!manifest || !manifest.icons) {
+        return;
+      }
+
+
+      // If the manifest contains entry points, iterate over them
+      // and add a fake app object for each one.
+      var entryPoints = manifest.entry_points;
+      if (!entryPoints) {
         installedApps[app.origin] = app;
+        return;
+      }
+
+      for (var launchPath in entryPoints) {
+        if (!entryPoints[launchPath].hasOwnProperty('icons'))
+          continue;
+
+        var alternativeOrigin = app.origin + '/' + launchPath;
+        var newApp = new ApplicationMock(app, launchPath, alternativeOrigin);
+        installedApps[alternativeOrigin] = newApp;
       }
     });
+
+    ready = true;
 
     callbacks.forEach(function(callback) {
       if (callback.type == 'ready') {
@@ -114,7 +169,8 @@ var Applications = (function() {
   };
 
   // Core applications should be flagged at some point. Not sure how?
-  var host = document.location.host;
+  var protocol = window.location.protocol;
+  var host = window.location.host;
   var domain = host.replace(/(^[\w\d]+\.)?([\w\d]+\.[a-z]+)/, '$2');
 
   var coreApplications = [
@@ -124,10 +180,10 @@ var Applications = (function() {
   ];
 
   coreApplications = coreApplications.map(function mapCoreApp(name) {
-    return 'http://' + name + '.' + domain;
+    return protocol + '//' + name + '.' + domain;
   });
 
-  coreApplications.push('https://marketplace-dev.allizom.org');
+  coreApplications.push('https://marketplace.mozilla.org');
 
   /*
    *  Returns true if it's a core application
@@ -217,6 +273,10 @@ var Applications = (function() {
     app.launch(params);
   }
 
+  function isReady() {
+    return ready;
+  }
+
   return {
     launch: launch,
     isCore: isCore,
@@ -227,6 +287,7 @@ var Applications = (function() {
     getName: getName,
     getIcon: getIcon,
     getManifest: getManifest,
-    getInstalledApplications: getInstalledApplications
+    getInstalledApplications: getInstalledApplications,
+    isReady: isReady
   };
 })();
