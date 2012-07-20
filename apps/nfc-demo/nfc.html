@@ -410,7 +410,6 @@
                                     $('#area').val($('#area').val()+message+"\n");
                                 }
                                 pending.onerror = function() {
-                                    alert("Here!");
                                     var msg = this.result;
                                     var message = "Error writing tag. RequestId: " + msg.requestId + ", Result: " + msg.status + ", Error text: " + this.error.message;
                                     console.log(message);
