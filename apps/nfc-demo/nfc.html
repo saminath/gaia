@@ -391,7 +391,17 @@
                         function writeContactFormToNdef() {
                             // writeContactArrayTag will write a contact array as the payload.
                             var record = contactFormToNdefRecord();
-                            var pending = writeContactTag(record);
+                            var records = new Array();
+                            records.push(record);
+                            if (validateNdefTagRecords(records) == false) {
+                                var message = "NdefRecord is invalid";
+                                $('#area').val($('#area').val()+message+"\n");
+                                return;
+                            } else {
+                                var message = "NdefRecord is appears to be valid.";
+                                $('#area').val($('#area').val()+message+"\n");
+                            }
+                            var pending = writeContactArrayTag(records);
                             if (pending != null) {
                                 pending.onsuccess = function() {
                                     var msg = this.result;
