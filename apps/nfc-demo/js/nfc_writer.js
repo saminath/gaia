@@ -67,6 +67,14 @@ function contactFormToNdefRecord() {
 }
 
 
+function validateNdefTagRecords(ndefRecords) {
+    if (ndefRecords instanceof Array) {
+        return navigator.mozNfc.validateNdefTag(ndefRecords);
+    } else {
+        return false;
+    }
+}
+
 // Convienience function for writeContactArrayTag
 function writeContactTag(ndefRecord) {
     var records =  new Array();
@@ -80,7 +88,7 @@ function writeContactTag(ndefRecord) {
 function writeContactArrayTag(ndefRecords) {
 
     if (ndefRecords == null) {
-        return;
+        return null;
     }
     var req = navigator.mozNfc.writeNdefTag(ndefRecords);
     console.log("Returned from writeNdefTag call");
