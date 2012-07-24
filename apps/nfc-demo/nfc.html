@@ -149,8 +149,7 @@
             contact.givenName = first;
             contact.familyName = last;
             contact.name = contact.givenName + ' ' + contact.familyName;
-
-            contact.tel = [{"number" : '"' + cell + '"'}];
+            contact.tel = [{"type": "work", "number" : '"' + cell + '"'}];
             contact.email = '';
 
             var req = navigator.mozContacts.save(contact);
