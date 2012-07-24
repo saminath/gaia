@@ -1,13 +1,7 @@
 /* NDef tag submission functions */
-var nDefJson = '{"type": "ndefDiscovered", "content": { "records": [{ "tnf": "2", "type": "dGV4dC94LXZDYXJk", "id": "", "payload": "QkVHSU46VkNBUkQNClZFUlNJT046Mi4xDQpOOkRvZTtKb2huOzs7DQpGTjpKb2huIERvZQ0KVEVMO0NFTEw6NjUwMjI5NDc5Nw0KRU5EOlZDQVJEDQo=" } ] }}';
-
 function NdefWrite(message) {
     console.log("Writing this to Nfc: " + message);
     navigator.mozNfc.sendToNfcd(message);
-}
-
-function validateJson(message) {
-    return true;
 }
 
 function contactFormToNdefRecord() {
@@ -47,9 +41,9 @@ function contactFormToNdefRecord() {
     }
 
     if (mobile) {
-        payload += "CELL:"+mobile+";\n";
+        payload += "CELL:"+mobile+"\n";
     } else {
-        payload += "CELL;\n";
+        payload += "CELL\n";
     }
 
     payload += "END:VCARD";
@@ -79,26 +73,18 @@ function validateNdefTagRecords(ndefRecords) {
 function writeContactTag(ndefRecord) {
     var records =  new Array();
     records.push(ndefRecord);
-    return writeContactArrayTag(records);
+    return writeRecordArrayTag(records);
 }
 
 // Returns a request object. To observe the result, define and
 // attach callbacks taking an event to the request's onsuccess
 // and onerror.
-function writeContactArrayTag(ndefRecords) {
+function writeRecordArrayTag(ndefRecords) {
 
     if (ndefRecords == null) {
         return null;
     }
-    var req = navigator.mozNfc.writeNdefTag(ndefRecords);
+    var domreq = navigator.mozNfc.writeNdefTag(ndefRecords);
     console.log("Returned from writeNdefTag call");
-    return req;
+    return domreq;
 }
-
-function writeURLTag() {
-}
-
-function createNfcTagList(targetId) {
-    $(targetId).append();
-}
-

@@ -16,8 +16,6 @@
         </script>
         <script src="js/nfc_consts.js">
         </script>
-        <script src="js/nfc_util.js">
-        </script>
         <script src="js/nfc_writer.js">
         </script>
         <script>
@@ -30,6 +28,7 @@
                 isListening = true;
                 addNdefListener();
                 addTagLostListener();
+                addTextAppendedListener($('#area'));
               } else {
                 $("#buttontext").text("Start Tag Discovery");
                 $("#taglist").css("display", "none");
@@ -151,7 +150,7 @@
             contact.familyName = last;
             contact.name = contact.givenName + ' ' + contact.familyName;
 
-            contact.tel = [cell];
+            contact.tel = [{"number" : '"' + cell + '"'}];
             contact.email = '';
 
             var req = navigator.mozContacts.save(contact);
@@ -294,14 +293,64 @@
               if (messageType == "tagLost") {
                 var message = "Tag no longer in range. Tag HandleId: " + content.handleId;
                 console.log(message);
-                $('#area').val($('#area').val()+message+"\n");
+                appendTextAndScroll($("#area"), message+"\n");
               }
             }
           }
 
+          function writeContactFormToNdef() {
+            // writeContactArrayTag will write a contact array as the payload.
+            var record = contactFormToNdefRecord();
+            var records = new Array();
+            records.push(record);
+            if (validateNdefTagRecords(records) == false) {
+              var message = "NdefRecord is invalid";
+              appendTextAndScroll($("#area"), message+"\n");
+              return;
+            } else {
+              var message = "NdefRecord is appears to be valid.";
+              appendTextAndScroll($("#area"), message+"\n");
+            }
+
+            var pending = writeRecordArrayTag(records);
+            if (pending != null) {
+              pending.onsuccess = function() {
+                var msg = this.result;
+                var message = "Ndef Write Successful. RequestId: " + msg.requestId + ", Result: " + msg.status;
+                console.log(message);
+                appendTextAndScroll($("#area"), message+"\n");
+              }
+              pending.onerror = function() {
+                var msg = this.result;
+                var message = "Error writing tag. RequestId: " + msg.requestId + ", Result: " + msg.status + ", Error text: " + this.error.message;
+                console.log(message);
+                appendTextAndScroll($("#area"), message+"\n");
+              }
+            }
+          }
+
+          function writeUrlFormtoNdef() {
+            var prefix = nfc.uris[record.payload.charCodeAt(0)];
+            if(record.payload.substring(1).indexOf("dl.dropbox.com/u/7530841/")>=0) {
+              return {'action': 'Purchase', 'uri': "http://192.168.1.108/~arno/mc/?purchase_url=" + prefix + record.payload.substring(1) };
+            } else {
+              return {'action': 'Open URI', 'uri': prefix + record.payload.substring(1) };
+            }
+          }
+
+          function scrollToBottom(htmlElement) {
+            // TODO: The animation starts scrollTop at "0" every time, rather than scroll from current position.
+            htmlElement.animate({ scrollTop: htmlElement.prop("scrollHeight") - htmlElement.height() }, 0);
+          }
+
+          function appendTextAndScroll(htmlElement, message) {
+            htmlElement.val(htmlElement.val()+message);
+            scrollToBottom(htmlElement);
+          }
+
           function debug(message) {
             console.log("DEBUG:" + message);
-            $('#area').val($('#area').val()+message+"\n"); 
+            appendTextAndScroll($("#area"), message+"\n");
           }
 	</script>
     </head>
@@ -388,35 +437,6 @@
                         $("#nfc_contact_form_id #nfc_contact_tnf_id").prop('disabled', true);
                         $("#nfc_contact_form_id #nfc_contact_type_id").prop('disabled', true);
                         $("#nfc_contact_form_id #nfc_contact_id_id").prop('disabled', true);
-                        function writeContactFormToNdef() {
-                            // writeContactArrayTag will write a contact array as the payload.
-                            var record = contactFormToNdefRecord();
-                            var records = new Array();
-                            records.push(record);
-                            if (validateNdefTagRecords(records) == false) {
-                                var message = "NdefRecord is invalid";
-                                $('#area').val($('#area').val()+message+"\n");
-                                return;
-                            } else {
-                                var message = "NdefRecord is appears to be valid.";
-                                $('#area').val($('#area').val()+message+"\n");
-                            }
-                            var pending = writeContactArrayTag(records);
-                            if (pending != null) {
-                                pending.onsuccess = function() {
-                                    var msg = this.result;
-                                    var message = "Ndef Write Successful. RequestId: " + msg.requestId + ", Result: " + msg.status;
-                                    console.log(message);
-                                    $('#area').val($('#area').val()+message+"\n");
-                                }
-                                pending.onerror = function() {
-                                    var msg = this.result;
-                                    var message = "Error writing tag. RequestId: " + msg.requestId + ", Result: " + msg.status + ", Error text: " + this.error.message;
-                                    console.log(message);
-                                    $('#area').val($('#area').val()+message+"\n");
-                                }
-                            }
-                        }
                         </script>
                         <br/>
                         <button onclick="writeContactFormToNdef();">Write Contact Tag</button>
