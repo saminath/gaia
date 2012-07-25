@@ -16,6 +16,8 @@
         </script>
         <script src="js/nfc_consts.js">
         </script>
+        <script src="js/nfc_url.js">
+        </script>
         <script src="js/nfc_writer.js">
         </script>
         <script>
@@ -28,7 +30,6 @@
                 isListening = true;
                 addNdefListener();
                 addTagLostListener();
-                addTextAppendedListener($('#area'));
               } else {
                 $("#buttontext").text("Start Tag Discovery");
                 $("#taglist").css("display", "none");
@@ -297,9 +298,41 @@
             }
           }
 
+          function writeUriFormtoNdef() {
+            var records = new Array();
+            var record = urlFormToNdefRecord("#nfc_url_form_id", true);
+            records.push(record);
+            // Check:
+            if (validateNdefTagRecords(records) == false) {
+              var message = "NdefRecord is invalid";
+              appendTextAndScroll($("#area"), message+"\n");
+              return;
+            } else {
+              var message = "NdefRecord is appears to be valid.";
+              appendTextAndScroll($("#area"), message+"\n");
+            }
+            // Write:
+            var pending = writeRecordArrayTag(records);
+            if (pending != null) {
+              pending.onsuccess = function() {
+                var msg = this.result;
+                var message = "Ndef Write Successful. RequestId: " + msg.requestId + ", Result: " + msg.status;
+                console.log(message);
+                appendTextAndScroll($("#area"), message+"\n");
+              }
+              pending.onerror = function() {
+                var msg = this.result;
+                var message = "Error writing tag. RequestId: " + msg.requestId + ", Result: " + msg.status + ", Error text: " + this.error.message;
+                console.log(message);
+                appendTextAndScroll($("#area"), message+"\n");
+              }
+            } 
+ 
+          }
+
           function writeContactFormToNdef() {
             // writeContactArrayTag will write a contact array as the payload.
-            var record = contactFormToNdefRecord();
+            var record = contactFormToNdefRecord("#nfc_contact_form_id");
             var records = new Array();
             records.push(record);
             if (validateNdefTagRecords(records) == false) {
@@ -328,15 +361,7 @@
             }
           }
 
-          function writeUrlFormtoNdef() {
-            var prefix = nfc.uris[record.payload.charCodeAt(0)];
-            if(record.payload.substring(1).indexOf("dl.dropbox.com/u/7530841/")>=0) {
-              return {'action': 'Purchase', 'uri': "http://192.168.1.108/~arno/mc/?purchase_url=" + prefix + record.payload.substring(1) };
-            } else {
-              return {'action': 'Open URI', 'uri': prefix + record.payload.substring(1) };
-            }
-          }
-
+          // Utilities:
           function scrollToBottom(htmlElement) {
             // TODO: The animation starts scrollTop at "0" every time, rather than scroll from current position.
             htmlElement.animate({ scrollTop: htmlElement.prop("scrollHeight") - htmlElement.height() }, 0);
@@ -387,68 +412,56 @@
             </div>
 
             <!-- NFC Tag Writer div -->
-            <div id="NFCTagWriter" data-role="collapsible">
-                <h2>NFC Tag Writer</h2>
-                <div id="nfc_contact_form_id">
-                    <h3>Contact Write</h3>
-                    <label for="basic">Type Name Format</label>
-                    <input id="nfc_contact_tnf_id" type="text" name="nfc_contact_tnf_name" value="2"/>
+            <div id="NFCTagWriter" data-role="collapsible-set">
+                <div data-role="collapsible"><h2>NFC URI Tag Writer</h2>
+                    <div id="nfc_url_form_id">
+                        <label for="basic">URI</label>
+                        <input class="uri" value="http://www.cnn.com"/>
+                        <button onclick="writeUriFormtoNdef();">Write URI Tag</button>
+                    </div>
+                </div>
 
-                    <label for="basic">Type</label>
-                    <input id="nfc_contact_type_id" type="text" name="nfc_contact_type_name" value="text/x-vCard"/>
+                <div data-role="collapsible">
+                    <h2>NFC Contact Tag Writer</h2>
+                    <div id="nfc_contact_form_id">
+                        <label for="basic">Type Name Format</label>
+                        <input class="nfc_contact_tnf" type="text" name="nfc_contact_tnf_name" value="2" disabled="true"/>
 
-                    <label for="basic">Id</label>
-                    <input id="nfc_contact_id_id" type="text" name="nfc_contact_type_name" value=""/>
+                        <label for="basic">Type</label>
+                        <input class="nfc_contact_type" type="text" name="nfc_contact_type_name" value="text/x-vCard" disabled="true"/>
 
-                    <br>
-                    <label for="basic">First</label>
-                    <input id="nfc_contact_payload_name_first_id"
-                        type="text" name="nfc_contact_payload_name_first" value=""/>
-                    <br>
-                    <label for="basic">Last</label>
-                    <input id="nfc_contact_payload_name_last_id"
-                        type="text" name="nfc_contact_payload_name_last" value=""/>
-                    <br>
-                    <label for="basic">Middle 1</label>
-                    <input id="nfc_contact_payload_name_middle_1_id"
-                        type="text" name="nfc_contact_payload_name_middle_1" value=""/>
-                    <br>
-                    <label for="basic">Middle 2</label>
-                    <input id="nfc_contact_payload_name_middle_2_id"
-                        type="text" name="nfc_contact_payload_name_middle_2" value=""/>
-
-                    <label for="basic">FullName</label>
-                    <input id="nfc_contact_payload_name_fullname_id"
-                        type="text" name="nfc_contact_payload_name_fullname" value=""/>
-
-                    <label for="basic">Telephone</label>
-                    <input id="nfc_contact_payload_telephone_id"
-                        type="text" name="nfc_contact_payload_telephone" value=""/>
-
-                    <label for="basic">Mobile</label>
-                    <input id="nfc_contact_payload_mobile_id"
-                        type="text" name="nfc_contact_payload_mobile" value=""/>
-
-                    <div>
-                        <script>
-                        // inital form logic before submission
-                        // disable some input fields
-                        $("#nfc_contact_form_id #nfc_contact_tnf_id").prop('disabled', true);
-                        $("#nfc_contact_form_id #nfc_contact_type_id").prop('disabled', true);
-                        $("#nfc_contact_form_id #nfc_contact_id_id").prop('disabled', true);
-                        </script>
-                        <br/>
+                        <label for="basic">Id</label>
+                        <input class="nfc_contact_id" type="text" name="nfc_contact_type_id" value="" disabled="true"/>
+                        <br>
+                        <label for="basic">First</label>
+                        <input class="nfc_contact_payload_name_first"
+                            type="text" name="nfc_contact_payload_name_first" value=""/>
+                        <br>
+                        <label for="basic">Last</label>
+                        <input class="nfc_contact_payload_name_last"
+                            type="text" name="nfc_contact_payload_name_last" value=""/>
+                        <br>
+                        <label for="basic">Middle 1</label>
+                        <input class="nfc_contact_payload_name_middle_1"
+                            type="text" name="nfc_contact_payload_name_middle_1" value=""/>
+                        <br>
+                        <label for="basic">Middle 2</label>
+                        <input class="nfc_contact_payload_name_middle_2"
+                            type="text" name="nfc_contact_payload_name_middle_2" value=""/>
+                        <label for="basic">FullName</label>
+                        <input class="nfc_contact_payload_name_fullname"
+                            type="text" name="nfc_contact_payload_name_fullname" value=""/>
+                        <label for="basic">Telephone</label>
+                        <input class="nfc_contact_payload_telephone"
+                            type="text" name="nfc_contact_payload_telephone" value=""/>
+                        <label for="basic">Mobile</label>
+                        <input class ="nfc_contact_payload_mobile"
+                            type="text" name="nfc_contact_payload_mobile" value=""/>
                         <button onclick="writeContactFormToNdef();">Write Contact Tag</button>
                     </div>
                 </div>
             </div>
 
-
-            <div data-theme="a" data-role="footer">
-                <h3>
-                    by Deutsche Telekom
-                </h3>
-            </div>
         </div>
         <script>
             //App custom javascript

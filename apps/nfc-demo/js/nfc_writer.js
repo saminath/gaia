@@ -1,26 +1,63 @@
 /* NDef tag submission functions */
+
 function NdefWrite(message) {
   console.log("Writing this to Nfc: " + message);
   navigator.mozNfc.sendToNfcd(message);
 }
 
-function contactFormToNdefRecord() {
+function validateNdefTagRecords(ndefRecords) {
+  if (ndefRecords instanceof Array) {
+    return navigator.mozNfc.validateNdefTag(ndefRecords);
+  } else {
+    return false;
+  }
+}
+
+/**
+ * Returns a request object. To observe the result, define and
+ * attach callbacks taking an event to the request's onsuccess
+ * and onerror.
+ */
+function writeRecordArrayTag(ndefRecords) {
+
+  if (ndefRecords == null) {
+    return null;
+  }
+  var domreq = navigator.mozNfc.writeNdefTag(ndefRecords);
+  console.log("Returned from writeNdefTag call");
+  return domreq;
+}
+
+
+/**
+ * NDEF well known types:
+ */
+
+// URL:
+function urlFormToNdefRecord(elementRef, abbreviate) {
+  var uri = $(elementRef + " > .uri").val();
+  record = nfcUrl.createUriNdefRecord(uri, abbreviate);
+  return record;
+}
+
+// Basic Contact Example 
+// (Format reference: http://www.w3.org/TR/2012/WD-contacts-api-20120712/#the-contact-dictionary)
+function contactFormToNdefRecord(elementRef) {
   var record = new MozNdefRecord();
 
-  // Globals
-  record.tnf = $("#nfc_contact_tnf_id").val(); // nfc.flags_tnf; // From tag itself.
-  record.type = $("#nfc_contact_type_id").val(); // text/VCard
-  record.id = $("#nfc_contact_id_id").val(); // empty
+  record.tnf = $(elementRef + " > .nfc_contact_tnf").val(); // nfc.flags_tnf; // From tag itself.
+  record.type = $(elementRef + " > .nfc_contact_type").val(); // text/VCard
+  record.id = $(elementRef + " > .nfc_contact_id").val(); // empty
 
   /* payload */
-  var fname = $("#nfc_contact_payload_name_first_id").val();
-  var lname = $("#nfc_contact_payload_name_last_id").val();
-  var mname1 = $("#nfc_contact_payload_name_middle_1_id").val();
-  var mname2 = $("#nfc_contact_payload_name_middle_2_id").val();
+  var fname = $(elementRef + " > .nfc_contact_payload_name_first").val();
+  var lname = $(elementRef + " > .nfc_contact_payload_name_last").val();
+  var mname1 = $(elementRef + " > .nfc_contact_payload_name_middle_1").val();
+  var mname2 = $(elementRef + " > .nfc_contact_payload_name_middle_2").val();
 
-  var fullname = $("#nfc_contact_payload_name_fullname_id").val();
-  var telephone = $("#nfc_contact_payload_telephone_id").val();
-  var mobile = $("#nfc_contact_payload_mobile_id").val();
+  var fullname = $(elementRef + " > .nfc_contact_payload_name_fullname").val();
+  var telephone = $(elementRef + " > .nfc_contact_payload_telephone").val();
+  var mobile = $(elementRef + " > .nfc_contact_payload_mobile").val();
 
   console.log("Form processing Results: " +
               "FirstName: " + fname + " LastName: " + lname +
@@ -60,37 +97,3 @@ function contactFormToNdefRecord() {
   return record;
 }
 
-function urlFormToNdefRecord() {
-  console.log("ERROR: Not implemented");
-  return null;
-}
-
-
-
-function validateNdefTagRecords(ndefRecords) {
-  if (ndefRecords instanceof Array) {
-    return navigator.mozNfc.validateNdefTag(ndefRecords);
-  } else {
-    return false;
-  }
-}
-
-// Convienience function for writeContactArrayTag
-function writeContactTag(ndefRecord) {
-  var records =  new Array();
-  records.push(ndefRecord);
-  return writeRecordArrayTag(records);
-}
-
-// Returns a request object. To observe the result, define and
-// attach callbacks taking an event to the request's onsuccess
-// and onerror.
-function writeRecordArrayTag(ndefRecords) {
-
-  if (ndefRecords == null) {
-    return null;
-  }
-  var domreq = navigator.mozNfc.writeNdefTag(ndefRecords);
-  console.log("Returned from writeNdefTag call");
-  return domreq;
-}
