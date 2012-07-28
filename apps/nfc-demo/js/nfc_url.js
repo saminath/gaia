@@ -13,7 +13,7 @@ lookupUrlRecordType: function (uri) {
       return {'identifier' : i, 'uri' : uriPayload}
     }
   }
-  return {'identifier' : "\u0000", 'uri' : uri};
+  return {'identifier' : 0, 'uri' : uri};
 },
 
 // Creates a single non-Array NdefRecord for a URL.

@@ -32,6 +32,13 @@ function writeRecordArrayTag(ndefRecords) {
 /**
  * NDEF well known types:
  */
+// Text Example:
+function textFormToNdefRecord(elementRef) {
+  var text = $(elementRef + " > .text").val();
+  record = nfcText.createTextNdefRecord_Utf8(text, "en");
+  return record;
+}
+
 
 // URL:
 function urlFormToNdefRecord(elementRef, abbreviate) {
@@ -39,6 +46,25 @@ function urlFormToNdefRecord(elementRef, abbreviate) {
   record = nfcUrl.createUriNdefRecord(uri, abbreviate);
   return record;
 }
+
+// Email:
+function emailFormToNdefRecord(elementRef) {
+  var mailto = $(elementRef + " > .emailMailTo").val();
+  var subject = $(elementRef + " > .emailSubject").val();
+  var body = $(elementRef + " > .emailBody").val();
+  record = nfcSmartPoster.createEmailNdefRecord( {"mailto" : mailto, "subject" : subject, "body" : body});
+  return record;
+}
+
+
+// SMS:
+function smsFormToNdefRecord(elementRef) {
+  var phoneNumber = $(elementRef + " > .smsPhoneNumber").val();
+  var message = $(elementRef + " > .smsMessage").val();
+  record = nfcSms.createSmsNdefRecord({"phoneNumber" : phoneNumber, "message" : message});
+  return record;
+}
+
 
 // Basic Contact Example 
 // (Format reference: http://www.w3.org/TR/2012/WD-contacts-api-20120712/#the-contact-dictionary)
