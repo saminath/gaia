@@ -47,12 +47,20 @@ function urlFormToNdefRecord(elementRef, abbreviate) {
   return record;
 }
 
+// SmartPoster URL:
+function smartPosterUriFormToNdefRecord(elementRef) {
+  uri = $(elementRef + " > .uri").val();
+  title = $(elementRef + " > .title").val();
+  record = nfcSmartPoster.createUriNdefRecord(uri, title, "en-US", nfcSmartPoster.doAction);
+  return record;
+}
+
 // Email:
 function emailFormToNdefRecord(elementRef) {
   var mailto = $(elementRef + " > .emailMailTo").val();
   var subject = $(elementRef + " > .emailSubject").val();
   var body = $(elementRef + " > .emailBody").val();
-  record = nfcSmartPoster.createEmailNdefRecord( {"mailto" : mailto, "subject" : subject, "body" : body});
+  record = nfcSmartPoster.createEmailNdefRecord({"mailto" : mailto, "subject" : subject, "body" : body}, "en", nfcSmartPoster.doAction);
   return record;
 }
 

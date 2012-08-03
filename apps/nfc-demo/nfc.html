@@ -28,6 +28,7 @@
         </script>
         <script>
           var isListening = false;
+          var pendingNdefMessage = null;
 
           $(document).ready(function () {
             $("#startbutton").bind( "click", function(event, ui) {
@@ -157,7 +158,7 @@
             contact.givenName = first;
             contact.familyName = last;
             contact.name = contact.givenName + ' ' + contact.familyName;
-            contact.tel = [{"type": "work", "number" : '"' + cell + '"'}];
+            contact.tel = [{"type": "Work", "number" : '"' + cell + '"'}];
             contact.email = '';
 
             var req = navigator.mozContacts.save(contact);
@@ -285,8 +286,23 @@
 
 	      $("#actionlist").html(action);
 	      $("#actionlist").listview("refresh");
+
+              writePendingMessage();
 	    };
+
 	  }
+
+          function writePendingMessage() {
+            if (pendingNdefMessage != null) {
+              var pendingDomRequest = writeRecordArrayTag(pendingNdefMessage);
+              commonRequestHandler(pendingDomRequest);
+              pendingNdefMessage = null;
+            }
+          }
+
+          function postPendingMessage(elementRef, ndefMessage) {
+            pendingNdefMessage = ndefMessage;
+          }
 
           function removeNdefListener() {
 	    debug("Stopping Tag Discovery...");
@@ -298,7 +314,7 @@
               var messageType = event.ndefMessages.type;
               var content = event.ndefMessages.content;
               if (messageType == "tagLost") {
-                var message = "Tag no longer in range. Tag HandleId: " + content.handleId;
+                var message = "Tag no longer in range.";
                 console.log(message);
                 appendTextAndScroll($("#area"), message+"\n");
               }
@@ -309,7 +325,7 @@
             navigator.mozNfc.ontaglost = null;
           }
 
-          function writeTextFormtoNdef(elementRef) {
+          function postTextFormtoNdef(elementRef) {
             var records = new Array();
             var record = textFormToNdefRecord(elementRef);
             records.push(record);
@@ -319,13 +335,25 @@
               appendTextAndScroll($("#area"), message+"\n");
               return;
             }
-
-            // Write:
-            var pending = writeRecordArrayTag(records);
-            commonRequestHandler(pending);
+            pendingNdefMessage = records;
+            $("#nfc_tag_write_dialog").click();
           }
 
-          function writeUriFormtoNdef(elementRef) {
+          function postSmartPosterUriFormtoNdef(elementRef) {
+            var records = new Array();
+            var record = smartPosterUriFormToNdefRecord(elementRef);
+            records.push(record);
+            // Check:
+            if (validateNdefTagRecords(records) == false) {
+              var message = "NdefRecord is invalid";
+              appendTextAndScroll($("#area"), message+"\n");
+              return;
+            }
+            pendingNdefMessage = records;
+            $("#nfc_tag_write_dialog").click();
+          }
+
+          function postUriFormtoNdef(elementRef) {
             var records = new Array();
             var record = urlFormToNdefRecord(elementRef, true);
             records.push(record);
@@ -335,13 +363,11 @@
               appendTextAndScroll($("#area"), message+"\n");
               return;
             }
-
-            // Write:
-            var pending = writeRecordArrayTag(records);
-            commonRequestHandler(pending);
+            pendingNdefMessage = records;
+            $("#nfc_tag_write_dialog").click();
           }
  
-          function writeEmailFormtoNdef(elementRef) {
+          function postEmailFormtoNdef(elementRef) {
             var records = new Array();
             var record = emailFormToNdefRecord(elementRef);
             records.push(record);
@@ -351,13 +377,11 @@
               appendTextAndScroll($("#area"), message+"\n");
               return;
             }
-
-            // Write:
-            var pending = writeRecordArrayTag(records);
-            commonRequestHandler(pending);
+            pendingNdefMessage = records;
+            $("#nfc_tag_write_dialog").click();
           }
 
-          function writeSmsFormtoNdef(elementRef) {
+          function postSmsFormtoNdef(elementRef) {
             var records = new Array();
             var record = smsFormToNdefRecord(elementRef);
             records.push(record);
@@ -367,14 +391,12 @@
               appendTextAndScroll($("#area"), message+"\n");
               return;
             }
-
-            // Write:
-            var pending = writeRecordArrayTag(records);
-            commonRequestHandler(pending);
+            pendingNdefMessage = records;
+            $("#nfc_tag_write_dialog").click();
           }
 
-          function writeContactFormToNdef(elementRef) {
-            // writeContactArrayTag will write a contact array as the payload.
+          function postContactFormToNdef(elementRef) {
+            // postContactArrayTag will post a contact array as the payload.
             var record = contactFormToNdefRecord(elementRef);
             var records = new Array();
             records.push(record);
@@ -383,37 +405,43 @@
               appendTextAndScroll($("#area"), message+"\n");
               return;
             }
-
-            // Write:
-            var pending = writeRecordArrayTag(records);
-            commonRequestHandler(pending);
+            pendingNdefMessage = records;
+            $("#nfc_tag_write_dialog").click();
           }
 
           // Utilities:
-          function writeEmptyTag() {
+          function postEmptyTag() {
             records = new Array();
             records.push(new MozNdefRecord());
             records[0].tnf = nfc.tnf_empty;
             records[0].type = nfc.rtd_text;
             records[0].id = null;
             records[0].payload = null;
-            var pending = writeRecordArrayTag(records);
-            commonRequestHandler(pending);
+            pendingNdefMessage = records;
+            $("#nfc_tag_write_dialog").click();
+          }
+
+          function cancelPendingWrite() {
+            pendingNdefMessage = null;
           }
 
           // Common status message handler.
           function commonRequestHandler(pending) {
             if (pending != null) {
               pending.onsuccess = function() {
-                alert("Success: " + this.result);
                 var msg = this.result;
                 var message = "Tag write successful. RequestId: " + msg.requestId + ", Result: " + msg.status;
                 appendTextAndScroll($("#area"), message+"\n");
+                // Dismiss dialog, and do anything else you want for UI/UX.
+                $('.ui-dialog').dialog('close');
               }
               pending.onerror = function() {
-                var msg = this.result;
-                var message = "Error writing tag. RequestId: " + msg.requestId + ", Result: " + msg.status + ", Error text: " + this.error.message;
+                var msg = this.error;
+                // Print error object. (FIXME: Object type not as documented...)
+                alert("Failure: " + this.error);
+                var message = "Error writing tag. Result: " + msg;
                 appendTextAndScroll($("#area"), message+"\n");
+                $('.ui-dialog').dialog('close');
               }
             }
           }
@@ -468,11 +496,12 @@
             </div>
 
             <!-- NFC Tag Writer div -->
+            <a id="nfc_tag_write_dialog" href="TagWriteDialog.html" data-rel="dialog" style="display:none">Open NDef Write dialog</a>
             <div id="NFCTagWriter" data-role="collapsible-set">
                 <div data-role="collapsible"><h2>Tag Eraser</h2>
                     <div id="nfc_empty_form_id">
                         <label for="basic">Erase Tag</label>
-                        <button onclick="writeEmptyTag();">Erase Tag</button>
+                        <button onclick="postEmptyTag();">Erase Tag</button>
                     </div>
                 </div>
 
@@ -480,7 +509,17 @@
                     <div id="nfc_url_form_id">
                         <label for="basic">Text</label>
                         <input class="text" value="Dummy text"/>
-                        <button onclick="writeTextFormtoNdef('#nfc_url_form_id');">Write Text Tag</button>
+                        <button onclick="postTextFormtoNdef('#nfc_url_form_id');">Write Text Tag</button>
+                    </div>
+                </div>
+
+                <div data-role="collapsible"><h2>URI Tag Writer (Smart Poster)</h2>
+                    <div id="nfc_smartposter_url_form_id">
+                        <label for="basic">URI</label>
+                        <input class="uri" value="http://www.nfc-forum.org"/>
+                        <label for="basic">Title</label>
+                        <input class="title" value="Hello, world">
+                        <button onclick="postSmartPosterUriFormtoNdef('#nfc_smartposter_url_form_id');">Write URI Tag</button>
                     </div>
                 </div>
 
@@ -488,29 +527,29 @@
                     <div id="nfc_url_form_id">
                         <label for="basic">URI</label>
                         <input class="uri" value=""/>
-                        <button onclick="writeUriFormtoNdef('#nfc_url_form_id');">Write URI Tag</button>
+                        <button onclick="postUriFormtoNdef('#nfc_url_form_id');">Write URI Tag</button>
                     </div>
                 </div>
 
                 <div data-role="collapsible"><h2>Email Tag Writer</h2>
-                    <div id="nfc_sms_form_id">
+                    <div id="nfc_email_form_id">
                         <label for="basic">MailTo:</label>
                         <input class="emailMailTo" value="someone@telekom.com"/>
                         <label for="basic">Subject:</label>
                         <input class="emailSubject" value="Subject text."/>
                         <label for="basic">Email Message:</label>
-                        <input class="emailBody" value="This is body text.\n -Someone"/>
-                        <button onclick="writeEmailFormtoNdef('#nfc_email_form_id');">Write Email Tag</button>
+                        <input class="emailBody" value='This is body text.\n -Someone'/>
+                        <button onclick="postEmailFormtoNdef('#nfc_email_form_id');">Write Email Tag</button>
                     </div>
                 </div>
 
                 <div data-role="collapsible"><h2>SMS Tag Writer</h2>
                     <div id="nfc_sms_form_id">
                         <label for="basic">Phone Number</label>
-                        <input class="smsPhoneNumber" value="16505555555"/>
+                        <input class="smsPhoneNumber" value="16502294797"/>
                         <label for="basic">Message</label>
                         <input class="smsMessage" value="This is text."/>
-                        <button onclick="writeSmsFormtoNdef('#nfc_sms_form_id');">Write SMS Tag</button>
+                        <button onclick="postSmsFormtoNdef('#nfc_sms_form_id');">Write SMS Tag</button>
                     </div>
                 </div>
 
@@ -543,14 +582,14 @@
                             type="text" name="nfc_contact_payload_name_middle_2" value=""/>
                         <label for="basic">FullName</label>
                         <input class="nfc_contact_payload_name_fullname"
-                            type="text" name="nfc_contact_payload_name_fullname" value=""/>
+                            type="text" name="nfc_contact_payload_name_fullname" value="John Doe"/>
                         <label for="basic">Telephone</label>
                         <input class="nfc_contact_payload_telephone"
-                            type="text" name="nfc_contact_payload_telephone" value=""/>
+                            type="text" name="nfc_contact_payload_telephone" value="12345678"/>
                         <label for="basic">Mobile</label>
                         <input class ="nfc_contact_payload_mobile"
-                            type="text" name="nfc_contact_payload_mobile" value=""/>
-                        <button onclick="writeContactFormToNdef('#nfc_contact_form_id');">Write Contact Tag</button>
+                            type="text" name="nfc_contact_payload_mobile" value="12345679"/>
+                        <button onclick="postContactFormToNdef('#nfc_contact_form_id');">Write Contact Tag</button>
                     </div>
                 </div>
             </div>
