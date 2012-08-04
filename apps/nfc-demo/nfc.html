@@ -18,7 +18,7 @@
         </script>
         <script src="js/nfc_text.js">
         </script>
-        <script src="js/nfc_url.js">
+        <script src="js/nfc_uri.js">
         </script>
         <script src="js/nfc_smartposter.js">
         </script>
@@ -55,6 +55,8 @@
               return handleURIRecord(record);
             } else if(record.type == nfc.rtd_smart_poster) {
               return handleSmartPosterRecord(record);
+            } else if (record.type == nfc.smartposter_action) {
+              return handleSmartPosterAction(record);
             } else {
               console.log("Unknown record type: " + record.type);
             }
@@ -137,6 +139,23 @@
             return { 'action': 'Smart Poster', 'records' : ret };
           }
 
+          function handleSmartPosterAction(record) {
+            // The recommended action has an application specific meaning:
+            var action = record.payload.charCodeAt(0);
+            var recommendedAction;
+            console.log("action in payload: " + JSON.stringify(action));
+            if (action == nfcSmartPoster.doAction) {
+              recommendedAction = {'action': 'doTheAction'};
+            } else if (action == nfcSmartPoster.saveForLaterAction) {
+              recommendedAction = {'action': 'saveForLater'};
+            } else if (action == nfcSmartPoster.openForEditingAction) {
+              recommendedAction = {'action': 'openForEdit'};
+            } else {
+              recommendedAction = {'action': 'reservedAction'};
+            }
+            return recommendedAction;
+          }
+
           function getRecordActionText(record, handle) {
             if(record.type == nfc.rtd_text) {
               return 'text: ' + handle.text + ' (Language: ' + handle.language + ', Encoding: ' + handle.encoding + ')';
@@ -149,6 +168,8 @@
             } else if(record.type == "text/x-vCard") {
                 return '<a href="javascript:addContact(\'' + handle.first + '\', \'' + handle.last + '\', \'' + handle.cell + '\')">' + 
                        'first name: ' + handle.first + '<br/>last name: ' + handle.last + '<br/>cell: ' + handle.cell + '</a>';
+            } else if (record.type == nfc.smartposter_action) {
+                return 'Recommended Action : ' + handle.action;
             }
           }
 
@@ -366,7 +387,22 @@
             pendingNdefMessage = records;
             $("#nfc_tag_write_dialog").click();
           }
- 
+
+
+          function postSmartPosterEmailFormtoNdef(elementRef) {
+            var records = new Array();
+            var record = smartPosterEmailFormToNdefRecord(elementRef);
+            records.push(record);
+            // Check:
+            if (validateNdefTagRecords(records) == false) {
+              var message = "NdefRecord is invalid";
+              appendTextAndScroll($("#area"), message+"\n");
+              return;
+            }
+            pendingNdefMessage = records;
+            $("#nfc_tag_write_dialog").click();
+          }
+
           function postEmailFormtoNdef(elementRef) {
             var records = new Array();
             var record = emailFormToNdefRecord(elementRef);
@@ -515,10 +551,12 @@
 
                 <div data-role="collapsible"><h2>URI Tag Writer (Smart Poster)</h2>
                     <div id="nfc_smartposter_url_form_id">
+                        <label for="basic">SmartPoster Title</label>
+                        <input class="title" value="Hello, world">
+                        <label for="basic">SmartPoster Title Language</label>
+                        <input class="titleLang" value="en-US">
                         <label for="basic">URI</label>
                         <input class="uri" value="http://www.nfc-forum.org"/>
-                        <label for="basic">Title</label>
-                        <input class="title" value="Hello, world">
                         <button onclick="postSmartPosterUriFormtoNdef('#nfc_smartposter_url_form_id');">Write URI Tag</button>
                     </div>
                 </div>
@@ -531,6 +569,22 @@
                     </div>
                 </div>
 
+                <div data-role="collapsible"><h2>Email Tag Writer (Smart Poster)</h2>
+                    <div id="nfc_smartposter_email_form_id">
+                        <label for="basic">SmartPoster Title</label>
+                        <input class="title" value="Title">
+                        <label for="basic">SmartPoster Title Language</label>
+                        <input class="titleLang" value="en-US">
+                        <label for="basic">MailTo:</label>
+                        <input class="emailMailTo" value="someone@some_domain_location.com"/>
+                        <label for="basic">Subject:</label>
+                        <input class="emailSubject" value="Subject text."/>
+                        <label for="basic">Email Message:</label>
+                        <input class="emailBody" value="This is body text.  -Someone"/>
+                        <button onclick="postSmartPosterEmailFormtoNdef('#nfc_smartposter_email_form_id');">Write Email Tag</button>
+                    </div>
+                </div>
+
                 <div data-role="collapsible"><h2>Email Tag Writer</h2>
                     <div id="nfc_email_form_id">
                         <label for="basic">MailTo:</label>
@@ -538,7 +592,7 @@
                         <label for="basic">Subject:</label>
                         <input class="emailSubject" value="Subject text."/>
                         <label for="basic">Email Message:</label>
-                        <input class="emailBody" value='This is body text.\n -Someone'/>
+                        <input class="emailBody" value="This is body text.\n\n -Someone"/>
                         <button onclick="postEmailFormtoNdef('#nfc_email_form_id');">Write Email Tag</button>
                     </div>
                 </div>

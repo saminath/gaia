@@ -21,6 +21,8 @@ var nfc = {
   rtd_handover_request: "Hr",
   rtd_handover_select: "Hs",
 
+  smartposter_action: "act",
+
   uris: new Array(),
 
   init: function() {

@@ -1,7 +1,7 @@
 /* URL NDEF tag */
 // Depends on nfc_consts.js
 
-var nfcUrl = {
+var nfcUri = {
 
 // Returns a json object matching record type.
 lookupUrlRecordType: function (uri) {
@@ -26,7 +26,7 @@ createUriNdefRecord: function (uri, abbreviate) {
     return null;
   }
 
-  // Take each known URL type prefix, and check against URL.
+  // Take each known URI type prefix, and check against URL.
   // It is appropriate to do deeper checking in the application
   // context to check prefixes.
   if (abbreviate == true) {
@@ -47,6 +47,27 @@ createUriNdefRecord: function (uri, abbreviate) {
   record.payload = urlPayload;
 
   return record;
+},
+
+// mail parameter format: {"mailto" : emailAddress, "subject" : subjectLine, "body" : emailMessageBody}
+createEmailNdefRecord: function(mail) {
+  var records;
+  var main = new MozNdefRecord();
+
+  main.tnf = nfc.tnf_well_known;
+  main.type = nfc.rtd_uri;
+  main.id = null;
+  main.payload = null;
+
+  // Construct email payload:
+  var prefix = 0x06; // mailto: URI
+  var uri = mail.mailto+"?"+"subject="+mail.subject+"&"+"body"+mail.body;
+  uriRec = String.fromCharCode(prefix) + uri;
+
+  main.payload = uriRec;
+
+  return main;
 }
 
-} // end nfcUrl
+
+} // end nfcUri

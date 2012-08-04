@@ -5,14 +5,14 @@ var nfcSmartPoster = {
 doAction: 0x00,
 saveForLaterAction: 0x01,
 openForEditingAction: 0x02,
-RFUAction: 0x03, // Reserved
+RFUAction: 0x03, // Reserved from 0x03 to 0xFF
 
 // There is no specified standard for field order for the parts of the email
 // message. Example format: email URI followed by the action requesting the
 // reciever is requested to send it.
 // mail parameter format: {"mailto" : emailAddress, "subject" : subjectLine, "body" : emailMessageBody}
 // Action: See constants of nfcSmartPoster.
-createEmailNdefRecord: function(mail, lang, receiverAction) {
+createEmailNdefRecord: function(aEmail, aTitle, aAction) {
   var records;
   var main = new MozNdefRecord();
 
@@ -21,39 +21,18 @@ createEmailNdefRecord: function(mail, lang, receiverAction) {
   main.id = null;
   main.payload = null;
 
-  // Sub-payloads attached to above payload
+  // Sub-payload byte strings attached to main payload
+  var uriRec = this.createEmailUriRecord(aEmail);
+  var actionRec = this.createActionRecord(aAction);
+  var titleRec = this.createTitleRecord(aTitle);
 
-  var uriType = nfc.rtd_uri;
-  var recordTypeLen = 1;
-  var prefix = 0x06; // mailto: URI
-  var uri = mail.mailto+"?"+"subject="+mail.subject+"&"+"body"+mail.body;
-  alert("Mail: " + mail + " mail.mailto: " + mail.mailto + " subject: " + mail.subject + " body: " + mail.body);
-  var uriPayloadLen = 1 + uri.length; // length of prefix and email
-  var uriRec = String.fromCharCode(nfc.tnf_well_known) + String.fromCharCode(recordTypeLen) + String.fromCharCode(uriPayloadLen);
-  uriRec += uriType + String.fromCharCode(prefix) + uri;
-
-
-  if (receiverAction === undefined) {
-    // no action specified.
-    main.payload = uriRec;
-  } else {
-    // Action sub-payload for receiver of message.
-    if (receiverAction < this.doAction || receiverAction > this.RFUAction) {
-      debug("Bad action");
-      return null;
-    }
-    var actionLen = 3;
-    var payloadLen;
-    var action = this.doAction;
-    var actionRec = String.fromCharCode(nfc.tnf_well_known) + String.fromCharCode(actionLen) + String.fromCharCode(1);
-    actionRec += "act" + String.fromCharCode(action);
-    main.payload = uriRec + actionRec;
-  }
+  main.payload = uriRec + actionRec + titleRec;
 
   return main;
 },
 
-createUriNdefRecord: function (aUri, aTitle, aLang, aAction) {
+// Title is formatted: {"title": title, "lang": lang}
+createUriNdefRecord: function (aUri, aTitle, aAction) {
   var records;
   var main = new MozNdefRecord();
 
@@ -61,48 +40,64 @@ createUriNdefRecord: function (aUri, aTitle, aLang, aAction) {
   main.type = nfc.rtd_smart_poster;
   main.id = null;
   main.payload = null;
+
+  // Sub-payload byte strings attached to main payload
+  var uriRec = this.createUriRecord(aUri);
+  var actionRec = this.createActionRecord(aAction); 
+  var titleRec = this.createTitleRecord(aTitle);
+
+  main.payload = uriRec + actionRec + titleRec;
+
+  return main;
+},
+
+// TODO: Get bytestrings generated directly by nfc library
+
+// Email (a type of URI): Sub-record (byte string short record)
+createEmailUriRecord: function(aEmail) {
   var uriRec = null;
-  var actionRec = null;
-  var titleRec = null;
+  var prefix = 0x06; // mailto: URI
+  var uri = aEmail.mailto+"?"+"subject="+aEmail.subject+"&"+"body"+aEmail.body;
+  uriRec = String.fromCharCode(nfc.tnf_well_known | nfc.flags_ss) + String.fromCharCode(nfc.rtd_uri.length) + String.fromCharCode(1 + uri.length);
+  uriRec += nfc.rtd_uri + String.fromCharCode(prefix) + uri;
+  return uriRec;
+},
 
-  // Sub-payloads attached to above payload
+// URI: Sub-record (byte string short record)
+createUriRecord: function(aUri) {
+  var uriRec = null;
+  var split = nfcUri.lookupUrlRecordType(aUri);
+  uriRec = String.fromCharCode(nfc.tnf_well_known | nfc.flags_ss) + String.fromCharCode(nfc.rtd_uri.length) + String.fromCharCode(1 + split.uri.length);
+  uriRec += nfc.rtd_uri + String.fromCharCode(split.identifier) + split.uri;
+  return uriRec;
+},
 
-  var uriType = nfc.rtd_uri;
-  var split = nfcUrl.lookupUrlRecordType(aUri);
-  var prefix = split.identifier;
-  var uri = split.uri;
-  var uriTypeLen= 1;
-
-  // URI: Sub record.
-  var uriPayloadLen = 1 + uri.length; // length of prefix and email
-  var uriRec = String.fromCharCode(nfc.tnf_well_known) + String.fromCharCode(uriTypeLen) + String.fromCharCode(uriPayloadLen);
-  uriRec += uriType + String.fromCharCode(prefix) + aUri;
-  main.payload = uriRec;
-/*
-  // Action: Sub record.
+// Action: Sub-record (byte string short record)
+createActionRecord: function (aAction) {
   if (aAction === undefined) {
-    debug("Bad action");
     return null;
-  } else if ((aAction > this.doAction) || (aAction < this.RFUAction)) {
-    actionRec = String.fromCharCode(nfc.tnf_well_known) + String.fromCharCode(3) + String.fromCharCode(1);
+  } else if ((aAction >= this.doAction) && (aAction < this.RFUAction)) {
+    actionRec = String.fromCharCode(nfc.tnf_well_known | nfc.flags_ss) + String.fromCharCode(3) + String.fromCharCode(1);
     actionRec += "act" + String.fromCharCode(aAction);
   } else {
     debug("Invalid action number");
     return null;
   }
+  return actionRec;
+},
 
-  // Title of record:
-  title = aTitle;
+// Title: Sub-record (byte string short record)
+createTitleRecord: function (aTitle) {
+  var title = aTitle.title;
+  var lang = aTitle.lang;
   if (title == null || title === undefined) {
-    main.payload = uriRec + actionRec; // Len calculated by NFC lib?
-    return main;
+    return null;
   }
-  var titlePayloadLen = 1 + aLang.length + aTitle.length;
-  titleRec = String.fromCharCode(nfc.tnf_well_known) + String.fromCharCode(nfc.rtd_text.length) + titlePayloadLen;
-  titleRec += nfc.rtd_text + aLang + aTitle;
-  main.payload =  uriRec + actionRec + titleRec;
-*/
-  return main;
+  var titlePayloadLen = 1 + 1 + lang.length + title.length;
+  titleRec = String.fromCharCode(nfc.tnf_well_known | nfc.flags_ss) + String.fromCharCode(nfc.rtd_text.length) + String.fromCharCode(titlePayloadLen);
+  titleRec += nfc.rtd_text + String.fromCharCode(lang.length) + lang + title;
+
+  return titleRec;
 }
 
 }

@@ -43,15 +43,17 @@ function textFormToNdefRecord(elementRef) {
 // URL:
 function urlFormToNdefRecord(elementRef, abbreviate) {
   var uri = $(elementRef + " > .uri").val();
-  record = nfcUrl.createUriNdefRecord(uri, abbreviate);
+  record = nfcUri.createUriNdefRecord(uri, abbreviate);
   return record;
 }
 
-// SmartPoster URL:
+// SmartPoster URI:
 function smartPosterUriFormToNdefRecord(elementRef) {
-  uri = $(elementRef + " > .uri").val();
-  title = $(elementRef + " > .title").val();
-  record = nfcSmartPoster.createUriNdefRecord(uri, title, "en-US", nfcSmartPoster.doAction);
+  var title = $(elementRef + " > .title").val();
+  var uri = $(elementRef + " > .uri").val();
+  var titlelang = $(elementRef + " > .titleLang").val();
+  var aTitle = {"title": title, "lang": titlelang};
+  record = nfcSmartPoster.createUriNdefRecord(uri, aTitle, nfcSmartPoster.doAction);
   return record;
 }
 
@@ -60,10 +62,21 @@ function emailFormToNdefRecord(elementRef) {
   var mailto = $(elementRef + " > .emailMailTo").val();
   var subject = $(elementRef + " > .emailSubject").val();
   var body = $(elementRef + " > .emailBody").val();
-  record = nfcSmartPoster.createEmailNdefRecord({"mailto" : mailto, "subject" : subject, "body" : body}, "en", nfcSmartPoster.doAction);
+  record = nfcUri.createEmailNdefRecord({"mailto" : mailto, "subject" : subject, "body" : body});
   return record;
 }
 
+// SmartPoster Email:
+function smartPosterEmailFormToNdefRecord(elementRef) {
+  var title = $(elementRef + " > .title").val();
+  var titlelang = $(elementRef + " > .titleLang").val();
+  var mailto = $(elementRef + " > .emailMailTo").val();
+  var subject = $(elementRef + " > .emailSubject").val();
+  var body = $(elementRef + " > .emailBody").val();
+  var aTitle =  {"title": title, "lang": titlelang};
+  record = nfcSmartPoster.createEmailNdefRecord({"mailto" : mailto, "subject" : subject, "body" : body}, aTitle, nfcSmartPoster.doAction);
+  return record;
+}
 
 // SMS:
 function smsFormToNdefRecord(elementRef) {
