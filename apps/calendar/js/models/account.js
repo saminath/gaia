@@ -11,16 +11,15 @@
         this[key] = options[key];
       }
     }
-
-    if (this.providerType) {
-      this._setupProvider();
-    }
   }
 
   Account.prototype = {
 
+    /**
+     * Type of provider this
+     * account requires.
+     */
     providerType: null,
-    provider: null,
 
     /**
      * ID for this model always set
@@ -51,78 +50,33 @@
     /**
      * password for authentication
      */
-    passsword: '',
+    password: '',
 
     get fullUrl() {
       return this.domain + this.url;
     },
 
     set fullUrl(value) {
-      var idx = value.indexOf('/');
-      if (idx !== -1) {
-        this.domain = value.substr(0, idx);
-        this.url = value.substr(idx);
-      } else {
-        this.domain = value;
-        this.url = '/';
-      }
-    },
+      var protocolIdx = value.indexOf('://');
 
-    _setupProvider: function() {
-      var provider = this.provider;
-      var type = this.providerType;
+      this.domain = value;
+      this.url = '/';
 
-      if (!provider) {
-        this.provider = provider = new Calendar.Provider[type]();
-      }
+      if (protocolIdx !== -1) {
+        protocolIdx += 3;
+        // next chunk
+        var domainChunk = value.substr(protocolIdx);
+        var pathIdx = domainChunk.indexOf('/');
 
-      if (provider.useUrl) {
-        provider.url = this.url;
-        provider.domain = this.domain;
-      }
 
-      if (provider.useCredentials) {
-        provider.user = this.user;
-        provider.passsword = this.passsword;
-      }
-    },
+        if (pathIdx !== -1) {
+          pathIdx = pathIdx + protocolIdx;
 
-    /**
-     * Connects to server with new credentials
-     * this operation will possibly update
-     *
-     * @param {Function} callback node style callback.
-     */
-    setup: function(callback) {
-      var self = this;
-
-      if (!this.provider) {
-        self._setupProvider();
-      }
-
-      this.provider.setupConnection(function(err, data) {
-        if (err) {
-          callback(err);
-          return;
+          this.url = value.substr(pathIdx);
+          this.domain = value.substr(0, pathIdx);
         }
 
-        if ('url' in data) {
-          self.url = data.url;
-        }
-
-        if ('domain' in data) {
-          self.domain = data.domain;
-        }
-
-        // update provider
-        self._setupProvider();
-
-        callback(null, self);
-      });
-    },
-
-    connect: function() {
-      this._setupProvider();
+      }
     },
 
     /**
@@ -132,7 +86,7 @@
      * in indexeddb.
      */
     toJSON: function() {
-      var output = Object.create(null);
+      var output = {};
       var fields = [
         'url',
         'domain',

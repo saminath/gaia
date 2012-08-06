@@ -8,9 +8,12 @@
   },
   "permissions": [
     "telephony",
+    "voicemail",
+    "webcontacts-manage",
     "contacts",
     "power",
     "mozApps",
+    "webapps",
     "mobileconnection",
     "background"
   ],

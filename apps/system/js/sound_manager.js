@@ -4,25 +4,18 @@
 'use strict';
 
 (function() {
-  window.addEventListener('keydown', handleEvent);
-
-  function handleEvent(evt) {
-    if (!ScreenManager.screenEnabled)
-      return;
-
-    if (evt.keyCode === evt.DOM_VK_PAGE_UP) {
-      changeVolume(1);
-    } else if (evt.keyCode === evt.DOM_VK_PAGE_DOWN) {
-      changeVolume(-1);
-    }
-  }
+  window.addEventListener('volumeup', function() {
+    changeVolume(1);
+  });
+  window.addEventListener('volumedown', function() {
+    changeVolume(-1);
+  });
 
   var currentVolume = 5;
-  if ('mozSettings' in navigator) {
-    var req = navigator.mozSettings.getLock().set({
-      'audio.volume.master': currentVolume / 10
-    });
-  }
+
+  SettingsListener.observe('audio.volume.master', 5, function(volume) {
+    currentVolume = volume * 10;
+  });
 
   var activeTimeout = 0;
   function changeVolume(delta) {
@@ -58,16 +51,5 @@
         'audio.volume.master': currentVolume / 10
       });
     }
-
-    fireVolumeChangeEvent();
-  }
-
-  function fireVolumeChangeEvent() {
-    var evt = document.createEvent('CustomEvent');
-    evt.initCustomEvent('volumechange',
-      /* canBubble */ true, /* cancelable */ false,
-      { currentVolume: currentVolume });
-    window.dispatchEvent(evt);
   }
 })();
-

@@ -8,11 +8,35 @@ document.addEventListener('mozvisibilitychange', function visibility(e) {
 
 var CallHandler = {
   call: function ch_call(number) {
-    var sanitizedNumber = number.replace(/-/g, '');
-    var telephony = window.navigator.mozTelephony;
-    if (telephony) {
-      telephony.dial(sanitizedNumber);
+    if (this._isUSSD(number)) {
+      UssdManager.send(number);
+    } else {
+      var sanitizedNumber = number.replace(/-/g, '');
+      var telephony = window.navigator.mozTelephony;
+      if (telephony) {
+        var call = telephony.dial(sanitizedNumber);
+
+        if (call) {
+          var cb = function clearPhoneView() {
+            KeypadManager.updatePhoneNumber('');
+          };
+          call.onconnected = cb;
+          call.ondisconnected = cb;
+        }
+      }
     }
+  },
+
+  _isUSSD: function ch_isUSSD(number) {
+    var ussdChars = ['*', '#'];
+
+    var relevantNumbers = [];
+    relevantNumbers.push(number.slice(0, 1));
+    relevantNumbers.push(number.slice(-1));
+
+    return relevantNumbers.every(function ussdTest(number) {
+      return ussdChars.indexOf(number) !== -1;
+    });
   }
 };
 

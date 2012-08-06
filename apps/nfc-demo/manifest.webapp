@@ -3,11 +3,10 @@
   "description": "NFC Demo",
   "launch_path": "/nfc.html",
   "permissions": [
-    "mozbrowser",
-    "telephony",
     "contacts",
     "power",
-    "mozApps"
+    "mozApps",
+    "nfc"
   ],
   "developer": {
     "name": "Deutsche Telekom",

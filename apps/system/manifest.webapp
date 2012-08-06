@@ -10,8 +10,18 @@
     "mozbrowser",
     "power",
     "mozApps",
+    "webapps",
     "mobileconnection",
-    "mozBluetooth"
+    "mozBluetooth",
+    "telephony",
+    "voicemail",
+    "device-storage",
+    "devicestorage",
+    "websettings-readwrite",
+    "settings",
+    "pin-app",
+    "content-camera",
+    "camera"
   ],
   "locales": {
     "ar": {

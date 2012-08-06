@@ -3,10 +3,11 @@
 
 const Search = (function() {
   var URI_BROWSER;
+  var searchIcon = document.querySelector('#searchAction');
 
   // It should be an activity to search anything on search engine launching
   // the browser and reading the text from an input in the landing page
-  document.querySelector('#searchAction').addEventListener('click',
+  searchIcon.addEventListener('click',
     function launchBrowser(evt) {
       Applications.getByOrigin(URI_BROWSER).launch();
     }

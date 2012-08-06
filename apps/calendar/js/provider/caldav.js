@@ -1,24 +1,32 @@
-(function(window) {
+Calendar.ns('Provider').Caldav = (function() {
 
-  function Caldav(options) {
-    var key;
+  function CaldavProvider() {
+    Calendar.Provider.Abstract.apply(this, arguments);
 
-    if (typeof(options) === 'undefined') {
-      options = {};
-    }
-
-    for (key in options) {
-      if (options.hasOwnProperty(key)) {
-        this[key] = options[key];
-      }
-    }
+    this.service = this.app.serviceController;
   }
 
-  Caldav.prototype = {
-    calendarType: 'Caldav'
+  CaldavProvider.prototype = {
+    __proto__: Calendar.Provider.Abstract.prototype,
+    role: 'caldav',
+    useUrl: true,
+    useCredentials: true,
+
+    getAccount: function(account, callback) {
+      this.service.request(
+        'caldav',
+        'getAccount',
+        account,
+        callback
+      );
+    },
+
+    findCalendars: function(account, callback) {
+      this.service.request('caldav', 'findCalendars', account, callback);
+    }
+
   };
 
-  Calendar.ns('Caldav').Caldav = Caldav;
+  return CaldavProvider;
 
-}(this));
-
+}());

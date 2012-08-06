@@ -1,23 +1,21 @@
 (function(window) {
   var Presets = {
-    /*
     'google': {
       providerType: 'Caldav',
       group: 'remote',
       options: {
         providerType: 'Caldav',
         domain: 'https://calendar.google.com',
-        uri: '/calendar/dav/'
+        url: '/calendar/dav/'
       }
     },
-
     'yahoo': {
       providerType: 'Caldav',
       group: 'remote',
       options: {
         domain: 'https://caldav.calendar.yahoo.com',
         providerType: 'Caldav',
-        uri: '/'
+        url: '/'
       }
     },
 
@@ -27,10 +25,9 @@
       options: {
         domain: '',
         providerType: 'Caldav',
-        uri: ''
+        url: ''
       }
     },
-    */
 
     'local': {
       singleUse: true,
