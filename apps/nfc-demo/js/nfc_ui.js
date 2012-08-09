@@ -34,7 +34,7 @@ commonRequestHandler: function(pending) {
   if (pending != null) {
     pending.onsuccess = function() {
       var msg = this.result;
-      var message = "Tag write successful. RequestId: " + msg.requestId + ", Result: " + msg.status;
+      var message = "Tag write successful. RequestId: " + atob(msg.requestId) + ", Result: " + msg.status;
       if (messageArea == null) {
         alert("Message: " + message); 
         return;
