@@ -20,7 +20,6 @@ lookupUrlRecordType: function (uri) {
 // Abbreviate will shorten the protocol of that url
 createUriNdefRecord: function (uri, abbreviate) {
   var uriPayload = null;
-  var record = new MozNdefRecord();
 
   if (uri == null) {
     return null;
@@ -41,31 +40,40 @@ createUriNdefRecord: function (uri, abbreviate) {
   }
   console.log("Current URL payload: " + urlPayload);
 
-  record.tnf = nfc.tnf_well_known; // NFC Forum Well Known type
-  record.type = nfc.rtd_uri; // URL type
-  record.id = null;
-  record.payload = urlPayload;
+  var tnf = nfc.tnf_well_known; // NFC Forum Well Known type
+  var type = nfc.rtd_uri; // URL type
+  var id = null;
+  var payload = urlPayload;
 
+  var record = new MozNdefRecord(
+    tnf,
+    type,
+    id,
+    payload
+  );
   return record;
 },
 
 // mail parameter format: {"mailto" : emailAddress, "subject" : subjectLine, "body" : emailMessageBody}
 createEmailNdefRecord: function(mail) {
   var records;
-  var main = new MozNdefRecord();
 
-  main.tnf = nfc.tnf_well_known;
-  main.type = nfc.rtd_uri;
-  main.id = null;
-  main.payload = null;
+  var tnf = nfc.tnf_well_known;
+  var type = nfc.rtd_uri;
+  var id = null;
+  var payload = null;
 
   // Construct email payload:
   var prefix = 0x06; // mailto: URI
   var uri = mail.mailto+"?"+"subject="+mail.subject+"&"+"body"+mail.body;
-  uriRec = String.fromCharCode(prefix) + uri;
+  payload = String.fromCharCode(prefix) + uri;
 
-  main.payload = uriRec;
-
+  var main = new MozNdefRecord(
+    tnf,
+    type,
+    id,
+    payload
+  );
   return main;
 }
 

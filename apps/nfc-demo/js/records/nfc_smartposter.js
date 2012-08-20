@@ -14,39 +14,50 @@ RFUAction: 0x03, // Reserved from 0x03 to 0xFF
 // Action: See constants of nfcSmartPoster.
 createEmailNdefRecord: function(aEmail, aTitle, aAction) {
   var records;
-  var main = new MozNdefRecord();
 
-  main.tnf = nfc.tnf_well_known;
-  main.type = nfc.rtd_smart_poster;
-  main.id = null;
-  main.payload = null;
+  var tnf = nfc.tnf_well_known;
+  var type = nfc.rtd_smart_poster;
+  var id = null;
+  var payload = null;
 
   // Sub-payload byte strings attached to main payload
   var uriRec = this.createEmailUriRecord(aEmail);
   var actionRec = this.createActionRecord(aAction);
   var titleRec = this.createTitleRecord(aTitle);
 
-  main.payload = uriRec + actionRec + titleRec;
+  payload = uriRec + actionRec + titleRec;
 
+  var main = new MozNdefRecord(
+    tnf,
+    type,
+    id,
+    payload
+  );
   return main;
 },
 
 // Title is formatted: {"title": title, "lang": lang}
 createUriNdefRecord: function (aUri, aTitle, aAction) {
   var records;
-  var main = new MozNdefRecord();
 
-  main.tnf = nfc.tnf_well_known;
-  main.type = nfc.rtd_smart_poster;
-  main.id = null;
-  main.payload = null;
+  var tnf = nfc.tnf_well_known;
+  var type = nfc.rtd_smart_poster;
+  var id = null;
+  var payload = null;
 
   // Sub-payload byte strings attached to main payload
   var uriRec = this.createUriRecord(aUri);
   var actionRec = this.createActionRecord(aAction); 
   var titleRec = this.createTitleRecord(aTitle);
 
-  main.payload = uriRec + actionRec + titleRec;
+  payload = uriRec + actionRec + titleRec;
+
+  var main = new MozNdefRecord(
+    tnf,
+    type,
+    id,
+    payload
+  );
 
   return main;
 },

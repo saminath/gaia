@@ -1,18 +1,20 @@
 var nfcText = {
 
 createTextNdefRecord_Utf8: function(text, lang) {
-  var record = new MozNdefRecord();
-
-  record.tnf = nfc.tnf_well_known;
-  record.type = nfc.rtd_text;
-  record.id = null;
+  var tnf = nfc.tnf_well_known;
+  var type = nfc.rtd_text;
+  var id = null;
 
   // Payload:
   var prefix = 0x02;
   var payload = String.fromCharCode(prefix) + lang + text;
 
-  record.payload = payload;
-
+  var record = new MozNdefRecord(
+    tnf,
+    type,
+    id,
+    payload
+  );
   return record;
 }
 

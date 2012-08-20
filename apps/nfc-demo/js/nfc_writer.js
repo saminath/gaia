@@ -94,9 +94,9 @@ smsFormToNdefRecord: function(elementRef) {
 contactFormToNdefRecord: function(elementRef) {
   var record = new MozNdefRecord();
 
-  record.tnf = $(elementRef + " > .nfc_contact_tnf").val();
-  record.type = $(elementRef + " > .nfc_contact_type").val(); 
-  record.id = $(elementRef + " > .nfc_contact_id").val();
+  var tnf = $(elementRef + " > .nfc_contact_tnf").val();
+  var type = $(elementRef + " > .nfc_contact_type").val(); 
+  var id = $(elementRef + " > .nfc_contact_id").val();
 
   /* payload */
   var fname = $(elementRef + " > .nfc_contact_payload_name_first").val();
@@ -134,7 +134,12 @@ contactFormToNdefRecord: function(elementRef) {
 
   payload += "END:VCARD";
 
-  record.payload = payload;
+  var record = new MozNdefRecord(
+    tnf,
+    type,
+    id,
+    payload
+  );
 
   // See if Moz object actually has values:
   console.log("payload print(intended: " + payload + ")");
