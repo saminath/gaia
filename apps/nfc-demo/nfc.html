@@ -315,7 +315,7 @@
 
           function writePendingMessage() {
             if (pendingNdefMessage != null) {
-              var pendingDomRequest = writeRecordArrayTag(pendingNdefMessage);
+              var pendingDomRequest = writeRecordArrayTag(pendingNdefMessage, p2p);
               commonRequestHandler(pendingDomRequest);
               pendingNdefMessage = null;
             }
@@ -374,7 +374,9 @@
             $("#nfc_tag_write_dialog").click();
           }
 
-          function postUriFormtoNdef(elementRef) {
+          function postUriFormtoNdef(elementRef, p2p) {
+            p2p = p2p || false;
+
             var records = new Array();
             var record = urlFormToNdefRecord(elementRef, true);
             records.push(record);
@@ -384,8 +386,13 @@
               appendTextAndScroll($("#area"), message+"\n");
               return;
             }
-            pendingNdefMessage = records;
-            $("#nfc_tag_write_dialog").click();
+            if(p2p) {
+              debug("Pushing records");
+              var domreq = navigator.mozNfc.ndefPush(records);
+            } else {
+              pendingNdefMessage = records;
+              $("#nfc_tag_write_dialog").click();
+            }
           }
 
 
@@ -542,10 +549,10 @@
                 </div>
 
                 <div data-role="collapsible"><h2>Text Tag Writer</h2>
-                    <div id="nfc_url_form_id">
+                    <div id="nfc_text_form_id">
                         <label for="basic">Text</label>
                         <input class="text" value="Dummy text"/>
-                        <button onclick="postTextFormtoNdef('#nfc_url_form_id');">Write Text Tag</button>
+                        <button onclick="postTextFormtoNdef('#nfc_text_form_id');">Write Text Tag</button>
                     </div>
                 </div>
 
@@ -564,8 +571,9 @@
                 <div data-role="collapsible"><h2>URI Tag Writer</h2>
                     <div id="nfc_url_form_id">
                         <label for="basic">URI</label>
-                        <input class="uri" value=""/>
+                        <input class="uri" value="http://www.telekom.de"/>
                         <button onclick="postUriFormtoNdef('#nfc_url_form_id');">Write URI Tag</button>
+                        <button onclick="postUriFormtoNdef('#nfc_url_form_id', true);">Push URI P2P</button>
                     </div>
                 </div>
 

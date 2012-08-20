@@ -18,8 +18,7 @@ function validateNdefTagRecords(ndefRecords) {
  * attach callbacks taking an event to the request's onsuccess
  * and onerror.
  */
-function writeRecordArrayTag(ndefRecords) {
-
+function writeRecordArrayTag(ndefRecords, p2p) {
   if (ndefRecords == null) {
     return null;
   }
