@@ -252,12 +252,7 @@ postContactFormToNdef: function(elementRef) {
 
 // Empty Tag:
 postEmptyTag: function() {
-  records = new Array();
-  records.push(new MozNdefRecord());
-  records[0].tnf = nfc.tnf_empty;
-  records[0].type = nfc.rtd_text;
-  records[0].id = null;
-  records[0].payload = null;
+  var records = [new MozNdefRecord(nfc.tnf_empty, nfc.rtd_text, null, null)];
   nfcUI.postPendingMessage(records);
 }
 
