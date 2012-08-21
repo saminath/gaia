@@ -28,6 +28,8 @@ var CallScreen = {
   incomingEnd: document.getElementById('incoming-end'),
   incomingIgnore: document.getElementById('incoming-ignore'),
 
+  swiperWrapper: document.getElementById('swiper-wrapper'),
+
   init: function cs_init() {
     this.muteButton.addEventListener('mouseup', this.toggleMute.bind(this));
     this.keypadButton.addEventListener('mouseup', this.showKeypad.bind(this));
@@ -51,7 +53,8 @@ var CallScreen = {
   },
 
   setCallerContactImage: function cs_setCallerContactImage(image_url) {
-    this.mainContainer.style.backgroundImage = 'url(' + image_url + ')';
+    var photoURL = URL.createObjectURL(image_url);
+    this.mainContainer.style.backgroundImage = 'url(' + photoURL + ')';
   },
 
   toggleMute: function cs_toggleMute() {
@@ -82,31 +85,44 @@ var CallScreen = {
     switch (layout_type) {
       case 'dialing':
         this.answerButton.classList.add('hide');
+        this.rejectButton.classList.remove('hide');
         this.rejectButton.classList.add('full-space');
         this.callToolbar.classList.remove('transparent');
         this.keypadButton.setAttribute('disabled', 'disabled');
+        this.swiperWrapper.classList.add('hide');
         break;
       case 'incoming':
         this.answerButton.classList.remove('hide');
-        this.rejectButton.classList.remove('full-space');
+        this.rejectButton.classList.remove('hide');
+        this.callToolbar.classList.remove('transparent');
+        this.keypadButton.setAttribute('disabled', 'disabled');
+        this.swiperWrapper.classList.add('hide');
+        break;
+      case 'incoming-locked':
+        this.answerButton.classList.add('hide');
+        this.rejectButton.classList.add('hide');
         this.callToolbar.classList.add('transparent');
         this.keypadButton.setAttribute('disabled', 'disabled');
+        this.swiperWrapper.classList.remove('hide');
         break;
       case 'connected':
         this.answerButton.classList.add('hide');
+        this.rejectButton.classList.remove('hide');
         this.rejectButton.classList.add('full-space');
         this.callToolbar.classList.remove('transparent');
-
+        this.swiperWrapper.classList.add('hide');
         break;
     }
   },
 
   showIncoming: function cs_showIncoming() {
     this.hideKeypad();
+    this.callToolbar.classList.add('transparent');
     this.incomingContainer.classList.add('displayed');
   },
 
   hideIncoming: function cs_hideIncoming() {
+    this.callToolbar.classList.remove('transparent');
     this.incomingContainer.classList.remove('displayed');
   },
 
@@ -180,11 +196,21 @@ var OnCallHandler = {
       // Needs to be called at least once
       callsChanged();
       telephony.oncallschanged = callsChanged;
+
+      // If the call was ended before we got here we can close
+      // right away.
+      if (this.handledCalls.length === 0) {
+        this._close(false);
+      }
     }
   },
 
   answer: function ch_answer() {
-    this._telephony.active.answer();
+    // We should always have only 1 call here
+    if (!this.handledCalls.length)
+      return;
+
+    this.handledCalls[0].call.answer();
     CallScreen.render('connected');
   },
 
@@ -217,18 +243,26 @@ var OnCallHandler = {
 
   ignore: function ch_ignore() {
     var ignoreIndex = this.handledCalls.length - 1;
-    this.handledCalls[ignoreIndex].hangUp();
+    this.handledCalls[ignoreIndex].call.hangUp();
 
     CallScreen.hideIncoming();
   },
 
   end: function ch_end() {
-    if (!this._telephony.active) {
+    // If there is an active call we end this one
+    if (this._telephony.active) {
+      this._telephony.active.hangUp();
+      return;
+    }
+
+    // If not we're rejecting the last incoming call
+    if (!this.handledCalls.length) {
       this.toggleScreen();
       return;
     }
 
-    this._telephony.active.hangUp();
+    var lastCallIndex = this.handledCalls.length - 1;
+    this.handledCalls[lastCallIndex].call.hangUp();
   },
 
   toggleMute: function ch_toggleMute() {
@@ -306,7 +340,12 @@ var OnCallHandler = {
 
       CallScreen.showIncoming();
     } else {
-      CallScreen.render(call.state);
+      if (window.location.hash.split('?')[1] === 'locked' &&
+          (call.state == 'incoming')) {
+        CallScreen.render('incoming-locked');
+      } else {
+        CallScreen.render(call.state);
+      }
     }
   },
 
@@ -320,6 +359,10 @@ var OnCallHandler = {
       return;
     }
 
+    this._close(true);
+  },
+
+  _close: function och_close(animate) {
     if (this._closing)
       return;
 
@@ -331,8 +374,12 @@ var OnCallHandler = {
     ProximityHandler.disable();
 
     this._closing = true;
-    // Out animation before closing the window
-    this.toggleScreen();
+
+    if (animate) {
+      this.toggleScreen();
+    } else {
+      this.closeWindow();
+    }
   }
 };
 

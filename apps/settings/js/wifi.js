@@ -151,17 +151,17 @@ var gWifiManager = (function(window) {
 
 // handle Wi-Fi settings
 window.addEventListener('localized', function wifiSettings(evt) {
-  var settings = window.navigator.mozSettings;
   var _ = navigator.mozL10n.get;
 
-  var gWifiCheckBox =
-    document.querySelector('#wifi-enabled input[type=checkbox]');
-  var gWifiInfoBlock = document.querySelector('#wifi-desc');
-  var gWpsInfoBlock = document.querySelector('#wifi-wps-desc');
-  var wpsInProgress = false;
-
+  var settings = window.navigator.mozSettings;
   if (!settings)
     return;
+
+  var gWifiCheckBox = document.querySelector('#wifi-enabled input');
+  var gWifiInfoBlock = document.querySelector('#wifi-desc');
+  var gWpsInfoBlock = document.querySelector('#wifi-wps-desc');
+  var gWpsPbcLabelBlock =
+   document.querySelector('#wps-pbc-button').querySelector('a');
 
   // toggle wifi on/off
   gWifiCheckBox.onchange = function toggleWifi() {
@@ -205,16 +205,40 @@ window.addEventListener('localized', function wifiSettings(evt) {
   };
 
   // Wi-Fi Protected Setup
-  var wpsPbcButton = document.getElementById('wps-pbc-button');
-  wpsPbcButton.onclick = function() {
-    if (!gWifiManager.wps)
-      return;
-    wpsInProgress = true;
-    gWpsInfoBlock.textContent = _('fullStatus-wps-inprogress');
-    gWifiManager.wps({
-      method: 'pbc'
-    });
-  };
+  var gWpsInProgress = false;
+  if (gWifiManager.wps) {
+    var wpsPbcButton = document.getElementById('wps-pbc-button');
+    wpsPbcButton.hidden = false;
+    wpsPbcButton.onclick = function() {
+      if (gWpsInProgress) {
+        var req = gWifiManager.wps({
+          method: 'cancel'
+        });
+        req.onsuccess = function() {
+          gWpsInProgress = false;
+          gWpsPbcLabelBlock.textContent = _('wpsPbcMessage');
+          gWpsInfoBlock.textContent = _('fullStatus-wps-canceled');
+        };
+        req.onerror = function() {
+          gWpsInfoBlock.textContent = _('wpsCancelFailedMessage') +
+            ' [' + req.error.name + ']';
+        };
+      } else {
+        var req = gWifiManager.wps({
+          method: 'pbc'
+        });
+        req.onsuccess = function() {
+          gWpsInProgress = true;
+          gWpsPbcLabelBlock.textContent = _('wpsCancelMessage');
+          gWpsInfoBlock.textContent = _('fullStatus-wps-inprogress');
+        };
+        req.onerror = function() {
+          gWpsInfoBlock.textContent = _('fullStatus-wps-failed') +
+            ' [' + req.error.name + ']';
+        };
+      }
+    };
+  }
 
   // network list
   var gNetworkList = (function networkList(list) {
@@ -538,12 +562,17 @@ window.addEventListener('localized', function wifiSettings(evt) {
       gWifiInfoBlock.textContent =
           _('fullStatus-' + networkStatus, currentNetwork);
     }
-    if (wpsInProgress) {
-      if (networkStatus !== 'disconnected')
+    if (gWpsInProgress) {
+      if (networkStatus !== 'disconnected') {
         gWpsInfoBlock.textContent = gWifiInfoBlock.textContent;
-      if (networkStatus === 'connected' || networkStatus === 'wps-timedout' ||
-          networkStatus === 'wps-failed' || networkStatus === 'wps-overlapped')
-        wpsInProgress = false;
+      }
+      if (networkStatus === 'connected' ||
+          networkStatus === 'wps-timedout' ||
+          networkStatus === 'wps-failed' ||
+          networkStatus === 'wps-overlapped') {
+        gWpsInProgress = false;
+        gWpsPbcLabelBlock.textContent = _('wpsPbcMessage');
+      }
     }
   }
 
@@ -557,8 +586,9 @@ window.addEventListener('localized', function wifiSettings(evt) {
       gNetworkList.clear(true);
     } else {
       gWifiInfoBlock.textContent = _('disabled');
-      if (wpsInProgress)
+      if (gWpsInProgress) {
         gWpsInfoBlock.textContent = gWifiInfoBlock.textContent;
+      }
       gNetworkList.clear(false);
       gNetworkList.autoscan = false;
     }

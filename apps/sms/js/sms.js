@@ -59,11 +59,15 @@ var MessageManager = {
         var threadMessages = document.getElementById('thread-messages');
         switch (window.location.hash) {
           case '#new':
+            var messageInput = document.getElementById('message-to-send');
+            var receiverInput = document.getElementById('receiver-input');
             document.getElementById('messages-container').innerHTML = '';
-            document.getElementById('message-to-send').innerHTML = '';
-            document.getElementById('receiver-input').value = '';
+            messageInput.innerHTML = '';
+            receiverInput.value = '';
             threadMessages.classList.add('new');
-            MessageManager.slide();
+            MessageManager.slide(function() {
+              messageInput.focus();
+            });
             break;
           case '#thread-list':
             if (mainWrapper.classList.contains('edit')) {
@@ -94,7 +98,11 @@ var MessageManager = {
               } else {
                 var filter = this.createFilter(num);
                 this.getMessages(ThreadUI.renderMessages,
-                  filter, null, MessageManager.slide);
+                  filter, null, function() {
+                   MessageManager.slide(function() {
+                      document.getElementById('message-to-send').focus();
+                    });
+                  });
               }
             }
           break;
@@ -268,9 +276,9 @@ var ThreadListUI = {
 
   updateMsgWithContact: function thlui_updateMsgWithContact(number, contact) {
     var element =
-      this.view.querySelector('a[data-num="' + number + '"] div.name');
-    if (element) {
-      element.innerHTML = contact[0].name || _('unknown-contact');
+            this.view.querySelector('a[data-num="' + number + '"] div.name');
+    if (element && contact[0].name && contact[0].name != '') {
+      element.innerHTML = contact[0].name;
     }
   },
 
@@ -493,8 +501,9 @@ var ThreadListUI = {
 
     // Get the contact data for the number
     ContactDataManager.getContactData(thread.num, function gotContact(contact) {
-      if (contact && contact.length > 0)
+      if (contact && contact.length > 0) {
         ThreadListUI.updateMsgWithContact(thread.num, contact);
+      }
     });
   },
 
@@ -630,7 +639,8 @@ var ThreadUI = {
     // offset height to keep original height, otherwise we use scroll height
     // with additional margin for preventing scroll bar.
     input.style.height = input.offsetHeight > input.scrollHeight ?
-      input.offsetHeight + 'px' : input.scrollHeight + 8 + 'px';
+      input.offsetHeight / Utils.getFontSize() + 'rem' :
+      input.scrollHeight / Utils.getFontSize() + 0.8 + 'rem';
 
     var newHeight = input.getBoundingClientRect().height;
     // Add 1 rem to fit the margin top and bottom space.
@@ -656,10 +666,23 @@ var ThreadUI = {
     ThreadUI.view.appendChild(headerHTML);
   },
   updateHeaderData: function thui_updateHeaderData(number) {
-    ThreadUI.title.innerHTML = number;
+    var self = this;
+    self.title.innerHTML = number;
     ContactDataManager.getContactData(number, function gotContact(contact) {
-      if (contact && contact.length > 0) {
-        ThreadUI.title.innerHTML = contact[0].name || _('unknown-contact');
+      var carrier = document.getElementById('contact-carrier');
+      if (contact.length > 0) { // we have a contact
+        if (contact[0].name && contact[0].name != '') { // contact with name
+          self.title.innerHTML = contact[0].name;
+          carrier.innerHTML =
+                  contact[0].tel[0].type + ' | ' +
+                  (contact[0].tel[0].carrier || _('carrier-unknown'));
+    // TODO check if contact has different numbers with same type and carrier
+        } else { // no name of contact
+          carrier.innerHTML =
+                  contact[0].tel[0].type;
+        }
+      } else { // we don't have a contact
+        carrier.style.display = 'none';
       }
     });
   },
@@ -709,17 +732,9 @@ var ThreadUI = {
     var bodyText = message.body;
     var bodyHTML = Utils.escapeHTML(bodyText);
     messageDOM.id = timestamp;
-    var htmlStructure = '<span class="bubble-container ' + className + '">' +
-                        '<div class="bubble">' + bodyHTML + '</div>' +
-                        '</span>';
-    // Add 'gif' if necessary
+    var htmlStructure = '';
+    // Adding edit options to the left side
     if (message.delivery == 'sending') {
-      messageDOM.addEventListener('click',
-        ThreadUI.resendMessage.bind(ThreadUI, message));
-      htmlStructure += '<span class="message-option">' +
-      '<img src="' + (message.showAnimation ? ThreadUI.sendIcons.sending :
-        ThreadUI.sendIcons.pending) + '" class="gif">' +
-                        '</span>';
       //Add edit options for pending
       htmlStructure += '<span class="message-option msg-checkbox">' +
                         '  <input value="ts_' + timestamp +
@@ -734,6 +749,17 @@ var ThreadUI = {
                         '  <span></span>' +
                       '</span>';
     }
+    htmlStructure += '<span class="bubble-container ' + className + '">' +
+                        '<div class="bubble">' + bodyHTML + '</div>' +
+                        '</span>';
+
+    // Add 'gif' if necessary
+    if (message.delivery == 'sending') {
+      htmlStructure += '<span class="message-option">' +
+      '<img src="' + (message.showAnimation ? ThreadUI.sendIcons.sending :
+        ThreadUI.sendIcons.pending) + '" class="gif">' +
+                        '</span>';
+    }
     // Add structure to DOM element
     messageDOM.innerHTML = htmlStructure;
     //Check if we need a new header
@@ -746,8 +772,8 @@ var ThreadUI = {
     ThreadUI.view.appendChild(messageDOM);
     // Scroll to bottom
     ThreadUI.scrollViewToBottom();
-    if (callback) {
-      callback;
+    if (callback && callback instanceof Function) {
+      callback();
     }
   },
 
@@ -952,7 +978,6 @@ var ThreadUI = {
         read: 1,
         timestamp: tempDate
       };
-
       var self = this;
       // Save the message into pendind DB before send.
       PendingMsgManager.saveToMsgDB(message, function onsave(msg) {
@@ -967,39 +992,49 @@ var ThreadUI = {
           if (window.location.hash == '#new') {
             window.location.hash = '#num=' + num;
           } else {
-            // Append to DOMf
+            // Append to DOM
             message.showAnimation = true;
             ThreadUI.appendMessage(message, function() {
+              // Retrieve the last message added to DOM
+              var root = document.getElementById(message.timestamp.getTime());
+              // Create function for resending
+              var resendCallback = function() {
+                ThreadUI.resendMessage(message);
+              };
+              // Add temporaly until sending properly
+              root.addEventListener('click', resendCallback);
+              // Call to update headers
               Utils.updateHeaders();
+              // Call to API through MessageManager
+              MessageManager.send(num, text, function onsent(msg) {
+                if (!msg) {
+                  self.resendMessage(message);
+                } else {
+                  if (root) {
+                    // We remove 'resend' action once it is sent properly
+                    root.removeEventListener('click', resendCallback);
+                    root.removeChild(root.childNodes[2]);
+                    var inputs =
+                      root.querySelectorAll('input[type="checkbox"]');
+                    if (inputs) {
+                      inputs[0].value = 'id_' + msg.id;
+                    }
+                  }
+                  // Remove the message from pending message DB since it
+                  // could be sent successfully.
+                  PendingMsgManager.deleteFromMsgDB(message,
+                    function ondelete(msg) {
+                      if (!msg) {
+                        //TODO: Handle message delete failed in pending DB.
+                      }
+                  });
+                }
+              });
             });
           }
           MessageManager.getMessages(ThreadListUI.renderThreads);
         }
 
-      });
-
-      MessageManager.send(num, text, function onsent(msg) {
-        if (!msg) {
-          self.resendMessage(message);
-        } else {
-          var root = document.getElementById(message.timestamp.getTime());
-          if (root) {
-
-            root.removeChild(root.childNodes[1]);
-            var inputs = root.querySelectorAll('input[type="checkbox"]');
-            if (inputs) {
-              inputs[0].value = 'id_' + msg.id;
-            }
-
-          }
-          // Remove the message from pending message DB since it could be sent
-          // successfully.
-          PendingMsgManager.deleteFromMsgDB(message, function ondelete(msg) {
-            if (!msg) {
-              //TODO: Handle message delete failed in pending DB.
-            }
-          });
-        }
       });
     }
   },
@@ -1037,7 +1072,7 @@ var ThreadUI = {
     var tels = contact.tel;
     for (var i = 0; i < tels.length; i++) {
       var input = this.contactInput.value;
-      var number = tels[i].number.toString();
+      var number = tels[i].value.toString();
       var reg = new RegExp(input, 'ig');
       if (!(name.match(reg) || (number.match(reg)))) {
         continue;
@@ -1047,11 +1082,16 @@ var ThreadUI = {
       // Create DOM element
       var threadHTML = document.createElement('div');
       threadHTML.classList.add('item');
+      if (name == '') {
+        nameHTML = 'Unknown';
+      }
+      var carrier = tels[i].carrier;
+      //TODO Implement algorithm for this part following Wireframes
       // Create HTML structure
       var structureHTML =
-              '  <a href="#num=' + contact.tel[i].number + '">' +
+              '  <a href="#num=' + tels[i].value + '">' +
               '    <div class="name">' + nameHTML + '</div>' +
-              '    <div class="type">' + _(phoneType[i]) + '   ' + numHTML +
+              '    <div class="type">' + tels[i].type + ' ' + numHTML +
               '    </div>' +
               '  </a>';
       // Update HTML and append
@@ -1078,22 +1118,29 @@ var ThreadUI = {
 
   pickContact: function thui_pickContact() {
     try {
+      var reopenSelf = function reopenSelf(number) {
+        navigator.mozApps.getSelf().onsuccess = function getSelfCB(evt) {
+          var app = evt.target.result;
+          app.launch();
+          if (number) {
+            window.location.hash = '#num=' + number;
+          }
+        };
+      };
       var activity = new MozActivity({
         name: 'pick',
         data: {
           type: 'webcontacts/contact'
         }
       });
-      activity.onsuccess = function() {
+      activity.onsuccess = function success() {
         var number = this.result.number;
-        navigator.mozApps.getSelf().onsuccess = function getSelfCB(evt) {
-          if (number) {
-            var app = evt.target.result;
-            app.launch();
-            window.location.hash = '#num=' + number;
-          }
-        };
+        reopenSelf(number);
       }
+      activity.onerror = function error() {
+        reopenSelf();
+      }
+
     } catch (e) {
       console.log('WebActivities unavailable? : ' + e);
     }

@@ -62,7 +62,7 @@ var LockScreen = {
   /*
   * Cool down period after kPassCodeTries
   */
-  kPassCodeTriesTimeout: 10000,
+  kPassCodeTriesTimeout: 5 * 60 * 1000,
 
   /*
   * Airplane mode
@@ -74,6 +74,7 @@ var LockScreen = {
     this.getAllElements();
 
     this.lockIfEnabled(true);
+    this.writeSetting(this.enabled);
 
     /* Status changes */
     window.addEventListener('volumechange', this);
@@ -235,6 +236,22 @@ var LockScreen = {
             this._touch.initY = evt.pageY;
 
             overlay.classList.add('touched');
+            break;
+
+          case this.accessibilityUnlock:
+            overlay.classList.add('touched');
+            this.areaUnlock.classList.add('triggered');
+            this.areaHandle.classList.add('triggered');
+            this._touch.target = this.areaUnlock;
+            this.handleGesture();
+            break;
+
+          case this.accessibilityCamera:
+            overlay.classList.add('touched');
+            this.areaUnlock.classList.add('triggered');
+            this.areaHandle.classList.add('triggered');
+            this._touch.target = this.areaCamera;
+            this.handleGesture();
             break;
         }
         break;
@@ -486,6 +503,8 @@ var LockScreen = {
     WindowManager.setOrientationForApp(WindowManager.getDisplayedApp());
 
     if (!wasAlreadyUnlocked) {
+      // Any changes made to this,
+      // also need to be reflected in apps/system/js/storage.js
       this.dispatchEvent('unlock');
       this.writeSetting(false);
       this.hideNotification();
@@ -511,6 +530,8 @@ var LockScreen = {
     this.updateTime();
 
     if (!wasAlreadyLocked) {
+      // Any changes made to this,
+      // also need to be reflected in apps/system/js/storage.js
       this.dispatchEvent('lock');
       this.writeSetting(true);
     }
@@ -519,17 +540,29 @@ var LockScreen = {
   loadPanel: function ls_loadPanel(panel, callback) {
     switch (panel) {
       case 'passcode':
-      case 'emergency':
-      default:
+      case 'main':
         if (callback)
           callback();
+        break;
+
+      case 'emergency-call':
+        // create the <iframe> and load the emergency call
+        var frame = document.createElement('iframe');
+
+        frame.src = './emergency-call/index.html';
+        frame.onload = function emergencyCallLoaded() {
+          if (callback)
+            callback();
+        };
+        this.panelEmergencyCall.appendChild(frame);
+
         break;
 
       case 'camera':
         // create the <iframe> and load the camera
         var frame = document.createElement('iframe');
 
-        frame.src = './camera/';
+        frame.src = './camera/index.html';
         var mainScreen = this.mainScreen;
         frame.onload = function cameraLoaded() {
           mainScreen.classList.add('lockscreen-camera');
@@ -559,9 +592,15 @@ var LockScreen = {
         this.mainScreen.classList.remove('lockscreen-camera');
         break;
 
-      case 'emergency':
+      case 'emergency-call':
+        var ecPanel = this.panelEmergencyCall;
+        ecPanel.addEventListener('transitionend', function unloadPanel() {
+          ecPanel.removeEventListener('transitionend', unloadPanel);
+          ecPanel.removeChild(ecPanel.firstElementChild);
+        });
         break;
 
+      case 'main':
       default:
         var self = this;
         var unload = function unload() {
@@ -603,7 +642,7 @@ var LockScreen = {
   switchPanel: function ls_switchPanel(panel) {
     var overlay = this.overlay;
     var self = this;
-    panel = panel || '';
+    panel = panel || 'main';
     this.loadPanel(panel, function panelLoaded() {
       self.unloadPanel(overlay.dataset.panel, panel,
         function panelUnloaded() {
@@ -632,13 +671,20 @@ var LockScreen = {
   updateConnState: function ls_updateConnState() {
     var conn = window.navigator.mozMobileConnection;
     var voice = conn.voice;
-    var connstate = this.connstate;
+    var connstateLine1 = this.connstate.firstElementChild;
+    var connstateLine2 = this.connstate.lastElementChild;
     var _ = navigator.mozL10n.get;
 
-    if (this.airplaneMode) {
-      connstate.dataset.l10nId = 'airplaneMode';
-      connstate.textContent = _('airplaneMode') || '';
+    // Reset line 2
+    connstateLine2.textContent = '';
 
+    var updateConnstateLine1 = function updateConnstateLine1(l10nId) {
+      connstateLine1.dataset.l10nId = l10nId;
+      connstateLine1.textContent = _(l10nId) || '';
+    };
+
+    if (this.airplaneMode) {
+      updateConnstateLine1('airplaneMode');
       return;
     }
 
@@ -649,8 +695,7 @@ var LockScreen = {
     // https://bugzilla.mozilla.org/show_bug.cgi?id=777057
     if (voice.state == 'notSearching') {
       // "No Network"
-      connstate.dataset.l10nId = 'noNetwork';
-      connstate.textContent = _('noNetwork') || '';
+      updateConnstateLine1('noNetwork');
 
       return;
     }
@@ -660,8 +705,7 @@ var LockScreen = {
       // voice.state can be any of the later three value.
       // (it's possible, briefly that the phone is 'registered'
       // but not yet connected.)
-      connstate.dataset.l10nId = 'searching';
-      connstate.textContent = _('searching') || '';
+      updateConnstateLine1('searching');
 
       return;
     }
@@ -669,32 +713,27 @@ var LockScreen = {
     if (voice.emergencyCallsOnly) {
       switch (conn.cardState) {
         case 'absent':
-          connstate.dataset.l10nId = 'emergencyCallsOnlyNoSIM';
-          connstate.textContent = _('emergencyCallsOnlyNoSIM') || '';
+          updateConnstateLine1('emergencyCallsOnlyNoSIM');
 
           break;
 
         case 'pinRequired':
-          connstate.dataset.l10nId = 'emergencyCallsOnlyPinRequired';
-          connstate.textContent = _('emergencyCallsOnlyPinRequired') || '';
+          updateConnstateLine1('emergencyCallsOnlyPinRequired');
 
           break;
 
         case 'pukRequired':
-          connstate.dataset.l10nId = 'emergencyCallsOnlyPukRequired';
-          connstate.textContent = _('emergencyCallsOnlyPukRequired') || '';
+          updateConnstateLine1('emergencyCallsOnlyPukRequired');
 
           break;
 
         case 'networkLocked':
-          connstate.dataset.l10nId = 'emergencyCallsOnlyNetworkLocked';
-          connstate.textContent = _('emergencyCallsOnlyNetworkLocked') || '';
+          updateConnstateLine1('emergencyCallsOnlyNetworkLocked');
 
           break;
 
         default:
-          connstate.dataset.l10nId = 'emergencyCallsOnly';
-          connstate.textContent = _('emergencyCallsOnly') || '';
+          updateConnstateLine1('emergencyCallsOnly');
 
           break;
       }
@@ -702,17 +741,31 @@ var LockScreen = {
       return;
     }
 
+    if (voice.network.mcc == 724 &&
+        voice.cell && voice.cell.gsmLocationAreaCode) {
+      // We are in Brazil, It is legally required to show local info
+      // about current registered GSM network in a legally specified way.
+      var lac = voice.cell.gsmLocationAreaCode;
+      var carriers = MobileInfo.brazil.carriers;
+      var regions = MobileInfo.brazil.regions;
+
+      connstateLine2.textContent =
+        (carriers[voice.network.mnc] || ('724' + voice.network.mnc)) +
+        ' ' +
+        (regions[lac] ? regions[lac] + ' ' + lac : '');
+    }
+
     if (voice.roaming) {
       var l10nArgs = { operator: voice.network.shortName };
-      connstate.dataset.l10nId = 'roaming';
-      connstate.dataset.l10nArgs = JSON.stringify(l10nArgs);
-      connstate.textContent = _('roaming', l10nArgs);
+      connstateLine1.dataset.l10nId = 'roaming';
+      connstateLine1.dataset.l10nArgs = JSON.stringify(l10nArgs);
+      connstateLine1.textContent = _('roaming', l10nArgs);
 
       return;
     }
 
-    delete connstate.dataset.l10nId;
-    connstate.textContent = voice.network.shortName;
+    delete connstateLine1.dataset.l10nId;
+    connstateLine1.textContent = voice.network.shortName;
   },
 
   showNotification: function lockscreen_showNotification(detail) {
@@ -797,7 +850,8 @@ var LockScreen = {
         'area', 'area-unlock', 'area-camera', 'area-handle',
         'rail-left', 'rail-right',
         'passcode-code', 'passcode-pad',
-        'camera'];
+        'camera', 'accessibility-camera', 'accessibility-unlock',
+        'panel-emergency-call'];
 
     var toCamelCase = function toCamelCase(str) {
       return str.replace(/\-(.)/g, function replacer(str, p1) {

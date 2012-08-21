@@ -39,6 +39,15 @@
     }
   });
 
+  var screenState = 'locked';
+  SettingsListener.observe('lockscreen.locked', false, function(value) {
+    if (value) {
+      screenState = 'locked';
+    } else {
+      screenState = 'unlocked';
+    }
+  });
+
   var _ = navigator.mozL10n.get;
 
   /* === Incoming handling === */
@@ -63,7 +72,8 @@
 
     var host = document.location.host;
     var protocol = document.location.protocol;
-    window.open(protocol + '//' + host + '/oncall.html#' + call.state,
+    var urlBase = protocol + '//' + host + '/oncall.html';
+    window.open(urlBase + '#' + call.state + '?' + screenState,
                 'call_screen', 'attention');
 
     callScreenDisplayed = true;
@@ -102,11 +112,18 @@
             app.launch('#recents-view');
           };
 
-          var title = _('missedCall');
-          var body = _('from') + ' ' +
-            (call.number.length ? call.number : _('unknown'));
+          Contacts.findByNumber(call.number, function lookupContact(contact) {
+            var title = _('missedCall');
+            var sender = call.number.length ? call.number : _('unknown');
 
-          NotificationHelper.send(title, body, iconURL, notiClick);
+            if (contact && contact.name) {
+              sender = contact.name;
+            }
+
+            var body = _('from', {sender: sender});
+
+            NotificationHelper.send(title, body, iconURL, notiClick);
+          });
         };
       }
     };

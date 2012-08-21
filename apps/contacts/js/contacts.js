@@ -269,6 +269,19 @@ var Contacts = (function() {
   var initContactsList = function initContactsList() {
     var list = document.getElementById('groups-list');
     contactsList.init(list);
+    checkCancelableActivity();
+  };
+
+  var checkCancelableActivity = function cancelableActivity() {
+    var cancelButton = document.getElementById('cancel_activty');
+    var addButton = document.getElementById('add-contact-button');
+    if (ActivityHandler.currentlyHandling) {
+      cancelButton.classList.remove('hide');
+      addButton.classList.add('hide');
+    } else {
+      cancelButton.classList.add('hide');
+      addButton.classList.remove('hide');
+    }
   }
 
   var initLanguages = function initLanguages() {
@@ -306,7 +319,6 @@ var Contacts = (function() {
 
   var loadList = function loadList() {
     contactsList.load();
-
     contactsList.handleClick(function handleClick(id) {
       var options = {
         filterBy: ['id'],
@@ -317,6 +329,12 @@ var Contacts = (function() {
       var request = navigator.mozContacts.find(options);
       request.onsuccess = function findCallback() {
         currentContact = request.result[0];
+        var onlyOneTel = currentContact.tel && currentContact.tel.length === 1;
+        if (ActivityHandler.currentlyHandling && onlyOneTel) {
+          var number = currentContact.tel[0].value;
+          ActivityHandler.postPickSuccess(number);
+          return;
+        }
         reloadContactDetails();
         navigation.go('view-contact-details', 'right-left');
       };
@@ -393,9 +411,9 @@ var Contacts = (function() {
     for (var tel in contact.tel) {
       var currentTel = contact.tel[tel];
       var telField = {
-        number: currentTel.number || '',
+        value: currentTel.value || '',
         type: currentTel.type || TAG_OPTIONS['phone-type'][0].value,
-        notes: '',
+        carrier: currentTel.carrier || '',
         i: tel
       };
       var template = utils.templates.render(phonesTemplate, telField);
@@ -406,7 +424,7 @@ var Contacts = (function() {
     for (var email in contact.email) {
       var currentEmail = contact.email[email];
       var emailField = {
-        address: currentEmail['address'] || '',
+        value: currentEmail['value'] || '',
         type: currentEmail['type'] || TAG_OPTIONS['email-type'][0].value,
         i: email
       };
@@ -468,9 +486,7 @@ var Contacts = (function() {
       }
     }
 
-
-    var existsPhoto = 'photo' in contact && contact.photo;
-    if (existsPhoto && 0 < contact.photo.length) {
+    if (contact.photo && contact.photo.length > 0) {
       var detailsInner = document.getElementById('contact-detail-inner');
       contactDetails.classList.add('up');
       var photoOffset = (photoPos + 1) * 10;
@@ -479,7 +495,7 @@ var Contacts = (function() {
       } else {
         cover.style.overflow = null;
       }
-      cover.style.backgroundImage = 'url(' + (contact.photo || '') + ')';
+      updatePhoto(contact.photo[0], cover);
     } else {
       cover.style.overflow = null;
       cover.style.backgroundImage = null;
@@ -496,14 +512,16 @@ var Contacts = (function() {
     givenName.value = currentContact.givenName;
     familyName.value = currentContact.familyName;
     company.value = currentContact.org;
-    thumb.style.backgroundImage = 'url(' + currentContact.photo + ')';
+    if (currentContact.photo && currentContact.photo.length > 0) {
+      updatePhoto(currentContact.photo[0], thumb);
+    }
     var default_type = TAG_OPTIONS['phone-type'][0].value;
     for (var tel in currentContact.tel) {
       var currentTel = currentContact.tel[tel];
       var telField = {
-        number: currentTel.number,
+        value: currentTel.value,
         type: currentTel.type || default_type,
-        notes: '',
+        carrier: currentTel.carrier || '',
         i: tel
       };
 
@@ -517,7 +535,7 @@ var Contacts = (function() {
       var currentEmail = currentContact.email[email];
       var default_type = TAG_OPTIONS['email-type'][0].value;
       var emailField = {
-        address: currentEmail['address'] || '',
+        value: currentEmail['value'] || '',
         type: currentEmail['type'] || default_type,
         i: email
       };
@@ -566,14 +584,30 @@ var Contacts = (function() {
 
     deleteContactButton.onclick = function deleteClicked(event) {
       var msg = _('deleteConfirmMsg');
-      Permissions.show('', msg, function onAccept() {
-        deleteContact(currentContact);
-      },function onCancel() {
-        Permissions.hide();
-      });
+      var yesObject = {
+        title: _('remove'),
+        callback: function onAccept() {
+          deleteContact(currentContact);
+          Permissions.hide();
+        }
+      };
+
+      var noObject = {
+        title: _('cancel'),
+        callback: function onCancel() {
+          Permissions.hide();
+        }
+      };
+
+      Permissions.show(null, msg, yesObject, noObject);
     };
 
     edit();
+  };
+
+  var updatePhoto = function updatePhoto(photo, dest) {
+    var photoURL = URL.createObjectURL(photo);
+    dest.style.backgroundImage = 'url(' + photoURL + ')';
   };
 
   // Checks if an object fields are empty, by empty means
@@ -865,8 +899,7 @@ var Contacts = (function() {
 
     var request = navigator.mozContacts.save(contact);
     request.onsuccess = function onsuccess() {
-      // Reloading contact, as it only allows to be
-      // updated once
+      // Reloading contact, as it only allows to be updated once
       var cList = contacts.List;
       cList.getContactById(contact.id, function onSuccess(savedContact) {
         currentContact = savedContact;
@@ -906,12 +939,13 @@ var Contacts = (function() {
 
       var selector = 'tel_type_' + arrayIndex;
       var typeField = document.getElementById(selector).textContent || '';
-      var notes = document.getElementById('notes_' + arrayIndex).value || '';
+      var carrierSelector = 'carrier_' + arrayIndex;
+      var carrierField = document.getElementById(carrierSelector).value || '';
       contact['tel'] = contact['tel'] || [];
-      // TODO: Save notes
       contact['tel'][i] = {
-        number: numberValue,
-        type: typeField
+        value: numberValue,
+        type: typeField,
+        carrier: carrierField
       };
     }
   };
@@ -931,7 +965,7 @@ var Contacts = (function() {
 
       contact['email'] = contact['email'] || [];
       contact['email'][i] = {
-        address: emailValue,
+        value: emailValue,
         type: typeField
       };
     }
@@ -991,9 +1025,9 @@ var Contacts = (function() {
 
   var insertPhone = function insertPhone(phone) {
     var telField = {
-      number: phone || '',
+      value: phone || '',
       type: TAG_OPTIONS['phone-type'][0].value,
-      notes: '',
+      carrier: '',
       i: numberPhones || 0
     };
     var template = utils.templates.render(phoneTemplate, telField);
@@ -1004,7 +1038,7 @@ var Contacts = (function() {
 
   var insertEmail = function insertEmail(email) {
     var emailField = {
-      address: email || '',
+      value: email || '',
       type: TAG_OPTIONS['email-type'][0].value,
       i: numberEmails || 0
     };
@@ -1081,12 +1115,15 @@ var Contacts = (function() {
   };
 
   var handleBack = function handleBack() {
+    navigation.back();
+  };
+
+  var handleCancel = function handleCancel() {
     //If in an activity, cancel it
-    var inActivity = ActivityHandler.currentlyHandling;
-    if (inActivity && ActivityHandler.activityName == 'new') {
+    if (ActivityHandler.currentlyHandling) {
       ActivityHandler.postCancel();
     } else {
-      navigation.back();
+      handleBack();
     }
   };
 
@@ -1131,7 +1168,7 @@ var Contacts = (function() {
       this.img = img;
       img.onload = function() {
         var dataImg = getPhoto(this.img);
-        thumb.style.backgroundImage = 'url(' + dataImg + ')';
+        updatePhoto(dataImg, thumb);
         currentContact.photo = currentContact.photo || [];
         currentContact.photo[0] = dataImg;
       }.bind(this);
@@ -1161,12 +1198,34 @@ var Contacts = (function() {
     } else {
       ctx.drawImage(contactImg, 0, -margin);
     }
-
-    var ret = canvas.toDataURL();
+    var filename = 'contact_' + new Date().getTime();
+    var ret = canvas.mozGetAsFile(filename);
     contactImg = null;
     canvas = null;
     return ret;
   }
+
+  var sendEmailOrPick = function sendEmailOrPick(address) {
+    if (ActivityHandler.currentlyHandling) {
+      // Placeholder for the email app if we want to
+      // launch contacts to select an email address.
+      // So far we do nothing
+    } else {
+      try {
+        // We don't check the email format, lets the email
+        // app do that
+        var activity = new MozActivity({
+          name: 'new',
+          data: {
+            type: 'mail',
+            URI: 'mailto:' + address
+          }
+        });
+      } catch (e) {
+        console.log('WebActivities unavailable? : ' + e);
+      }
+    }
+  };
 
   return {
     'showEdit' : showEdit,
@@ -1176,6 +1235,7 @@ var Contacts = (function() {
     'addNewEmail' : insertEmail,
     'addNewAddress' : insertAddress,
     'addNewNote' : insertNote,
+    'cancel' : handleCancel,
     'goBack' : handleBack,
     'goToSelectTag': goToSelectTag,
     'sendSms': sendSms,
@@ -1183,17 +1243,22 @@ var Contacts = (function() {
     'toggleFavorite': toggleFavorite,
     'callOrPick': callOrPick,
     'pickImage': pickImage,
-    'navigation': navigation
+    'navigation': navigation,
+    'sendEmailOrPick': sendEmailOrPick,
+    'updatePhoto': updatePhoto,
+    'checkCancelableActivity': checkCancelableActivity
   };
 })();
 
-
-var actHandler = ActivityHandler.handle.bind(ActivityHandler);
-window.navigator.mozSetMessageHandler('activity', actHandler);
+if (window.navigator.mozSetMessageHandler) {
+  var actHandler = ActivityHandler.handle.bind(ActivityHandler);
+  window.navigator.mozSetMessageHandler('activity', actHandler);
+}
 
 document.addEventListener('mozvisibilitychange', function visibility(e) {
-  if (document.mozHidden) {
-    if (ActivityHandler.currentlyHandling)
-      ActivityHandler.postCancel();
+  if (ActivityHandler.currentlyHandling && document.mozHidden) {
+    ActivityHandler.postCancel();
+    return;
   }
+  Contacts.checkCancelableActivity();
 });
