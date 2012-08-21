@@ -8,8 +8,8 @@ openForEditingAction: 0x02,
 RFUAction: 0x03, // Reserved from 0x03 to 0xFF
 
 // There is no specified standard for field order for the parts of the email
-// message. Example format: email URI followed by the action requesting the
-// reciever is requested to send it.
+// message. Example format: email URI followed by the action requesting that the
+// reciever send it.
 // mail parameter format: {"mailto" : emailAddress, "subject" : subjectLine, "body" : emailMessageBody}
 // Action: See constants of nfcSmartPoster.
 createEmailNdefRecord: function(aEmail, aTitle, aAction) {

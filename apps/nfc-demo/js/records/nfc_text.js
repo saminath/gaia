@@ -1,4 +1,3 @@
-
 var nfcText = {
 
 createTextNdefRecord_Utf8: function(text, lang) {

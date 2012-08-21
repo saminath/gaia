@@ -1,4 +1,3 @@
-
 var nfcSms = {
 
 createSmsNdefRecord: function(sms) {

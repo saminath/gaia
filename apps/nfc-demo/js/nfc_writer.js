@@ -1,72 +1,81 @@
-/* NDef tag submission functions */
+/**
+ *  NDef tag write functions and form to NdefRecord handlers
+ */
+var nfcWriter = {
 
-function NdefWrite(message) {
-  console.log("Writing this to Nfc: " + message);
+NdefWrite: function(message) {
+  console.log("Writing raw message to Nfc: " + message);
   navigator.mozNfc.sendToNfcd(message);
-}
+},
 
-function validateNdefTagRecords(ndefRecords) {
+validateNdefTagRecords: function(ndefRecords) {
   if (ndefRecords instanceof Array) {
     return navigator.mozNfc.validateNdefTag(ndefRecords);
   } else {
     return false;
   }
-}
+},
 
 /**
  * Returns a request object. To observe the result, define and
  * attach callbacks taking an event to the request's onsuccess
  * and onerror.
  */
-function writeRecordArrayTag(ndefRecords, p2p) {
+writeRecordArrayTag: function(ndefRecords, p2p) {
   if (ndefRecords == null) {
     return null;
   }
-  var domreq = navigator.mozNfc.writeNdefTag(ndefRecords);
-  console.log("Returned from writeNdefTag call");
-  return domreq;
-}
-
+  if(!p2p) {
+    var domreq = navigator.mozNfc.writeNdefTag(ndefRecords);
+    console.log("Returned from writeNdefTag call");
+    return domreq;
+  } else {
+    var domreq = navigator.mozNfc.ndefPush(ndefRecords);
+    console.log("Returned from ndefPush call");
+    nfcUI.p2p = false;
+    return domreq;
+  }
+},
 
 /**
  * NDEF well known types:
  */
+
 // Text Example:
-function textFormToNdefRecord(elementRef) {
+textFormToNdefRecord: function(elementRef) {
   var text = $(elementRef + " > .text").val();
   record = nfcText.createTextNdefRecord_Utf8(text, "en");
   return record;
-}
-
+},
 
 // URL:
-function urlFormToNdefRecord(elementRef, abbreviate) {
+urlFormToNdefRecord: function(elementRef, abbreviate) {
   var uri = $(elementRef + " > .uri").val();
   record = nfcUri.createUriNdefRecord(uri, abbreviate);
   return record;
-}
+},
 
 // SmartPoster URI:
-function smartPosterUriFormToNdefRecord(elementRef) {
+smartPosterUriFormToNdefRecord: function(elementRef) {
   var title = $(elementRef + " > .title").val();
   var uri = $(elementRef + " > .uri").val();
   var titlelang = $(elementRef + " > .titleLang").val();
   var aTitle = {"title": title, "lang": titlelang};
   record = nfcSmartPoster.createUriNdefRecord(uri, aTitle, nfcSmartPoster.doAction);
   return record;
-}
+},
 
 // Email:
-function emailFormToNdefRecord(elementRef) {
+emailFormToNdefRecord: function(elementRef) {
   var mailto = $(elementRef + " > .emailMailTo").val();
   var subject = $(elementRef + " > .emailSubject").val();
   var body = $(elementRef + " > .emailBody").val();
   record = nfcUri.createEmailNdefRecord({"mailto" : mailto, "subject" : subject, "body" : body});
   return record;
-}
+},
 
 // SmartPoster Email:
-function smartPosterEmailFormToNdefRecord(elementRef) {
+smartPosterEmailFormToNdefRecord: function(elementRef) {
   var title = $(elementRef + " > .title").val();
   var titlelang = $(elementRef + " > .titleLang").val();
   var mailto = $(elementRef + " > .emailMailTo").val();
@@ -75,25 +84,25 @@ function smartPosterEmailFormToNdefRecord(elementRef) {
   var aTitle =  {"title": title, "lang": titlelang};
   record = nfcSmartPoster.createEmailNdefRecord({"mailto" : mailto, "subject" : subject, "body" : body}, aTitle, nfcSmartPoster.doAction);
   return record;
-}
+},
 
 // SMS:
-function smsFormToNdefRecord(elementRef) {
+smsFormToNdefRecord: function(elementRef) {
   var phoneNumber = $(elementRef + " > .smsPhoneNumber").val();
   var message = $(elementRef + " > .smsMessage").val();
   record = nfcSms.createSmsNdefRecord({"phoneNumber" : phoneNumber, "message" : message});
   return record;
-}
+},
 
 
 // Basic Contact Example 
 // (Format reference: http://www.w3.org/TR/2012/WD-contacts-api-20120712/#the-contact-dictionary)
-function contactFormToNdefRecord(elementRef) {
+contactFormToNdefRecord: function(elementRef) {
   var record = new MozNdefRecord();
 
-  record.tnf = $(elementRef + " > .nfc_contact_tnf").val(); // nfc.flags_tnf; // From tag itself.
-  record.type = $(elementRef + " > .nfc_contact_type").val(); // text/VCard
-  record.id = $(elementRef + " > .nfc_contact_id").val(); // empty
+  record.tnf = $(elementRef + " > .nfc_contact_tnf").val();
+  record.type = $(elementRef + " > .nfc_contact_type").val(); 
+  record.id = $(elementRef + " > .nfc_contact_id").val();
 
   /* payload */
   var fname = $(elementRef + " > .nfc_contact_payload_name_first").val();
@@ -141,5 +150,110 @@ function contactFormToNdefRecord(elementRef) {
   console.log("payload(" + record.payload + ")");
 
   return record;
+},
+
+
+// NFC Message Posting:
+postTextFormtoNdef: function(elementRef) {
+  var records = new Array();
+  var record = this.textFormToNdefRecord(elementRef);
+  records.push(record);
+  // Check:
+  if (nfcWriter.validateNdefTagRecords(records) == false) {
+    var message = "NdefRecord is invalid";
+    nfcUI.appendTextAndScroll($("#area"), message+"\n");
+    return;
+  }
+  nfcUI.postPendingMessage(records);
+},
+
+postSmartPosterUriFormtoNdef: function(elementRef) {
+  var records = new Array();
+  var record = this.smartPosterUriFormToNdefRecord(elementRef);
+  records.push(record);
+  // Check:
+  if (nfcWriter.validateNdefTagRecords(records) == false) {
+    var message = "NdefRecord is invalid";
+    nfcUI.appendTextAndScroll($("#area"), message+"\n");
+    return;
+  }
+  nfcUI.postPendingMessage(records);
+},
+
+postUriFormtoNdef: function(elementRef) {
+  var records = new Array();
+  var record = this.urlFormToNdefRecord(elementRef, true);
+  records.push(record);
+  // Check:
+  if (nfcWriter.validateNdefTagRecords(records) == false) {
+    var message = "NdefRecord is invalid";
+    nfcUI.appendTextAndScroll($("#area"), message+"\n");
+    return;
+  }
+  nfcUI.postPendingMessage(records);
+},
+
+postSmartPosterEmailFormtoNdef: function(elementRef) {
+  var records = new Array();
+  var record = this.smartPosterEmailFormToNdefRecord(elementRef);
+  records.push(record);
+  // Check:
+  if (nfcWriter.validateNdefTagRecords(records) == false) {
+    var message = "NdefRecord is invalid";
+    nfcUI.appendTextAndScroll($("#area"), message+"\n");
+    return;
+  }
+  nfcUI.postPendingMessage(records);
+},
+
+postEmailFormtoNdef: function(elementRef) {
+  var records = new Array();
+  var record = this.emailFormToNdefRecord(elementRef);
+  records.push(record);
+  // Check:
+  if (nfcWriter.validateNdefTagRecords(records) == false) {
+    var message = "NdefRecord is invalid";
+    nfcUI.appendTextAndScroll($("#area"), message+"\n");
+    return;
+  }
+  nfcUI.postPendingMessage(records);
+},
+
+postSmsFormtoNdef: function(elementRef) {
+  var records = new Array();
+  var record = this.smsFormToNdefRecord(elementRef);
+  records.push(record);
+  // Check:
+  if (nfcWriter.validateNdefTagRecords(records) == false) {
+    var message = "NdefRecord is invalid";
+    nfcUI.appendTextAndScroll($("#area"), message+"\n");
+    return;
+  }
+  nfcUI.postPendingMessage(records);
+},
+
+postContactFormToNdef: function(elementRef) {
+  // postContactArrayTag will post a contact array as the payload.
+  var record = this.contactFormToNdefRecord(elementRef);
+  var records = new Array();
+  records.push(record);
+  if (nfcWriter.validateNdefTagRecords(records) == false) {
+    var message = "NdefRecord is invalid";
+    nfcUI.appendTextAndScroll($("#area"), message+"\n");
+    return;
+  }
+  nfcUI.postPendingMessage(records);
+},
+
+// Empty Tag:
+postEmptyTag: function() {
+  records = new Array();
+  records.push(new MozNdefRecord());
+  records[0].tnf = nfc.tnf_empty;
+  records[0].type = nfc.rtd_text;
+  records[0].id = null;
+  records[0].payload = null;
+  nfcUI.postPendingMessage(records);
 }
 
+} // nfcWriter
