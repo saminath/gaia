@@ -25,7 +25,9 @@ setMessageArea: function(elementRef) {
 },
 
 writePendingMessage: function() {
+  console.log("Write pending message");
   if (this.pendingNdefMessage != null) {
+    console.log("Call writeRecordArrayTag");
     var pendingDomRequest = nfcWriter.writeRecordArrayTag(this.pendingNdefMessage, this.p2p);
     this.commonRequestHandler(pendingDomRequest);
     this.pendingNdefMessage = null;
@@ -34,10 +36,18 @@ writePendingMessage: function() {
 
 // Common Nfc UI Write Dialog.
 commonRequestHandler: function(pending) {
+  console.log("commonRequestHandler");
   if (pending != null) {
-    pending.onsuccess = function() {
+    console.log("bind to onsuccess/onerror");
+    pending.onsuccess = function(e) {
+      try {
+      console.log("this.result = " + this.result);
+      for(i in this.result) {
+        console.log(i + ": " + this.result[i]);
+      }
       var msg = this.result;
       var message = "Tag write successful. RequestId: " + atob(msg.requestId) + ", Result: " + msg.status;
+      console.log(message);
       if (messageArea == null) {
         alert("Message: " + message); 
         return;
@@ -45,11 +55,16 @@ commonRequestHandler: function(pending) {
       // Dismiss dialog, and do anything else you want for UI/UX.
       $('.ui-dialog').dialog('close');
       nfcUI.appendTextAndScroll(messageArea, message+"\n"); 
+      } catch(exception) {
+        console.log(exception.message);
+      }
      }
-    pending.onerror = function() {
+    pending.onerror = function(e) {
+      console.log("onerror called");
       var msg = this.error;
       // Print error object.
       var message = "Error writing tag. Result: " + msg;
+      console.log(message);
       if (messageArea == null) {
         alert("Error: " + message);
         return;
