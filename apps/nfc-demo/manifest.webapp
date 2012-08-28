@@ -3,7 +3,6 @@
   "description": "NFC Demo",
   "launch_path": "/nfc.html",
   "permissions": [
-    "contacts",
     "power",
     "mozApps",
     "nfc"
