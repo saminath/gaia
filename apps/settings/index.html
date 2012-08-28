@@ -153,9 +153,9 @@
           <small data-l10n-id="networkNotification-expl">Notify me when an open network is available</small>
           <a data-l10n-id="networkNotification">Network notification</a>
         </li>
-        <li hidden id="wps-pbc-button">
-          <small id="wifi-wps-desc">Automatic wireless network configuration</small>
-          <a data-l10n-id="wpsPbcMessage">WPS button connection</a>
+        <li hidden id="wps-column">
+          <small data-l10n-id="wpsDescription">Automatic wireless network configuration</small>
+          <a data-l10n-id="wpsMessage">Connect with WPS</a>
         </li>
       </ul>
 
@@ -231,6 +231,39 @@
       </label>
 
       <!-- connect to network -->
+      <footer>
+        <button type="submit" data-l10n-id="ok">OK</button>
+      </footer>
+    </form>
+
+    <!-- Connectivity :: Wi-Fi :: WPS Dialog -->
+    <form role="dialog" action="#wifi" id="wifi-wps">
+      <header>
+        <button type="reset" data-l10n-id="back">Back</button>
+        <h2> Wi-Fi Protected Setup </h2>
+      </header>
+
+      <label>
+        <span data-l10n-id="wpsMethodSelection">Select WPS method</span>
+      </label>
+      <label>
+        <input type="radio" name="wifi.wps.method" value="pbc" checked />
+        <span data-l10n-id="wpsPbcLabel">Button connection</span>
+      </label>
+      <label>
+        <input type="radio" name="wifi.wps.method" value="myPin" />
+        <span data-l10n-id="wpsMyPinLabel">My PIN connection</span>
+      </label>
+      <label>
+        <input type="radio" name="wifi.wps.method" value="apPin" />
+        <span data-l10n-id="wpsApPinLabel">AP PIN connection</span>
+      </label>
+      <label id="wifi-wps-pin-area">
+        <span data-l10n-id="wpsPinDescription">PIN is 4 or 8 digits</span>
+        <input type="text" />
+      </label>
+
+      <!-- start WPS -->
       <footer>
         <button type="submit" data-l10n-id="ok">OK</button>
       </footer>
@@ -358,11 +391,56 @@
             <input type="checkbox"/>
             <span></span>
           </label>
-          <small data-l10n-id="enabled"></small>
-          <a data-l10n-id="bluetooth-power">Bluetooth Power</a>
+          <a data-l10n-id="bluetooth">Bluetooth</a>
+        </li>
+        <li hidden id="bluetooth-visible-device">
+          <label>
+            <input type="checkbox" checked/>
+            <span></span>
+          </label>
+          <small id="bluetooth-device-name"></small>
+          <a data-l10n-id="bluetooth-visible">Visible to other devices</a>
+        </li>
+      </ul>
+      <h2 data-l10n-id="bluetoothDevices">Devices</h2>
+      <div data-l10n-id="bluetoothEnableMsg" id="bluetooth-enable-msg">
+        Turn Bluetooth on to pair with devices that are
+        within range.
+      </div>
+      <ul id="bluetooth-devices">
+        <!-- filled by bluetooth.js -->
+      </ul>
+      <ul>
+        <li hidden id="bluetooth-searching">
+          <a data-l10n-id="scanning">Searching…</a>
+        </li>
+      </ul>
+      <ul id="bluetooth-search-again" hidden>
+        <li>
+          <button data-l10n-id="searchDeviceAgain">Search Again</button>
+        </li>
+      </ul>
+      <ul id="bluetooth-advanced">
+        <li>
+          <button data-l10n-id="renameDevice">Rename Device</button>
         </li>
       </ul>
     </section>
+
+    <!-- Connectivity :: Bluetooth :: Rename Device Dialog -->
+    <form role="dialog" action="#bluetooth" id="bluetooth-rename">
+      <header>
+        <button data-l10n-id="cancel" type="reset">Cancel</button>
+        <button data-l10n-id="ok" type="submit">OK</button>
+        <h2 data-l10n-id="bluetoothRename">Change Phone Name</h2>
+      </header>
+
+      <label>
+        <span data-l10n-id="bluetoothRenameMsg">New Name</span>
+        <input type="text"/>
+      </label>
+    </form>
+
 
     <!-- Personalization :: Sound -->
     <section role="document" id="sounds">
@@ -841,7 +919,14 @@
           </label>
           <a data-l10n-id="paint-flashing">Flash repainted area</a>
         </li>
-      </ul>
+        <li>
+          <label>
+            <input type="checkbox" name="debug.log-animations.enabled"/>
+            <span></span>
+          </label>
+          <a data-l10n-id="log-animations">Log slow animations</a>
+        </li>
+       </ul>
     </section>
 
     <!-- Device :: Storage -->
@@ -878,6 +963,13 @@
             <span></span>
           </label>
           <a data-l10n-id="invertColors">Invert Colors</a>
+        </li>
+        <li>
+          <label>
+            <input type="checkbox" name="accessibility.screenreader"/>
+            <span></span>
+          </label>
+          <a data-l10n-id="screenReader">Screen Reader</a>
         </li>
       </ul>
     </section>
