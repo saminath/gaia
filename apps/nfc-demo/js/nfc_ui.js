@@ -39,14 +39,9 @@ commonRequestHandler: function(pending) {
   console.log("commonRequestHandler");
   if (pending != null) {
     console.log("bind to onsuccess/onerror");
-    pending.onsuccess = function(e) {
-      try {
-      console.log("this.result = " + this.result);
-      for(i in this.result) {
-        console.log(i + ": " + this.result[i]);
-      }
+    pending.onsuccess = function() {
       var msg = this.result;
-      var message = "Tag write successful. RequestId: " + atob(msg.requestId) + ", Result: " + msg.status;
+      var message = "Tag write successful. (Message: " + msg + ")";
       console.log(message);
       if (messageArea == null) {
         alert("Message: " + message); 
@@ -55,10 +50,7 @@ commonRequestHandler: function(pending) {
       // Dismiss dialog, and do anything else you want for UI/UX.
       $('.ui-dialog').dialog('close');
       nfcUI.appendTextAndScroll(messageArea, message+"\n"); 
-      } catch(exception) {
-        console.log(exception.message);
-      }
-     }
+    }
     pending.onerror = function(e) {
       console.log("onerror called");
       var msg = this.error;
