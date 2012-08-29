@@ -463,10 +463,9 @@ window.addEventListener('localized', function wifiSettings(evt) {
       };
 
       req.onerror = function onScanError(error) {
-        // auto-rescan if requested
-        if (autoscan)
-          window.setTimeout(scan, scanRate);
+        // always try again.
         scanning = false;
+        window.setTimeout(scan, scanRate);
       };
 
     }
