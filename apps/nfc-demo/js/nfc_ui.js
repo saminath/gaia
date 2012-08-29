@@ -20,8 +20,8 @@ cancelPendingWrite: function() {
   this.pendingNdefMessage = null;
 },
 
-setMessageArea: function(elementRef) {
-  messageArea = elementRef;
+setMessageArea: function(elementRefName) {
+  this.messageArea = elementRefName;
 },
 
 writePendingMessage: function() {
@@ -43,13 +43,13 @@ commonRequestHandler: function(pending) {
       var msg = this.result;
       var message = "Tag write successful. (Message: " + msg + ")";
       console.log(message);
-      if (messageArea == null) {
+      // Dismiss dialog, and do anything else you want for UI/UX.
+      $('.ui-dialog').dialog('close');
+      if (nfcUI.messageArea == null) {
         alert("Message: " + message); 
         return;
       }
-      // Dismiss dialog, and do anything else you want for UI/UX.
-      $('.ui-dialog').dialog('close');
-      nfcUI.appendTextAndScroll(messageArea, message+"\n"); 
+      nfcUI.appendTextAndScroll($(nfcUI.messageArea), message+"\n");
     }
     pending.onerror = function(e) {
       console.log("onerror called");
@@ -57,12 +57,12 @@ commonRequestHandler: function(pending) {
       // Print error object.
       var message = "Error writing tag. Result: " + msg;
       console.log(message);
-      if (messageArea == null) {
+      $('.ui-dialog').dialog('close');
+      if (nfcUI.messageArea == null) {
         alert("Error: " + message);
         return;
       }
-      $('.ui-dialog').dialog('close');
-      nfcUI.appendTextAndScroll(messageArea, message+"\n");
+      nfcUI.appendTextAndScroll($(nfcUI.messageArea), message+"\n");
     }
   }
 },

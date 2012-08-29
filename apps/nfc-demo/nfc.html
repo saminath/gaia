@@ -20,7 +20,7 @@
           var isListening = false;
 
           $(document).ready(function () {
-            nfcUI.setMessageArea($('#area'));
+            nfcUI.setMessageArea("#area");
             $("#startbutton").bind( "click", function(event, ui) {
               if(isListening == false) {
                 $("#buttontext").text("Stop Tag Discovery");
