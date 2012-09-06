@@ -1,0 +1,61 @@
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>
+        </title>
+        <link rel="stylesheet" href="jquery.mobile-1.1.1.min.css" />
+        <style>
+            /* App custom styles */
+        </style>
+        <script src="jquery-1.7.1.min.js">
+        </script>
+        <script src="jquery.mobile-1.1.1.min.js">
+        </script>
+    </head>
+    <body>
+        <!-- Home -->
+        <div data-role="page" id="page1">
+            <div data-theme="a" data-role="header">
+                <h3>
+                    UICC Demo
+                </h3>
+            </div>
+            <div data-role="content" style="padding: 15px">
+                <div data-role="fieldcontain">
+                    <fieldset data-role="controlgroup">
+                        <label for="textarea1">
+                            Output
+                        </label>
+                        <textarea name="" id="textarea1" placeholder="" id="output">
+                        </textarea>
+                    </fieldset>
+                </div>
+                <a data-role="button" data-transition="fade" href="#page1" id="openbutton">
+                    Open Channel
+                </a>
+                <a data-role="button" data-transition="fade" href="#page1" id="exchangebutton">
+                    Exchange APDU
+                </a>
+                <a data-role="button" data-transition="fade" href="#page1" id="closebutton">
+                    Close Channel
+                </a>
+            </div>
+        </div>
+        <script>
+          $(document).ready(function () {
+            $("#openbutton").bind("click", function(event, ui) {
+              var req = window.navigator.mozTelephony.iccOpenChannel('iamanaid');
+              req.onsuccess = function(e) {
+                $("#output").val += "Success: " + JSON.stringify(e);
+              }
+              req.onerror = function(e) {
+                $("#output").val += "Error: " + JSON.stringify(e);
+              }
+            });
+          });
+        </script>
+    </body>
+</html>

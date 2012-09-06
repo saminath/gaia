@@ -199,11 +199,18 @@ var apps = {
     "manifestURL": "http://video.localhost.org:8080/manifest.webapp"
   },
   "nfc-demo": {
-    "origin": rootPath.replace('%%%', 'video'),
+    "origin": rootPath.replace('%%%', 'nfc'),
     "installOrigin": "http://nfc-demo.localhost.org:8080",
     "receipt": null,
     "installTime": 132333986000,
     "manifestURL": "http://nfc-demo.localhost.org:8080/manifest.webapp"
+  },
+  "uicc-demo": {
+    "origin": rootPath.replace('%%%', 'uicc'),
+    "installOrigin": "http://uicc-demo.localhost.org:8080",
+    "receipt": null,
+    "installTime": 132333986000,
+    "manifestURL": "http://uicc-demo.localhost.org:8080/manifest.webapp"
   },
   "pdfjs": {
     "origin": rootPath.replace('%%%', 'pdfjs'),
