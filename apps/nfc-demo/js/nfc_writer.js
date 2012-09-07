@@ -98,9 +98,7 @@ smsFormToNdefRecord: function(elementRef) {
 // Basic Contact Example 
 // (Format reference: http://www.w3.org/TR/2012/WD-contacts-api-20120712/#the-contact-dictionary)
 contactFormToNdefRecord: function(elementRef) {
-  var record = new MozNdefRecord();
-
-  var tnf = $(elementRef + " > .nfc_contact_tnf").val();
+  var tnf = nfc.tnf_mime_media;
   var type = $(elementRef + " > .nfc_contact_type").val(); 
   var id = $(elementRef + " > .nfc_contact_id").val();
 
@@ -146,13 +144,6 @@ contactFormToNdefRecord: function(elementRef) {
     id,
     payload
   );
-
-  // See if Moz object actually has values:
-  console.log("payload print(intended: " + payload + ")");
-  console.log("tnf(" + record.tnf + ")");
-  console.log("type(" + record.type + ")");
-  console.log("id(" + record.id + ")");
-  console.log("payload(" + record.payload + ")");
 
   return record;
 },
