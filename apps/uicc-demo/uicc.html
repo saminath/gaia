@@ -9,6 +9,10 @@
         <link rel="stylesheet" href="jquery.mobile-1.1.1.min.css" />
         <style>
             /* App custom styles */
+            #output {
+              width: 100%;
+              min-height: 250px;
+            }
         </style>
         <script src="jquery-1.7.1.min.js">
         </script>
@@ -28,8 +32,8 @@
                     <fieldset data-role="controlgroup">
                         <label for="textarea1">
                             Output
-                        </label>
-                        <textarea name="" id="textarea1" placeholder="" id="output">
+                        </label></br>
+                        <textarea name="" placeholder="" id="output">
                         </textarea>
                     </fieldset>
                 </div>
@@ -45,17 +49,105 @@
             </div>
         </div>
         <script>
+          // Applet ID
+          var aid = [0xD2, 0x76, 0x00, 0x01, 0x18, 0x00, 0x02, 0xFF, 0x49, 0x50, 0x25, 0x89, 0xC0, 0x01, 0x9B, 0x01];
+          //var apdu = [0x90, 0x10, 0x00, 0x00, 0x00];
+          var apdu = {
+            cla: 0x90,
+            command: 0x10,
+            p1: 0x01,
+            p2: 0x02,
+            p3: 0x03,
+            path: "Path",
+            data: "Data",
+            data2: "Data2"
+          };
+          var channelId = null;
+          var transmitResult = null;
+
           $(document).ready(function () {
             $("#openbutton").bind("click", function(event, ui) {
-              var req = window.navigator.mozTelephony.iccOpenChannel('iamanaid');
-              req.onsuccess = function(e) {
-                $("#output").val += "Success: " + JSON.stringify(e);
+                var aidstr = arrayToHexStr(aid);
+                // Open channel to applet ID
+                iccOpenChannel(aidstr);
               }
-              req.onerror = function(e) {
-                $("#output").val += "Error: " + JSON.stringify(e);
+            );
+            $("#exchangebutton").bind("click", function(event, ui) {
+                // Issue command to open channelID (associated with AppletID)
+                // ChannelID may be undefined, due to all channels being in use.
+                iccExchangeAPDU(channelId, apdu);
               }
-            });
+            );
+            $("#closebutton").bind("click", function(event, ui) {
+                // Close channel to applet.
+                iccCloseChannel(channelId);
+              }
+            );
           });
+
+          // Utils
+          function arrayToHexStr(array) {
+            var hexStr = array.map(function (x) {
+              x = x.toString(16); // to hex
+              x = ("00" + x).slice(-2);
+              return x;
+            }).join('');
+            return hexStr;
+          }
+
+          function appendTextAndScroll(htmlElementRef, message) {
+            var htmlElement = $(htmlElementRef);
+            htmlElement.val(htmlElement.val()+message+"\n");
+            // TODO: The animation starts scrollTop at "0" every time, rather than scroll from current position.
+            htmlElement.animate({ scrollTop: htmlElement.prop("scrollHeight") - htmlElement.height() }, 0);
+          }
+
+          // UICC applet commands
+          function iccOpenChannel(aidhexstr) {
+            var req = window.navigator.mozTelephony.iccOpenChannel(aidhexstr);
+            req.onsuccess = function() {
+              appendTextAndScroll("#output",
+                "INFO: Open returns success. Channel: (" + JSON.stringify(this.result) + ")");
+              channelId = this.result;
+              if (channelId === undefined) {
+                appendTextAndScroll("#output",
+                  "INFO: Channel ID not defined. All channels in use. You can try again.");
+              }
+            }
+            req.onerror = function() {
+              appendTextAndScroll("#output",
+                "ERROR: Open Failure! Return data: (" + JSON.stringify(this.error) + ")");
+            }
+          }
+
+          function iccExchangeAPDU(channelId, apdu) {
+            var req = window.navigator.mozTelephony.iccExchangeAPDU(
+                        channelId, apdu);
+            req.onsuccess = function() {
+              appendTextAndScroll("#output",
+                "INFO: APDU Exchange Success! Return data: (" + JSON.stringify(this.result) + ")");
+              transmitResult = this.result;
+            }
+            req.onerror = function() {
+              appendTextAndScroll("#output",
+                "ERROR: APDU Exchange Failure! Return data: (" + JSON.stringify(this.result) + ")");
+            }
+          }
+
+          function iccCloseChannel(channelId) {
+            if (channelId == undefined) {
+              appendTextAndScroll("#output", "Not a valid channel to close");
+            }
+            var req = window.navigator.mozTelephony.iccCloseChannel(channelId);
+            req.onsuccess = function() {
+              appendTextAndScroll("#output",
+                "INFO: Close Success! Return data: (" + JSON.stringify(this.result) + ")");
+            }
+            req.onerror = function() {
+              appendTextAndScroll("#output",
+                "ERROR: Close Failure! Return data: (" + JSON.stringify(this.error) + ")");
+            }
+          }
         </script>
     </body>
 </html>
