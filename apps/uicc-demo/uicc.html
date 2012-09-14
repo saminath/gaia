@@ -55,14 +55,14 @@
           var apdu = {
             cla: 0x90,
             command: 0x10,
-            p1: 0x01,
-            p2: 0x02,
-            p3: 0x03,
-            path: "Path",
-            data: "Data",
-            data2: "Data2"
+            p1: 0x00,
+            p2: 0x00,
+            p3: 0x00,
+            path: null,
+            data: null,
+            data2: null
           };
-          var channelId = null;
+          var channelId = 0;
           var transmitResult = null;
 
           $(document).ready(function () {
@@ -74,11 +74,18 @@
             );
             $("#exchangebutton").bind("click", function(event, ui) {
                 // Issue command to open channelID (associated with AppletID)
-                // ChannelID may be undefined, due to all channels being in use.
+                if (!isValidChannel(channelId)) {
+                  appendTextAndScroll("#output", "Not a valid channel to transmit.");
+                  return;
+                }
                 iccExchangeAPDU(channelId, apdu);
               }
             );
             $("#closebutton").bind("click", function(event, ui) {
+                if (!isValidChannel(channelId)) {
+                  appendTextAndScroll("#output", "Not a valid channel to close.");
+                  return;
+                }
                 // Close channel to applet.
                 iccCloseChannel(channelId);
               }
@@ -95,6 +102,22 @@
             return hexStr;
           }
 
+          function hexStringToString(hexstr) {
+            var str = "";
+            for (var i = 0; i < hexstr.length; i+=2) {
+               var charCode = parseInt(hexstr.substr(i,2), 16);
+               str += String.fromCharCode(charCode);
+            }
+            return str;
+          }
+
+          function isValidChannel(channel) {
+            if (channelId <= 0 || channelId == null || channelId == undefined) {
+              return false;
+            }
+            return true;
+          }
+
           function appendTextAndScroll(htmlElementRef, message) {
             var htmlElement = $(htmlElementRef);
             htmlElement.val(htmlElement.val()+message+"\n");
@@ -108,10 +131,11 @@
             req.onsuccess = function() {
               appendTextAndScroll("#output",
                 "INFO: Open returns success. Channel: (" + JSON.stringify(this.result) + ")");
-              channelId = this.result;
               if (channelId === undefined) {
                 appendTextAndScroll("#output",
                   "INFO: Channel ID not defined. All channels in use. You can try again.");
+              } else {
+                channelId = this.result;
               }
             }
             req.onerror = function() {
@@ -126,7 +150,8 @@
             req.onsuccess = function() {
               appendTextAndScroll("#output",
                 "INFO: APDU Exchange Success! Return data: (" + JSON.stringify(this.result) + ")");
-              transmitResult = this.result;
+              transmitResult = hexStringToString(this.result[2]);
+              appendTextAndScroll("#output", "INFO: String Result: " + transmitResult);
             }
             req.onerror = function() {
               appendTextAndScroll("#output",
@@ -135,9 +160,6 @@
           }
 
           function iccCloseChannel(channelId) {
-            if (channelId == undefined) {
-              appendTextAndScroll("#output", "Not a valid channel to close");
-            }
             var req = window.navigator.mozTelephony.iccCloseChannel(channelId);
             req.onsuccess = function() {
               appendTextAndScroll("#output",
@@ -147,6 +169,7 @@
               appendTextAndScroll("#output",
                 "ERROR: Close Failure! Return data: (" + JSON.stringify(this.error) + ")");
             }
+            channelId = 0;
           }
         </script>
     </body>
