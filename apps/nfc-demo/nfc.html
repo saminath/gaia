@@ -27,6 +27,7 @@
                 isListening = true;
                 addNdefListener();
                 addTagLostListener();
+                addSecureElementTransactionListener();
               } else {
                 $("#buttontext").text("Start Tag Discovery");
                 $("#taglist").css("display", "none");
@@ -34,6 +35,7 @@
                 isListening = false;
                 removeNdefListener();
                 removeTagLostListener();
+                removeSecureElementTransactionListener();
               }
             });
           });
@@ -251,8 +253,8 @@
 
               var html ='<li data-role="list-divider" role="heading">NDEF Tag</li>';
 
-              for (var i = 0; i < event.ndefMessages.length; i++) {
-                var record = event.ndefMessages[i];
+              for (var i = 0; i < event.nfcMessages.length; i++) {
+                var record = event.nfcMessages[i];
                 console.log("RECORD: " + JSON.stringify(record));
 
                 //Dump generic data
@@ -315,8 +317,8 @@
 
           function addTagLostListener() {
 	    navigator.mozNfc.ontaglost = function(event) {
-              var messageType = event.ndefMessages.type;
-              var content = event.ndefMessages.content;
+              var messageType = event.nfcMessages.type;
+              var content = event.nfcMessages.content;
               if (messageType == "tagLost") {
                 var message = "Tag no longer in range.";
                 console.log(message);
@@ -327,6 +329,21 @@
 
           function removeTagLostListener() {
             navigator.mozNfc.ontaglost = null;
+          }
+
+          function addSecureElementTransactionListener() {
+            navigator.mozNfc.onsecureelementtransaction = function(event) {
+              var messageType = event.nfcMessages.type;
+              var content = event.nfcMessages.content;
+              if (messageType == "secureElementTransaction") {
+                var message = "Secure Element Transaction complete. AID: " + content.aid + ", DATA: " + content.data;
+                nfcUI.appendTextAndScroll($("#area"), message+"\n");
+              }
+            }
+          }
+
+          function removeSecureElementTransactionListener() {
+            navigator.mozNfc.onsecureelementtransaction = null;
           }
 
           function debug(message) {
