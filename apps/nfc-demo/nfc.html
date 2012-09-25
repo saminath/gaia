@@ -251,8 +251,8 @@
 
               var html ='<li data-role="list-divider" role="heading">NDEF Tag</li>';
 
-              for (var i = 0; i < event.ndefMessages.length; i++) {
-                var record = event.ndefMessages[i];
+              for (var i = 0; i < event.nfcMessages.length; i++) {
+                var record = event.nfcMessages[i];
                 console.log("RECORD: " + JSON.stringify(record));
 
                 //Dump generic data
