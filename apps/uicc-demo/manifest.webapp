@@ -4,8 +4,8 @@
   "launch_path": "/uicc.html",
   "permissions": [
     "telephony",
-    "mozApps",
-    "nfc"
+    "nfc",
+    "uicc"
   ],
   "developer": {
     "name": "Deutsche Telekom",
