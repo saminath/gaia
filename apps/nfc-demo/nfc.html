@@ -27,7 +27,6 @@
                 isListening = true;
                 addNdefListener();
                 addTagLostListener();
-                addSecureElementListeners();
               } else {
                 $("#buttontext").text("Start Tag Discovery");
                 $("#taglist").css("display", "none");
@@ -35,7 +34,6 @@
                 isListening = false;
                 removeNdefListener();
                 removeTagLostListener();
-                removeSecureElementListeners();
               }
             });
           });
@@ -329,61 +327,6 @@
 
           function removeTagLostListener() {
             navigator.mozNfc.ontaglost = null;
-          }
-
-          // NFC Secure Element listeners
-          function addSecureElementListeners() {
-            addSecureElementActivatedListener();
-            addSecureElementDeactivatedListener();
-            addSecureElementTransactionListener();
-          }
-
-          function removeSecureElementListeners() {
-            removeSecureElementActivatedListener();
-            removeSecureElementDeactivatedListener();
-            removeSecureElementTransactionListener();
-          }
-
-          function addSecureElementActivatedListener() {
-            navigator.mozNfc.onsecureelementactivated = function(event) {
-              var messageType = event.nfcMessages.type;
-              if (messageType == "secureElementActivated") {
-                var message = "Secure Element Activated.";
-                nfcUI.appendTextAndScroll($("#area"), message+"\n");
-              }
-            }
-          }
-          function addSecureElementDeactivatedListener() {
-            navigator.mozNfc.onsecureelementdeactivated = function(event) {
-              var messageType = event.nfcMessages.type;
-              if (messageType == "secureElementDeactivated") {
-                var message = "Secure Element Deactivated.";
-                nfcUI.appendTextAndScroll($("#area"), message+"\n");
-              }
-            }
-          }
-          function addSecureElementTransactionListener() {
-            navigator.mozNfc.onsecureelementtransaction = function(event) {
-              var messageType = event.nfcMessages.type;
-              var content = event.nfcMessages.content;
-              if (messageType == "secureElementTransaction") {
-                var message = "Secure Element Transaction complete. AID: " + content.aid + ", DATA: " + content.data;
-                nfcUI.appendTextAndScroll($("#area"), message+"\n");
-                alert(message);
-              }
-            }
-          }
-
-          function removeSecureElementActivatedListener() {
-            navigator.mozNfc.onsecureelementactivated = null;
-          }
-
-          function removeSecureElementDeactivatedListener() {
-            navigator.mozNfc.onsecureelementdeactivated = null;
-          }
-
-          function removeSecureElementTransactionListener() {
-            navigator.mozNfc.onsecureelementtransaction = null;
           }
 
           function debug(message) {
