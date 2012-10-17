@@ -10,6 +10,7 @@ suite('controller', function() {
   var app;
   var busytime;
   var loaded;
+  var db;
 
   function logSpan(span) {
     if (Array.isArray(span)) {
@@ -22,7 +23,7 @@ suite('controller', function() {
     console.log();
   }
 
-  setup(function() {
+  setup(function(done) {
     loaded = [];
     app = testSupport.calendar.app();
     subject = new Calendar.Controllers.Time(app);
@@ -34,6 +35,24 @@ suite('controller', function() {
         setTimeout(cb, 0);
       }
     };
+
+    db = app.db;
+
+    db.open(function() {
+      done();
+    });
+  });
+
+  teardown(function(done) {
+    testSupport.calendar.clearStore(
+      app.db,
+      ['events', 'busytimes', 'alarms'],
+      done
+    );
+  });
+
+  teardown(function() {
+    app.db.close();
   });
 
   test('initialize', function() {
@@ -43,6 +62,244 @@ suite('controller', function() {
     assert.ok(!subject.pending);
 
     assert.deepEqual(subject._timespans, []);
+  });
+
+  suite('#handleEvent', function() {
+
+    test('switching between days', function() {
+      function type() {
+        return subject.mostRecentDayType;
+      }
+
+      subject.selectedDay = new Date(2012, 1, 5);
+
+      assert.deepEqual(
+        subject.mostRecentDay,
+        subject.selectedDay,
+        'mostRecentDay - selected day'
+      );
+
+      assert.equal(
+        type(),
+        'selectedDay',
+        '"selectedDay" change should update type'
+      );
+
+      subject.move(new Date(2012, 1, 10));
+
+      assert.equal(
+        type(), 'day',
+        'move - sets most recent type'
+      );
+
+      assert.deepEqual(
+        subject.mostRecentDay,
+        subject.position,
+        'mostRecentDay - day'
+      );
+
+      // back & forth
+      subject.move(new Date(2012, 1, 15));
+      assert.equal(type(), 'day');
+      subject.selectedDay = new Date(2012, 1, 20);
+      assert.equal(type(), 'selectedDay');
+    });
+
+  });
+
+  test('#scale', function() {
+    var calledWith;
+
+    subject.on('scaleChange', function() {
+      calledWith = arguments;
+    });
+
+    subject.scale = 'year';
+    assert.deepEqual(calledWith, ['year', null]);
+    calledWith = null;
+    subject.scale = 'year';
+    assert.isNull(calledWith, 'should not trigger change when value is same');
+
+    subject.scale = 'day';
+
+    assert.deepEqual(
+      calledWith,
+      ['day', 'year']
+    );
+  });
+
+  suite('#findAssociated', function() {
+    // stores
+    var alarmStore;
+    var eventStore;
+    var busytimeStore;
+
+    setup(function() {
+      alarmStore = app.store('Alarm');
+      eventStore = app.store('Event');
+      busytimeStore = app.store('Busytime');
+    });
+
+    // model instances
+    var hasAlarm;
+    var noAlarm;
+    var alarm;
+    var event;
+
+    setup(function(done) {
+      event = Factory('event', {
+        _id: 'foobar'
+      });
+
+      hasAlarm = Factory('busytime', {
+        eventId: event._id
+      });
+
+      noAlarm = Factory('busytime', {
+        eventId: event._id
+      });
+
+      alarm = Factory('alarm', {
+        eventId: event._id,
+        busytimeId: hasAlarm._id
+      });
+
+      var trans = app.db.transaction(
+        ['alarms', 'events', 'busytimes'],
+        'readwrite'
+      );
+
+      trans.oncomplete = function() {
+        done();
+      }
+
+      eventStore.persist(event, trans);
+      busytimeStore.persist(hasAlarm, trans);
+      busytimeStore.persist(noAlarm, trans);
+      alarmStore.persist(alarm, trans);
+    });
+
+
+    test('empty', function(done) {
+      var busytime = Factory('busytime');
+
+      subject.findAssociated(busytime, function(err, data) {
+        done(function() {
+          assert.ok(!err);
+          assert.ok(data);
+          assert.length(data, 1);
+
+          assert.deepEqual(data[0], {
+            busytime: busytime
+          });
+        });
+      });
+    });
+
+    test('default', function(done) {
+      // should default to not include alarms.
+      var expected = {
+        busytime: hasAlarm,
+        event: event
+      };
+
+      subject.findAssociated(hasAlarm, function(err, data) {
+        done(function() {
+          var item = data[0];
+          assert.ok(!err, 'error');
+          assert.ok(item, 'result');
+
+          assert.deepEqual(item, expected, 'output');
+        });
+      });
+    });
+
+    test('no event - with missing alarm', function(done) {
+      var expected = {
+        busytime: noAlarm
+      };
+
+      var options = { event: false, alarm: true };
+
+      subject.findAssociated(noAlarm, options, function(err, result) {
+        done(function() {
+          assert.ok(!err);
+          assert.length(result, 1);
+          assert.deepEqual(result[0], expected);
+        });
+      });
+    });
+
+    test('multiple', function(done) {
+      var req = [noAlarm, hasAlarm];
+      var options = {
+        event: true,
+        alarm: true
+      };
+
+      subject.findAssociated(req, options, function(err, data) {
+        if (err) {
+          done(err);
+          return;
+        }
+
+        done(function() {
+          // ensure that results are returned in order.
+          var resultNoAlarm = data[0];
+          var resultAlarm = data[1];
+
+          var expectedNoAlarm = {
+            event: event,
+            busytime: noAlarm
+          };
+
+          var expectedAlarm = {
+            event: event,
+            busytime: hasAlarm,
+            alarm: alarm
+          };
+
+          assert.deepEqual(
+            resultNoAlarm,
+            expectedNoAlarm,
+            'busytime without alarm'
+          );
+
+          assert.deepEqual(
+            resultAlarm,
+            expectedAlarm,
+            'busytime with alarm'
+          );
+        });
+      });
+    });
+
+  });
+
+  test('#moveToMostRecentDay', function() {
+    var date = new Date();
+    var calledMove;
+
+    subject.move(date);
+
+    subject.move = function() {
+      Calendar.Controllers.Time.prototype.move.apply(this, arguments);
+      calledMove = arguments;
+    }
+
+    subject.selectedDay = new Date(2012, 1, 1);
+    subject.moveToMostRecentDay();
+
+    assert.equal(
+      calledMove[0],
+      subject.selectedDay,
+      'should move to selected day'
+    );
+
+    calledMove = null;
+
+    subject.moveToMostRecentDay();
+    assert.ok(!calledMove, 'should not move when "day" was last changed');
   });
 
   test('#selectedDay', function() {
@@ -183,6 +440,7 @@ suite('controller', function() {
       expected = spans.slice(8, 14);
     });
 
+
     cacheTest('past - fits', function() {
       var expectedItems = [];
 
@@ -209,23 +467,23 @@ suite('controller', function() {
 
       // before
       subject._collection.add(Factory('busytime', {
-        start: (new Date(2000, 0, 1)).valueOf(),
-        end: expected[0].start
+        _startDateMS: (new Date(2000, 0, 1)).valueOf(),
+        _endDateMS: expected[0].start
       }));
 
       // during
 
       expectedItems.push(subject._collection.add(
         Factory('busytime', {
-          start: expected[0].start + 1,
-          end: expected[expected.length - 1].end - 1
+          _startDateMS: expected[0].start + 1,
+          _endDateMS: expected[expected.length - 1].end - 1
         })
       ));
 
       // after
       subject._collection.add(Factory('busytime', {
-        start: expected[expected.length - 1].end + 1,
-        end: (new Date(2020, 0, 1)).valueOf()
+        _startDateMS: expected[expected.length - 1].end + 1,
+        _endDateMS: (new Date(2020, 0, 1)).valueOf()
       }));
 
       afterCallback = function() {

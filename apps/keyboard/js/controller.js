@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- /
+/* -*- Mode: js; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- /
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
 /*
@@ -42,7 +42,9 @@ const IMEController = (function() {
   var _currentLayout = null;
   var _currentLayoutMode = LAYOUT_MODE_DEFAULT;
   var _currentKey = null;
+  var _realInputType = null;
   var _currentInputType = null;
+  var _currentInputMode = null;  // value of the inputmode attribute
   var _menuLockedArea = null;
   var _lastHeight = 0;
   var _lastKeyCode = 0;
@@ -126,13 +128,35 @@ const IMEController = (function() {
 
   // Check if current layout requires IME
   function _requireIME() {
+    if (!_baseLayoutName)
+      return false;
     return Keyboards[_baseLayoutName].type === 'ime';
   }
 
   function _requireSuggestion() {
     if (!_wordSuggestionEnabled)
       return '';
-    return Keyboards[_baseLayoutName].suggestionEngine;
+
+    if (_realInputType == 'text' ||
+        _realInputType == 'textarea' ||
+        _realInputType == 'search') {
+      return Keyboards[_baseLayoutName].suggestionEngine;
+    }
+
+    return '';
+  }
+
+  var capitalizedInputModes = {
+    '': true,
+    'latin-prose': true,
+    'latin-name': true,
+    'full-latin-width': true
+  };
+
+  function _requireAutoCapitalize() {
+    return (_realInputType == 'text' || _realInputType == 'textarea') &&
+      (_currentInputMode == undefined ||
+       _currentInputMode in capitalizedInputModes);
   }
 
   // Add some special keys depending on the input's type
@@ -221,8 +245,14 @@ const IMEController = (function() {
     // lets look for a layout overriding or fallback to defaults
     // There is no memory-share risk here, we will preserve the original
     // layout some lines after if needed.
-    var layout = Keyboards[_baseLayoutName][layoutName] ||
-                 Keyboards[layoutName];
+    if (!_baseLayoutName && !layoutName) {
+      // Keyboard is broken with an updated Gecko. Let's do a temporary
+      // fix in order to understand the real issue.
+      var layout = Keyboards[navigator.language.split('-')[0]];
+    } else {
+      var layout = Keyboards[_baseLayoutName][layoutName] ||
+                   Keyboards[layoutName];
+    }
 
     // look for keyspace (it behaves as the placeholder for special keys)
     var where = false;
@@ -487,12 +517,6 @@ const IMEController = (function() {
     if (!alternatives.length)
       return;
 
-    // The first alternative is ALWAYS the original key
-    alternatives.splice(
-      0, 0,
-      _isUpperCase ? uppercaseValue : value
-    );
-
     // Locked limits
     // TODO: look for [LOCKED_AREA]
     var top = getWindowTop(key);
@@ -512,7 +536,6 @@ const IMEController = (function() {
     _menuLockedArea.width = _menuLockedArea.right - _menuLockedArea.left;
     _menuLockedArea.ratio =
       _menuLockedArea.width / IMERender.menu.children.length;
-
   }
 
   // Hide alternatives.
@@ -576,6 +599,18 @@ const IMEController = (function() {
     // Key alternatives when long press
     _menuTimeout = window.setTimeout((function menuTimeout() {
       _showAlternatives(_currentKey);
+
+      // redirect mouse over event so that the first key in menu
+      // would be highlighted
+      if (_isShowingAlternativesMenu &&
+        _menuLockedArea &&
+        evt.pageY >= _menuLockedArea.top &&
+        evt.pageY <= _menuLockedArea.bottom &&
+        evt.pageX >= _menuLockedArea.left &&
+        evt.pageX <= _menuLockedArea.right) {
+        _redirectMouseOver(evt);
+       }
+
     }), _kAccentCharMenuTimeout);
 
     // Special keys (such as delete) response when pressing (not releasing)
@@ -605,32 +640,17 @@ const IMEController = (function() {
   // to the alternative menu keys but I would prefer another alternative
   // with better performance.
   function _onMouseMove(evt) {
-    var altCount, width, menuChildren;
-
     // Control locked zone for menu
     if (_isShowingAlternativesMenu &&
         _menuLockedArea &&
-        evt.screenY >= _menuLockedArea.top &&
-        evt.screenY <= _menuLockedArea.bottom &&
-        evt.screenX >= _menuLockedArea.left &&
-        evt.screenX <= _menuLockedArea.right) {
+        evt.pageY >= _menuLockedArea.top &&
+        evt.pageY <= _menuLockedArea.bottom &&
+        evt.pageX >= _menuLockedArea.left &&
+        evt.pageX <= _menuLockedArea.right) {
 
       clearTimeout(_hideMenuTimeout);
-      menuChildren = IMERender.menu.children;
-
-      var event = document.createEvent('MouseEvent');
-      event.initMouseEvent(
-        'mouseover', true, true, window, 0,
-        0, 0, 0, 0,
-        false, false, false, false, 0, null
-      );
-
-      menuChildren[Math.floor(
-        (evt.screenX - _menuLockedArea.left) / _menuLockedArea.ratio
-      )].dispatchEvent(event);
-      return;
+      _redirectMouseOver(evt);
     }
-
   }
 
   // When user changes to another button (it handle what happend if the user
@@ -671,7 +691,23 @@ const IMEController = (function() {
     _menuTimeout = window.setTimeout((function menuTimeout() {
       _showAlternatives(target);
     }), _kAccentCharMenuTimeout);
+  }
 
+  function _redirectMouseOver(evt) {
+    var menuChildren = IMERender.menu.children;
+
+    var event = document.createEvent('MouseEvent');
+    event.initMouseEvent(
+      'mouseover', true, true, window, 0,
+      0, 0, 0, 0,
+      false, false, false, false, 0, null
+    );
+
+    var redirectTarget = menuChildren[Math.floor(
+      (evt.pageX - _menuLockedArea.left) / _menuLockedArea.ratio)];
+
+    if (redirectTarget)
+      redirectTarget.dispatchEvent(event);
   }
 
   // When user leaves the keyboard
@@ -825,10 +861,6 @@ const IMEController = (function() {
         }
 
         _reset();
-        _draw(
-          _baseLayoutName, _currentInputType,
-          _currentLayoutMode, _isUpperCase
-        );
 
         if (_requireIME()) {
           if (_getCurrentEngine().show) {
@@ -936,7 +968,7 @@ const IMEController = (function() {
           _isContinousSpacePressed = true;
 
           // Then set the keyboard uppercase for the next char
-          if (_currentInputType == 'text') {
+          if (_requireAutoCapitalize()) {
             _isUpperCase = true;
             _draw(
               _baseLayoutName, _currentInputType,
@@ -962,7 +994,7 @@ const IMEController = (function() {
 
         if (lastKeyWasPeriod) {
           // Then set the keyboard uppercase for the next char
-          if (_currentInputType == 'text') {
+          if (_requireAutoCapitalize()) {
             _isUpperCase = true;
             _draw(
               _baseLayoutName, _currentInputType,
@@ -1007,15 +1039,21 @@ const IMEController = (function() {
     return { x: x, y: y };
   }
 
-
   // Turn to default values
   function _reset() {
     _currentLayoutMode = LAYOUT_MODE_DEFAULT;
-    _isUpperCase = false;
-    if (_currentInputType == 'text') {
-      _isUpperCase = true;
-    }
+    _isUpperCase = _requireAutoCapitalize();
+    _isUpperCaseLocked = false;
     _lastKeyCode = 0;
+
+    _draw(
+      _baseLayoutName, _currentInputType,
+      _currentLayoutMode, _isUpperCase
+    );
+
+    var query = 'button[data-keycode="' + KeyboardEvent.DOM_VK_CAPS_LOCK + '"]';
+    var capsLockKey = document.querySelector(query);
+    IMERender.setUpperCaseLock(capsLockKey, _isUpperCase);
   }
 
   var _imeEvents = {
@@ -1046,10 +1084,6 @@ const IMEController = (function() {
         IMERender.ime.addEventListener(event, callback.bind(this));
     }
     _dimensionsObserver.observe(IMERender.ime, _dimensionsObserverConfig);
-
-    if (_currentInputType == 'text') {
-      _isUpperCase = true;
-    }
   }
 
   // Finalizes the keyboard (exposed, controlled by IMEManager)
@@ -1097,20 +1131,23 @@ const IMEController = (function() {
     uninit: _uninit,
 
     // Show IME, receives the input's type
-    showIME: function kc_showIME(type) {
+    showIME: function kc_showIME(state) {
       delete IMERender.ime.dataset.hidden;
       IMERender.ime.classList.remove('hide');
 
-      _currentInputType = _mapType(type);
-      _draw(
-        _baseLayoutName, _currentInputType,
-        _currentLayoutMode, _isUpperCase
-      );
+      _realInputType = state.type;
+      _currentInputType = _mapType(state.type);
+      _currentInputMode = state.inputmode;
+      _reset();
 
       if (_requireIME()) {
         if (_getCurrentEngine().show) {
-          _getCurrentEngine().show(type);
+          _getCurrentEngine().show(state.type);
         }
+      }
+
+      if (_requireSuggestion()) {
+        IMERender.ime.classList.add('candidate-panel');
       }
 
       _prepareLayoutParams(_layoutParams);
@@ -1122,8 +1159,8 @@ const IMEController = (function() {
     // Hide IME
     hideIME: function kc_hideIME(imminent) {
       IMERender.ime.classList.add('hide');
+      IMERender.ime.classList.remove('candidate-panel');
       IMERender.hideIME(imminent);
-      _reset();
     },
 
     // Controlled by IMEManager, i.e. when orientation change
@@ -1221,6 +1258,11 @@ const IMEController = (function() {
 
       if (this.suggestionEngines[engineName])
         return;
+
+      // Tell the rendering module which suggestion engine we're using.
+      // Asian suggestion engines need more vertical space than latin ones.
+      // The renderer can use the engine name as a CSS class
+      IMERender.setSuggestionEngineName(engineName);
 
       // We might get a setLanguage call as the engine is loading. Ignore it.
       // We will set the language via init anyway.

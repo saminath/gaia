@@ -15,10 +15,10 @@ if (!window.navigator.mozKeyboard) {
   var focusChangeTimeout = 0;
   var focusChangeDelay = 20;
   window.navigator.mozKeyboard.onfocuschange = function onfocuschange(evt) {
-
+    var state = evt.detail;
     var typeToSkip = ['select-one', 'select-multiple', 'date',
-                        'time', 'datetime', 'datetime-local'];
-    var type = evt.detail.type;
+                      'time', 'datetime', 'datetime-local'];
+    var type = state.type;
     // Skip the <select> element and inputs with type of date/time,
     // handled in system app for now
     // Also workaround an issue that type might be empty
@@ -30,7 +30,7 @@ if (!window.navigator.mozKeyboard) {
       if (type === 'blur') {
         IMEController.hideIME();
       } else {
-        IMEController.showIME(type);
+        IMEController.showIME(state);
       }
     }, focusChangeDelay);
   };
@@ -122,7 +122,15 @@ const IMEManager = {
 
   init: function km_init() {
     IMEController.init();
-    IMEFeedback.init();
+
+    // Bug 801045 - Can't enter numbers
+    // IMEFeedback.init() would check settings DB, which may cause uncaught
+    // exception and the following code would not be executed
+    try {
+      IMEFeedback.init();
+    } catch (e) {
+      console.error('Exception occurred: ' + e);
+    }
 
     this.updateSettings();
     this._events.forEach((function attachEvents(type) {
@@ -211,26 +219,6 @@ function getWindowLeft(obj) {
   }
   return left;
 }
-
-var SettingsListener = {
-  observe: function sl_observe(name, defaultValue, callback) {
-    var settings = window.navigator.mozSettings;
-    if (!settings) {
-      window.setTimeout(function() { callback(defaultValue); });
-      return;
-    }
-
-    var req = settings.getLock().get(name);
-    req.addEventListener('success', (function onsuccess() {
-      callback(typeof(req.result[name]) != 'undefined' ?
-        req.result[name] : defaultValue);
-    }));
-
-    settings.addObserver(name, function settingChanged(evt) {
-      callback(evt.settingValue);
-    });
-  }
-};
 
 window.addEventListener('load', function initIMEManager(evt) {
   window.removeEventListener('load', initIMEManager);

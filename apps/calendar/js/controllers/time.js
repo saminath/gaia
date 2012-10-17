@@ -1,5 +1,9 @@
 Calendar.ns('Controllers').Time = (function() {
 
+  function compareStart(a, b) {
+    return Calendar.compare(a.start, b.start);
+  }
+
   function Time(app) {
     this.app = app;
     Calendar.Responder.call(this);
@@ -67,8 +71,50 @@ Calendar.ns('Controllers').Time = (function() {
      */
     pending: 0,
 
+    /**
+     * The time 'scale' of the current
+     * state of the calendar.
+     *
+     * Usually one of: ['day', 'month', 'week']
+     * @type {String}
+     */
+    _scale: null,
+
+    /**
+     * private state of mostRecentDayType
+     */
+    _mostRecentDayType: 'day',
+
+    /**
+     * Returns the most recently changed
+     * day type either 'day' or 'selectedDay'
+     */
+    get mostRecentDayType() {
+      return this._mostRecentDayType;
+    },
+
+    get mostRecentDay() {
+      if (this.mostRecentDayType === 'selectedDay') {
+        return this.selectedDay;
+      } else {
+        return this.position;
+      }
+    },
+
     get timespan() {
       return this._timespan;
+    },
+
+    get scale() {
+      return this._scale;
+    },
+
+    set scale(value) {
+      var oldValue = this._scale;
+      if (value !== oldValue) {
+        this._scale = value;
+        this.emit('scaleChange', value, oldValue);
+      }
     },
 
     get selectedDay() {
@@ -77,6 +123,7 @@ Calendar.ns('Controllers').Time = (function() {
 
     set selectedDay(value) {
       var day = this._selectedDay;
+      this._mostRecentDayType = 'selectedDay';
       if (!day || !Calendar.Calc.isSameDate(day, value)) {
         this._selectedDay = value;
         this.emit('selectedDayChange', value, day);
@@ -90,6 +137,18 @@ Calendar.ns('Controllers').Time = (function() {
         'monthChange',
         this._loadMonthSpan.bind(this)
       );
+    },
+
+    /**
+     * Helper function to 'move' state of calendar
+     * to the most recently modified day type.
+     *
+     * (in the case where selectedDay was changed after day)
+     */
+    moveToMostRecentDay: function() {
+      if (this.mostRecentDayType === 'selectedDay') {
+        this.move(this.selectedDay);
+      }
     },
 
     _updateCache: function(type, value) {
@@ -111,7 +170,7 @@ Calendar.ns('Controllers').Time = (function() {
         var idx = Calendar.binsearch.find(
           spans,
           this._currentTimespan,
-          Calendar.compareByStart
+          compareStart
         );
 
         var isFuture = (dir === 'future');
@@ -200,7 +259,7 @@ Calendar.ns('Controllers').Time = (function() {
       var idx = Calendar.binsearch.find(
         spans,
         span,
-        Calendar.compareByStart
+        compareStart
       );
 
       // if a perfect match is found stop,
@@ -212,7 +271,7 @@ Calendar.ns('Controllers').Time = (function() {
       idx = Calendar.binsearch.insert(
         spans,
         span,
-        Calendar.compareByStart
+        compareStart
       );
 
       // insert it keep all spans ordered
@@ -315,7 +374,7 @@ Calendar.ns('Controllers').Time = (function() {
       var currentIdx = Calendar.binsearch.find(
         this._timespans,
         this._currentTimespan,
-        Calendar.compareByStart
+        compareStart
       );
 
       // When given date's month span is not found
@@ -400,6 +459,94 @@ Calendar.ns('Controllers').Time = (function() {
     },
 
     /**
+     * Requests associated records for one or more busytimes.
+     *
+     * Options:
+     *
+     *  event: (Boolean) when true returns associated event. (default true).
+     *  alarm: (Boolean) when true returns the associated alarm.
+     *
+     * Returns:
+     *
+     *    [
+     *      { busytime: inputBusytime, event: event, alarm: alarm },
+     *      ...
+     *    ]
+     *
+     * @param {Array[Object]|Object} busytime one or more busytimes.
+     * @param {Object} options see above.
+     * @param {Function} cb node style [err, (see returns above)].
+     */
+    findAssociated: function(busytimes, options, cb) {
+      if (typeof(options) === 'function') {
+        cb = options;
+        options = null;
+      }
+
+      var getEvent = true;
+      var getAlarm = false;
+
+      busytimes = (Array.isArray(busytimes)) ? busytimes : [busytimes];
+
+      if (options && ('alarm' in options)) {
+        getAlarm = options.alarm;
+      }
+
+      if (options && ('event' in options)) {
+        getEvent = options.event;
+      }
+
+      var eventStore = this.app.store('Event');
+      var alarmStore = this.app.store('Alarm');
+      var list = [];
+
+      var stores = [];
+
+      if (getAlarm)
+        stores.push('alarms');
+
+      if (getEvent)
+        stores.push('events');
+
+      var trans = eventStore.db.transaction(stores);
+
+      trans.addEventListener('error', cb);
+      trans.addEventListener('complete', function() {
+        cb(null, list);
+      });
+
+      // using forEach for scoping
+      // XXX: this is a hot code path needs some optimization.
+      busytimes.forEach(function(busytime, idx) {
+        var result = { busytime: busytime };
+        list[idx] = result;
+        // XXX: we should probably cache events
+        if (getEvent) {
+          eventStore.get(busytime.eventId, trans, function(err, event) {
+            if (event) {
+              result.event = event;
+            }
+          });
+        }
+
+        if (getAlarm) {
+          // its possible for more then one alarm to be present
+          // for a given busytime. We are not supporting that right
+          // now but in the future we may need to modify this to
+          // return an array of alarms.
+          alarmStore.findByBusytimeId(busytime._id, trans,
+                                      function(err, alarm) {
+
+            // unlike events we probably never want to cache alarms.
+            if (alarm) {
+              result.alarm = alarm;
+            }
+          });
+        }
+      }, this);
+    },
+
+    /**
      * Sets position of controller
      * in time.
      *
@@ -425,6 +572,8 @@ Calendar.ns('Controllers').Time = (function() {
           this.direction = 'future';
         }
       }
+
+      this._mostRecentDayType = 'day';
 
       this._updateCache('year', yearDate);
       this._updateCache('month', monthDate);

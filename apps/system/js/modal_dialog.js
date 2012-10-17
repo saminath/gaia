@@ -20,9 +20,8 @@ var ModalDialog = {
     var elementsID = ['alert', 'alert-ok', 'alert-message',
       'prompt', 'prompt-ok', 'prompt-cancel', 'prompt-input', 'prompt-message',
       'confirm', 'confirm-ok', 'confirm-cancel', 'confirm-message',
-      'authentication', 'username-input', 'password-input',
-      'authentication-message',
-      'error', 'error-back', 'error-reload'];
+      'error', 'error-back', 'error-reload', 'select-one', 'select-one-cancel',
+      'select-one-menu', 'select-one-title'];
 
     var toCamelCase = function toCamelCase(str) {
       return str.replace(/\-(.)/g, function replacer(str, p1) {
@@ -55,10 +54,16 @@ var ModalDialog = {
     window.addEventListener('mozbrowsererror', this);
     window.addEventListener('appopen', this);
     window.addEventListener('appwillclose', this);
+    window.addEventListener('appterminated', this);
     window.addEventListener('resize', this);
+    window.addEventListener('keyboardchange', this);
+    window.addEventListener('keyboardhide', this);
+    window.addEventListener('home', this);
+    window.addEventListener('holdhome', this);
 
     for (var id in elements) {
-      if (elements[id].tagName.toLowerCase() == 'button') {
+      var tagName = elements[id].tagName.toLowerCase();
+      if (tagName == 'button' || tagName == 'ul') {
         elements[id].addEventListener('click', this);
       }
     }
@@ -69,11 +74,13 @@ var ModalDialog = {
     var elements = this.elements;
     switch (evt.type) {
       case 'mozbrowsererror':
-        // XXX: another issue #3047
-        if (evt.detail.type == 'fatal')
-          return;
       case 'mozbrowsershowmodalprompt':
-        if (evt.target.dataset.frameType != 'window')
+        var frameType = evt.target.dataset.frameType;
+        if (frameType != 'window' && frameType != 'inline-activity')
+          return;
+
+        /* fatal case (App crashing) is handled in Window Manager */
+        if (evt.type == 'mozbrowsererror' && evt.detail.type == 'fatal')
           return;
 
         evt.preventDefault();
@@ -82,7 +89,8 @@ var ModalDialog = {
 
         // Show modal dialog only if
         // the frame is currently displayed.
-        if (origin == WindowManager.getDisplayedApp())
+        if (origin == WindowManager.getDisplayedApp() ||
+            frameType == 'inline-activity')
           this.show(origin);
         break;
 
@@ -92,11 +100,13 @@ var ModalDialog = {
           WindowManager.kill(this.currentOrigin);
         } else if (evt.currentTarget === elements.errorReload) {
           this.cancelHandler();
-          WindowManager.kill(this.currentOrigin);
-          WindowManager.launch(this.currentOrigin);
+          WindowManager.reload(this.currentOrigin);
         } else if (evt.currentTarget === elements.confirmCancel ||
-            evt.currentTarget === elements.promptCancel) {
+          evt.currentTarget === elements.promptCancel ||
+          evt.currentTarget === elements.selectOneCancel) {
           this.cancelHandler();
+        } else if (evt.currentTarget === elements.selectOneMenu) {
+          this.selectOneHandler(evt.target);
         } else {
           this.confirmHandler();
         }
@@ -104,6 +114,14 @@ var ModalDialog = {
 
       case 'appopen':
         this.show(evt.detail.origin);
+        break;
+
+      case 'home':
+      case 'holdhome':
+        // Inline activity, which origin is different from foreground app
+        if (this.isVisible() && 
+            this.currentOrigin != WindowManager.getDisplayedApp())
+          this.cancelHandler();
         break;
 
       case 'appwillclose':
@@ -115,16 +133,30 @@ var ModalDialog = {
         this.hide();
         break;
 
+      case 'appterminated':
+        if (this.currentEvents[evt.detail.origin])
+          delete this.currentEvents[evt.detail.origin];
+
+        break;
+
       case 'resize':
+      case 'keyboardhide':
         if (!this.currentOrigin)
           return;
 
-        this.setHeight();
+        this.setHeight(window.innerHeight - StatusBar.height);
+        break;
+
+      case 'keyboardchange':
+        this.setHeight(window.innerHeight -
+          evt.detail.height - StatusBar.height);
+        break;
     }
   },
 
-  setHeight: function md_setHeight() {
-    this.overlay.style.height = window.innerHeight + 'px';
+  setHeight: function md_setHeight(height) {
+    if (this.isVisible())
+      this.overlay.style.height = height + 'px';
   },
 
   // Show relative dialog and set message/input value well
@@ -144,9 +176,11 @@ var ModalDialog = {
       return span.innerHTML;
     }
 
-    message = escapeHTML(message);
-
     var type = evt.detail.promptType || evt.detail.type;
+    if (type !== 'selectone') {
+      message = escapeHTML(message);
+    }
+
     switch (type) {
       case 'alert':
         elements.alertMessage.innerHTML = message;
@@ -164,21 +198,18 @@ var ModalDialog = {
         elements.confirmMessage.innerHTML = message;
         break;
 
-      // HTTP Authentication
-      case 'usernameandpassword':
-        elements.authentication.classList.add('visible');
-        var l10nArgs = { realm: evt.detail.realm, host: evt.detail.host };
-        var _ = navigator.mozL10n.get;
-        message = _('http-authentication-message', l10nArgs);
-        elements.authenticationMessage.innerHTML = message;
+      case 'selectone':
+        this.buildSelectOneDialog(message);
+        elements.selectOne.classList.add('visible');
+        break;
 
       // Error
       case 'other':
         elements.error.classList.add('visible');
-      break;
+        break;
     }
 
-    this.setHeight();
+    this.setHeight(window.innerHeight - StatusBar.height);
   },
 
   hide: function md_hide() {
@@ -186,9 +217,6 @@ var ModalDialog = {
     var type = evt.detail.promptType || evt.detail.type;
     if (type == 'prompt') {
       this.elements.promptInput.blur();
-    } else if (type == 'usernameandpassword') {
-      this.elements.usernameInput.blur();
-      this.elements.passwordInput.blur();
     }
     this.currentOrigin = null;
     this.screen.classList.remove('modal-dialog');
@@ -216,14 +244,6 @@ var ModalDialog = {
       case 'confirm':
         evt.detail.returnValue = true;
         elements.confirm.classList.remove('visible');
-        break;
-
-      case 'usernameandpassword':
-        evt.detail.returnValue = {
-          username: elements.usernameInput.value,
-          password: elements.password.value
-        };
-        elements.authentication.classList.remove('visible');
         break;
 
       case 'other':
@@ -266,9 +286,10 @@ var ModalDialog = {
         elements.confirm.classList.remove('visible');
         break;
 
-      case 'usernameandpassword':
-        evt.detail.returnValue = { ok: false };
-        elements.authentication.classList.remove('visible');
+      case 'selectone':
+        /* return null when click cancel */
+        evt.detail.returnValue = null;
+        elements.selectOne.classList.remove('visible');
         break;
 
       case 'other':
@@ -284,6 +305,47 @@ var ModalDialog = {
       evt.detail.unblock();
 
     delete this.currentEvents[this.currentOrigin];
+  },
+
+  // When user selects an option on selectone dialog
+  selectOneHandler: function md_confirmHandler(target) {
+    this.screen.classList.remove('modal-dialog');
+    var elements = this.elements;
+
+    var evt = this.currentEvents[this.currentOrigin];
+
+    evt.detail.returnValue = target.id;
+    elements.selectOne.classList.remove('visible');
+
+    if (evt.isPseudo && evt.callback) {
+      evt.callback(evt.detail.returnValue);
+    }
+
+    if (evt.detail.unblock)
+      evt.detail.unblock();
+
+    delete this.currentEvents[this.currentOrigin];
+  },
+
+  buildSelectOneDialog: function md_buildSelectOneDialog(data) {
+    var elements = this.elements;
+    elements.selectOneTitle.textContent = data.title;
+    elements.selectOneMenu.innerHTML = '';
+
+    if (!data.options) {
+      return;
+    }
+
+    var itemsHTML = [];
+    for (var i = 0; i < data.options.length; i++) {
+      itemsHTML.push('<li><button id="');
+      itemsHTML.push(data.options[i].id);
+      itemsHTML.push('">');
+      itemsHTML.push(data.options[i].text);
+      itemsHTML.push('</button></li>');
+    }
+
+    elements.selectOneMenu.innerHTML = itemsHTML.join('');
   },
 
   // The below is for system apps to use.
@@ -313,6 +375,14 @@ var ModalDialog = {
     });
   },
 
+  selectOne: function md_alert(data, callback) {
+    this.showWithPseudoEvent({
+      type: 'selectone',
+      text: data,
+      callback: callback
+    });
+  },
+
   showWithPseudoEvent: function md_showWithPseudoEvent(config) {
     var pseudoEvt = {
       isPseudo: true,
@@ -325,7 +395,7 @@ var ModalDialog = {
     pseudoEvt.callback = config.callback;
     pseudoEvt.detail.promptType = config.type;
     if (config.type == 'prompt') {
-        pseudoEvt.detail.initialValue = config.initialValue;
+      pseudoEvt.detail.initialValue = config.initialValue;
     }
 
     // Create a virtual mapping in this.currentEvents,

@@ -12,13 +12,11 @@ Calendar.ns('Views').CalendarColors = (function() {
     document.head.appendChild(sheet);
 
     this._styles = document.styleSheets[document.styleSheets.length - 1];
-
     this._initEvents();
   }
 
   Colors.prototype = {
-
-    prefix: 'calendar-id-',
+    __proto__: Calendar.View.prototype,
 
     _initEvents: function() {
       // handle changes in calendar
@@ -58,11 +56,13 @@ Calendar.ns('Views').CalendarColors = (function() {
      * @param {Calendar.Models.Calendar|String} item model or string.
      */
     getId: function(item) {
+      var id;
       if (item instanceof Calendar.Models.Calendar) {
-        return this.prefix + item._id;
+        id = item._id;
       } else {
-        return this.prefix + item;
+        id = item;
       }
+      return this.calendarId(String(id));
     },
 
     /**
@@ -78,12 +78,18 @@ Calendar.ns('Views').CalendarColors = (function() {
       var rules = this._styles.cssRules;
       var map;
 
+      // Check for an existing color rule
       if (id in this.colorMap) {
+
+        // when found we can simply mutate
+        // the properties on the rules.
         map = this._ruleMap[id];
+
         var bgStyle = map.bg.style;
         var displayStyle = map.display.style;
 
         bgStyle.backgroundColor = color;
+        bgStyle.borderColor = color;
 
         if (!calendar.localDisplayed) {
           displayStyle.setProperty('display', 'none');
@@ -92,17 +98,37 @@ Calendar.ns('Views').CalendarColors = (function() {
         }
 
       } else {
-        var idx = this._styles.cssRules.length;
+
+        // increment index for rule...
+        var ruleId = this._styles.cssRules.length;
+
+        // We need to store the ids of created
+        // rules for deletion later on.
+        var ruleIds = [ruleId, ruleId + 1];
         this.colorMap[id] = color;
-        map = this._ruleMap[id] = {};
 
-        var bgBlock = '.' + id + '.calendar-color, ';
-        bgBlock += '.' + id + ' .calendar-color ';
-        bgBlock += '{ background-color: ' + color + '; }';
+        map = this._ruleMap[id] = {
+          ruleIds: ruleIds
+        };
 
-        this._styles.insertRule(bgBlock, idx);
+        // calendar coloring
+        var bgBlock = '.' + id + '.calendar-color ';
+        bgBlock += '{';
+        // some visual elements like busy bars work better with background
+        bgBlock += '  background-color: ' + color + ';';
+        // others like the event views work better with borders
+        bgBlock += '  border-color: ' + color + ';';
+        bgBlock += '}';
 
-        map.bg = rules[idx++];
+        // insert rule save it for later so we don't
+        // need to lookup the id
+        // XXX: Better to not save the rule definition?
+        this._styles.insertRule(bgBlock, ruleId);
+        map.bg = rules[ruleId];
+
+        // Increment the rule id so we can
+        // use the incremented value for the next rule.
+        ruleId += 1;
 
         var displayBlock = '.' + id + '.calendar-display';
 
@@ -114,10 +140,33 @@ Calendar.ns('Views').CalendarColors = (function() {
 
         this._styles.insertRule(
           displayBlock,
-          idx
+          ruleId
         );
 
-        map.display = rules[idx];
+        map.display = rules[ruleId];
+      }
+    },
+
+    /**
+     * CSSRuleList is a zero based array like
+     * object. When we remove an item from
+     * the rule list we need to adjust the saved indexes
+     * of all values above the one we are removing.
+     */
+    _adjustRuleIds: function(above) {
+      var key;
+
+      function subtract(item) {
+
+        if (item > above) {
+          return item - 1;
+        }
+        return item;
+      }
+
+      for (key in this._ruleMap) {
+        var map = this._ruleMap[key];
+        map.ruleIds = map.ruleIds.map(subtract);
       }
     },
 
@@ -126,13 +175,26 @@ Calendar.ns('Views').CalendarColors = (function() {
      * with given id.
      */
     removeRule: function(id) {
+      var map;
+
+      var idOffset = 0;
+
       id = this.getId(id);
       if (id in this.colorMap) {
         delete this.colorMap[id];
-
-        var idx = this._ruleMap[id];
+        map = this._ruleMap[id];
         delete this._ruleMap[id];
-        this._styles.deleteRule(idx);
+
+        map.ruleIds.forEach(function(idx) {
+          this._adjustRuleIds(idx);
+          idx = idx - idOffset;
+
+          // XXX: this is probably a slow way to do this
+          // but given this will only happen when a calendar
+          // is removed it should be fine.
+          this._styles.deleteRule(idx);
+          idOffset += 1;
+        }, this);
       }
     }
 

@@ -25,15 +25,15 @@
               if(isListening == false) {
                 $("#buttontext").text("Stop Tag Discovery");
                 isListening = true;
-                addNdefListener();
-                addTagLostListener();
+                addNdefConnectListener();
+                addNdefDisconnectListener();
               } else {
                 $("#buttontext").text("Start Tag Discovery");
                 $("#taglist").css("display", "none");
                 $("#actionlist").css("display", "none");
                 isListening = false;
-                removeNdefListener();
-                removeTagLostListener();
+                removeNdefConnectListener();
+                removeNdefDisconnectListener();
               }
             });
           });
@@ -235,11 +235,11 @@
             };
           }
 
-          function addNdefListener() {
+          function addNdefConnectListener() {
             debug("Starting Tag Discovery...");
 
             // Ndef Discovery
-            navigator.mozNfc.onndefdiscovered = function(event) {
+            navigator.mozNfc.onconnected = function(event) {
               debug("Found tag!");
               /*
               if (nfcUI.hasPendingMessage()) {
@@ -308,25 +308,20 @@
 
 	  }
 
-          function removeNdefListener() {
+          function removeNdefConnectListener() {
 	    debug("Stopping Tag Discovery...");
-	    navigator.mozNfc.onndefdiscovered = null;
+	    navigator.mozNfc.onconnected = null;
           }
 
-          function addTagLostListener() {
-	    navigator.mozNfc.ontaglost = function(event) {
-              var messageType = event.ndefMessages.type;
-              var content = event.ndefMessages.content;
-              if (messageType == "tagLost") {
-                var message = "Tag no longer in range.";
-                console.log(message);
-                nfcUI.appendTextAndScroll($("#area"), message+"\n");
-              }
+          function addNdefDisconnectListener() {
+	    navigator.mozNfc.ondisconnected = function(event) {
+              var message = "Tag no longer in range.";
+              nfcUI.appendTextAndScroll($("#area"), message+"\n");
             }
           }
 
-          function removeTagLostListener() {
-            navigator.mozNfc.ontaglost = null;
+          function removeNdefDisconnectListener() {
+            navigator.mozNfc.ondisconnected = null;
           }
 
           function debug(message) {
