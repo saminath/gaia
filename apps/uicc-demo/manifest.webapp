@@ -2,11 +2,11 @@
   "name": "UICC Demo",
   "description": "UICC Demo",
   "launch_path": "/uicc.html",
-  "permissions": [
-    "telephony",
-    "nfc",
-    "uicc"
-  ],
+  "permissions": {
+    "telephony":{},
+    "nfc":{},
+    "uicc":{}
+  },
   "developer": {
     "name": "Deutsche Telekom",
     "url": "http://www.laboratories.telekom.com"
