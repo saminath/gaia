@@ -16,7 +16,7 @@ var ApplicationsList = {
     'device-storage:pictures', 'device-storage:music', 'device-storage:videos',
     'device-storage:apps', 'alarms', 'attention', 'content-camera',
     'tcp-socket', 'bluetooth', 'storage', 'time', 'networkstats-manager',
-    'idle', 'network-events', 'embed-apps',
+    'idle', 'network-events', 'embed-apps', 'nfc', 'uicc',
     // Just don't.
     'deprecated-hwvideo'
   ],

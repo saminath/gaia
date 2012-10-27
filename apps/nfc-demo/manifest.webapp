@@ -3,7 +3,7 @@
   "description": "NFC Demo",
   "launch_path": "/nfc.html",
   "permissions": [
-    "nfc"
+    "nfc":{}
   ],
   "developer": {
     "name": "Deutsche Telekom",

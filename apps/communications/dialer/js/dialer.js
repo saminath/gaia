@@ -2,6 +2,9 @@
 
 var CallHandler = (function callHandler() {
   var telephony = navigator.mozTelephony;
+  console.log("======== dialer.js ======");
+  console.log("======== navigator.mozTelephony  ======: " + telephony);
+
   var conn = navigator.mozMobileConnection;
   var _ = navigator.mozL10n.get;
 
