@@ -1,11 +1,12 @@
 {
   "name": "UICC Demo",
   "description": "UICC Demo",
+  "type": "certified",
   "launch_path": "/uicc.html",
   "permissions": {
     "telephony":{},
-    "nfc":{},
-    "uicc":{}
+    "mobileconnection":{},
+    "nfc":{}
   },
   "developer": {
     "name": "Deutsche Telekom",

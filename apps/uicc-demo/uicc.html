@@ -164,10 +164,6 @@
 
           // UICC applet commands
           function iccOpenChannel(aidhexstr) {
-            console.log("==== Try mozTelephony ===");
-            var reqA = navigator.mozTelephony;
-            console.log("==== reqA ===: " + reqA);
-
             var req = navigator.mozTelephony.iccOpenChannel(aidhexstr);
             req.onsuccess = function() {
               appendTextAndScroll("#output",
