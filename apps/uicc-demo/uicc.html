@@ -223,7 +223,7 @@
           }
 
           function addSecureElementActivatedListener() {
-            navigator.mozNfc.onsecureelementactivated = function(event) {
+            navigator.mozNfc.onmozsecureelementactivated = function(event) {
               var messageType = event.nfcMessages.type;
               if (messageType == "secureElementActivated") {
                 var message = "Secure Element Activated.";
@@ -233,7 +233,7 @@
           }
 
           function addSecureElementDeactivatedListener() {
-            navigator.mozNfc.onsecureelementdeactivated = function(event) {
+            navigator.mozNfc.onmozsecureelementdeactivated = function(event) {
               var messageType = event.nfcMessages.type;
               if (messageType == "secureElementDeactivated") {
                 var message = "Secure Element Deactivated.";
@@ -243,7 +243,7 @@
           }
 
           function addSecureElementTransactionListener() {
-            navigator.mozNfc.onsecureelementtransaction = function(event) {
+            navigator.mozNfc.onmozsecureelementtransaction = function(event) {
               var messageType = event.nfcMessages.type;
               var content = event.nfcMessages.content;
               if (messageType == "secureElementTransaction") {
