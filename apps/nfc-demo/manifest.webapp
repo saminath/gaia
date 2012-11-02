@@ -2,9 +2,10 @@
   "name": "NFC Demo",
   "description": "NFC Demo",
   "launch_path": "/nfc.html",
-  "permissions": [
-    "nfc"
-  ],
+  "type": "certified",
+  "permissions": {
+    "nfc":{}
+  },
   "developer": {
     "name": "Deutsche Telekom",
     "url": "http://www.laboratories.telekom.com"
