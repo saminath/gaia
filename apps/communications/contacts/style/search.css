@@ -1,15 +1,4 @@
 /* Search */
-.facebook form.search {
-  position: relative;
-  height: 3.5rem;
-}
-
-.facebook form.search input {
-  height: 2.5rem;
-  pointer-events: none;
-  width: 100%
-}
-
 #groups-list {
   padding-top: 2.5rem;
 }
@@ -44,7 +33,7 @@ form.search input {
 }
 
 form.search button[type="submit"] {
-  height: 3.3rem;
+  width: auto;
 }
 
 /* Search view */
@@ -59,36 +48,63 @@ form.search button[type="submit"] {
 }
 
 #search-view form.search label {
-  padding: 0.5rem 1rem 0.5rem 2.5rem;
+  padding: 0.3rem 1.2rem;
 }
 
-#search-view form.search input {
+#search-view form.search {
   pointer-events: auto;
-  width: 100%;
-  box-shadow: none;
 }
 
 /* Searching state */
 #view-contacts-list.searching > header {
-  transform: scale(0);
+  transform: translateY(-100%);
   pointer-events: none;
 }
 
 #view-contacts-list.searching .fixed-title {
-  transform: scale(0) !important;
+  opacity: 0;
 }
 
 #view-contacts-list.searching .view-jumper {
-  transform: scale(0);
+  opacity: 0;
+  pointer-events: none;
 }
 
-#view-contacts-list.searching #groups-list h2 {
+#view-contacts-list.searching #groups-list header {
   display: none;
 }
 
 #view-contacts-list.searching .view-body-inner {
   height: calc(100% + 5rem);
   margin-top: -5rem;
+}
+
+#view-contacts-list.searching #groups-list section li:last-child {
+  border-bottom: 0.1rem solid #DBD9D9;
+}
+
+#no-result {
+  margin-top: -moz-calc((100% - 0.5rem) / 2);
+  text-align: center;
+  margin-left: -0.8rem;
+}
+
+/* facebook search */
+.facebook #search-view button[type="submit"] {
+  width: auto;
+}
+
+.facebook.searching #search-view {
+  transform: none;
+}
+
+.facebook.searching > header {
+  transform: scale(0);
+  pointer-events: none;
+}
+
+.facebook.searching #groups-list h2 {
+  display: none;
 }
 
 #content.searching #main {
@@ -103,10 +119,4 @@ form.search button[type="submit"] {
 #content.searching #select-all-wrapper, #content.searching .friends-msg,
 #content.searching .fixed-title-fb {
   display: none;
-}
-
-#no-result {
-  margin-top: -moz-calc((100% - 0.5rem) / 2);
-  text-align: center;
-  margin-left: -0.8rem;
 }

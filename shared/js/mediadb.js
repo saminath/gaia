@@ -376,7 +376,7 @@ var MediaDB = (function() {
       // If the version number changes we just want to start over.
       var existingStoreNames = db.objectStoreNames;
       for (var i = 0; i < existingStoreNames.length; i++) {
-        db.deleteObjectStore(existingStoreNames);
+        db.deleteObjectStore(existingStoreNames[i]);
       }
 
       // Now build the database
@@ -543,6 +543,7 @@ var MediaDB = (function() {
     getFile: function getFile(filename, callback, errback) {
       if (this.state !== MediaDB.READY)
         throw Error('MediaDB is not ready. State: ' + this.state);
+
       var getRequest = this.storage.get(this.directory + filename);
       getRequest.onsuccess = function() {
         callback(getRequest.result);
@@ -746,7 +747,13 @@ var MediaDB = (function() {
 
         var cursor = cursorRequest.result;
         if (cursor) {
-          callback(cursor.value);
+          try {
+            if (!cursor.value.fail)   // if metadata parsing succeeded
+              callback(cursor.value);
+          }
+          catch (e) {
+            console.warn('MediaDB.enumerate(): callback threw', e);
+          }
           cursor.continue();
         }
         else {
@@ -803,7 +810,7 @@ var MediaDB = (function() {
   MediaDB.UNMOUNTED = 'unmounted'; // Unavailable because card unmounted
   MediaDB.CLOSED = 'closed';       // Unavailalbe because MediaDB has closed
 
-  /* Details helper functions follow */
+  /* Details of helper functions follow */
 
   // Tell the db to start a manual scan. I think we don't do
   // this automatically from the constructor, but most apps will start
@@ -988,7 +995,8 @@ var MediaDB = (function() {
           // 4a: date and size are the same for both: do nothing
           // 4b: file has changed: it is both a deletion and a creation
           if (dsfile.name === dbfile.name) {
-            if (dsfile.lastModifiedDate.getTime() !== dbfile.date ||
+            var lastModified = dsfile.lastModifiedDate;
+            if ((lastModified && lastModified.getTime() !== dbfile.date) ||
                 dsfile.size !== dbfile.size) {
               deleteRecord(media, dbfile.name);
               insertRecord(media, dsfile);
@@ -1201,9 +1209,13 @@ var MediaDB = (function() {
       function metadataError(e) {
         console.warn('MediaDB: error parsing metadata for',
                      filename, ':', e);
-        // If we get an error parsing the metadata, treat the file
-        // as malformed, and don't insert it into the database.
-        next();
+        // If we get an error parsing the metadata, assume it is invalid
+        // and make a note in the fileinfo record that we store in the database
+        // If we don't store it in the database, we'll keep finding it
+        // on every scan. But we make sure never to return the invalid file
+        // on an enumerate call.
+        fileinfo.fail = true;
+        storeRecord(fileinfo);
       }
       function gotMetadata(metadata) {
         fileinfo.metadata = metadata;
@@ -1217,7 +1229,8 @@ var MediaDB = (function() {
       var request = store.add(fileinfo);
       request.onsuccess = function() {
         // Remember to send an event about this new file
-        queueCreateNotification(media, fileinfo);
+        if (!fileinfo.fail)
+          queueCreateNotification(media, fileinfo);
         // And go on to the next
         next();
       };
@@ -1236,7 +1249,8 @@ var MediaDB = (function() {
           var putrequest = store.put(fileinfo);
           putrequest.onsuccess = function() {
             queueDeleteNotification(media, fileinfo.name);
-            queueCreateNotification(media, fileinfo);
+            if (!fileinfo.fail)
+              queueCreateNotification(media, fileinfo);
             next();
           };
           putrequest.onerror = function() {
@@ -1320,14 +1334,13 @@ var MediaDB = (function() {
       detail: detail
     };
 
-
     // Call the 'on' handler property if there is one
     if (typeof handler === 'function') {
       try {
         handler.call(media, event);
       }
       catch (e) {
-        console.log('MediaDB: ', 'on' + type, 'event handler threw', e);
+        console.warn('MediaDB: ', 'on' + type, 'event handler threw', e);
       }
     }
 
@@ -1345,7 +1358,7 @@ var MediaDB = (function() {
         }
       }
       catch (e) {
-        console.log('MediaDB: ', type, 'event listener threw', e);
+        console.warn('MediaDB: ', type, 'event listener threw', e);
       }
     }
   }

@@ -4,24 +4,27 @@
 'use strict';
 
 window.addEventListener('load', function startup() {
-  function launchHomescreen() {
-    var activity = new MozActivity({
-      name: 'view',
-      data: { type: 'application/x-application-list' }
-    });
-    activity.onerror = function homescreenLaunchError() {
-      console.error('Failed to launch home screen with activity.');
-    };
+  function safelyLaunchFTU() {
+    WindowManager.retrieveHomescreen(WindowManager.retrieveFTU);
   }
 
   if (Applications.ready) {
-    launchHomescreen();
+    safelyLaunchFTU();
   } else {
     window.addEventListener('applicationready', function appListReady(event) {
       window.removeEventListener('applicationready', appListReady);
-      launchHomescreen();
+      safelyLaunchFTU();
     });
   }
+
+  window.addEventListener('ftudone', function doneWithFTU() {
+    window.removeEventListener('ftudone', doneWithFTU);
+
+    var lock = window.navigator.mozSettings.createLock();
+    lock.set({
+      'gaia.system.checkForUpdates': true
+    });
+  });
 
   SourceView.init();
   Shortcuts.init();

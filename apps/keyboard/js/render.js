@@ -20,7 +20,7 @@ const IMERender = (function() {
 
   var layoutWidth = 10;
 
-  var suggestionEngineName; // used as a CSS class on the candidatePanel
+  var inputMethodName; // used as a CSS class on the candidatePanel
 
   // Initiaze the render. It needs some business logic to determine:
   //   1- The uppercase for a key object
@@ -32,40 +32,45 @@ const IMERender = (function() {
     this.ime = document.getElementById('keyboard');
   }
 
-  var setSuggestionEngineName = function(name) {
+  var setInputMethodName = function(name) {
     var candidatePanel = document.getElementById('keyboard-candidate-panel');
     if (candidatePanel) {
-      if (suggestionEngineName)
-        candidatePanel.classList.remove(suggestionEngineName);
+      if (inputMethodName)
+        candidatePanel.classList.remove(inputMethodName);
       candidatePanel.classList.add(name);
     }
     var togglebutton =
       document.getElementById('keyboard-candidate-panel-toggle-button');
     if (togglebutton) {
-      if (suggestionEngineName)
-        togglebutton.classList.remove(suggestionEngineName);
-      toggleButton.classList.add(name);
+      if (inputMethodName)
+        togglebutton.classList.remove(inputMethodName);
+      togglebutton.classList.add(name);
     }
 
-    suggestionEngineName = name;
+    inputMethodName = name;
   }
 
   // Accepts three values: true / 'locked' / false
   //   Use 'locked' when caps are locked
   //   Use true when uppercase is enabled
   //   Use false when uppercase if disabled
-  var setUpperCaseLock = function kr_setUpperCaseLock(key, state) {
+  var setUpperCaseLock = function kr_setUpperCaseLock(state) {
+    var capsLockKey = document.querySelector(
+      'button[data-keycode="' + KeyboardEvent.DOM_VK_CAPS_LOCK + '"]'
+    );
+
+    if (!capsLockKey)
+      return;
+
     if (state === 'locked') {
-      key.classList.remove('kbr-key-active');
-      key.classList.add('kbr-key-hold');
-
+      capsLockKey.classList.remove('kbr-key-active');
+      capsLockKey.classList.add('kbr-key-hold');
     } else if (state) {
-      key.classList.add('kbr-key-active');
-      key.classList.remove('kbr-key-hold');
-
+      capsLockKey.classList.add('kbr-key-active');
+      capsLockKey.classList.remove('kbr-key-hold');
     } else {
-      key.classList.remove('kbr-key-active');
-      key.classList.remove('kbr-key-hold');
+      capsLockKey.classList.remove('kbr-key-active');
+      capsLockKey.classList.remove('kbr-key-hold');
     }
   }
 
@@ -145,7 +150,7 @@ const IMERender = (function() {
     this.menu.addEventListener('scroll', onScroll);
 
     // Builds candidate panel
-    if (layout.needsCandidatePanel || layout.suggestionEngine) {
+    if (layout.needsCandidatePanel || flags.showCandidatePanel) {
       this.ime.insertBefore(
         candidatePanelToggleButtonCode(), this.ime.firstChild);
       this.ime.insertBefore(candidatePanelCode(), this.ime.firstChild);
@@ -157,24 +162,15 @@ const IMERender = (function() {
     resizeUI(layout);
   };
 
-  // Effecto for hide IME
-  var hideIME = function km_hideIME(imminent) {
-    if (this.ime.dataset.hidden)
-      return;
+  var showIME = function hm_showIME() {
+    delete this.ime.dataset.hidden;
+    this.ime.classList.remove('hide');
+  }
 
+  var hideIME = function km_hideIME() {
+    this.ime.classList.add('hide');
+    this.ime.classList.remove('candidate-panel');
     this.ime.dataset.hidden = 'true';
-    var ime = this.ime;
-
-    if (imminent) {
-      ime.classList.add('imminent');
-      window.setTimeout(function remoteImminent() {
-        ime.classList.remove('imminent');
-      }, 0);
-
-      ime.innerHTML = '';
-    } else {
-      ime.classList.add('hide');
-    }
   };
 
   // Highlight a key
@@ -227,6 +223,7 @@ const IMERender = (function() {
   };
 
   // Show candidates
+  // Each candidate is a string or an array of two strings
   var showCandidates = function(candidates, noWindowHeightUpdate) {
 
     var ime = document.getElementById('keyboard');
@@ -249,9 +246,14 @@ const IMERender = (function() {
 
       candidates.forEach(function buildCandidateEntry(candidate) {
         var span = document.createElement('span');
-        span.dataset.data = candidate[1];
         span.dataset.selection = true;
-        span.textContent = candidate[0];
+        if (typeof candidate === 'string') {
+          span.dataset.data = span.textContent = candidate;
+        }
+        else {
+          span.dataset.data = candidate[1];
+          span.textContent = candidate[0];
+        }
         candidatePanel.appendChild(span);
       });
     }
@@ -304,45 +306,43 @@ const IMERender = (function() {
     menu.style.display = 'block';
   };
 
-  // Show char alternatives. The first element of altChars is ALWAYS the
-  // original char.
+  // Show char alternatives.
   var showAlternativesCharMenu = function(key, altChars) {
     var content = '';
 
-    var original = altChars[0];
-    altChars = altChars.slice(1);
-
-    var altCharsCurrent = [];
     var left = (window.innerWidth / 2 > key.offsetLeft);
 
-    // Place the menu to the left and adds the original key at the end
+    // Place the menu to the left
     if (left) {
       this.menu.classList.add('kbr-menu-left');
-      altCharsCurrent.push(original);
-      altCharsCurrent = altCharsCurrent.concat(altChars);
-
-    // Place menu on the right and adds the original key at the beginning
+    // Place menu on the right and reverse key order
     } else {
       this.menu.classList.add('kbr-menu-right');
-      altCharsCurrent = altChars.reverse();
-      altCharsCurrent.push(original);
+      altChars = altChars.reverse();
     }
 
+    // How wide (in characters) is the key that we're displaying
+    // these alternatives for?
+    var keycharwidth = key.dataset.compositeKey ?
+      key.dataset.compositeKey.length :
+      1;
+
     // Build a key for each alternative
-    altCharsCurrent.forEach(function(keyChar) {
-      var keyCode = keyChar.keyCode || keyChar.charCodeAt(0);
-      var dataset = [{'key': 'keycode', 'value': keyCode}];
-      var label = keyChar.label || keyChar;
+    altChars.forEach(function(alt) {
+      var dataset = alt.length == 1 ?
+        [{'key': 'keycode', 'value': alt.charCodeAt(0)}] :
+        [{'key': 'compositekey', 'value': alt}];
 
-      var cssWidth = key.offsetWidth;
-      if (altCharsCurrent.length != 1) {
-        cssWidth = key.offsetWidth *
-                   (0.9 + 0.5 * (label.length - original.length));
-      }
+      // Make each of these alternative keys 75% as wide as the key that
+      // it is an alternative for, but adjust for the relative number of
+      // characters in the original and the alternative
+      var width = 0.75 * key.offsetWidth / keycharwidth * alt.length;
+      // If there is only one alternative, then display it at least as
+      // wide as the original key.
+      if (altChars.length === 1)
+        width = Math.max(width, key.offsetWidth);
 
-      if (label.length > 1)
-        dataset.push({'key': 'compositekey', 'value': label});
-      content += buildKey(label, '', cssWidth + 'px', dataset);
+      content += buildKey(alt, '', width + 'px', dataset);
     });
     this.menu.innerHTML = content;
 
@@ -470,8 +470,8 @@ const IMERender = (function() {
   var candidatePanelCode = function() {
     var candidatePanel = document.createElement('div');
     candidatePanel.id = 'keyboard-candidate-panel';
-    if (suggestionEngineName)
-      candidatePanel.classList.add(suggestionEngineName);
+    if (inputMethodName)
+      candidatePanel.classList.add(inputMethodName);
     candidatePanel.addEventListener('scroll', onScroll);
     return candidatePanel;
   };
@@ -480,8 +480,8 @@ const IMERender = (function() {
     var toggleButton = document.createElement('span');
     toggleButton.innerHTML = '⇪';
     toggleButton.id = 'keyboard-candidate-panel-toggle-button';
-    if (suggestionEngineName)
-      toggleButton.classList.add(suggestionEngineName);
+    if (inputMethodName)
+      toggleButton.classList.add(inputMethodName);
     toggleButton.dataset.keycode = -4;
     return toggleButton;
   };
@@ -544,10 +544,11 @@ const IMERender = (function() {
   // Exposing pattern
   return {
     'init': init,
-    'setSuggestionEngineName': setSuggestionEngineName,
+    'setInputMethodName': setInputMethodName,
     'draw': draw,
     'ime': ime,
     'hideIME': hideIME,
+    'showIME': showIME,
     'highlightKey': highlightKey,
     'unHighlightKey': unHighlightKey,
     'showAlternativesCharMenu': showAlternativesCharMenu,

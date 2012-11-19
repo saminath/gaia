@@ -26,14 +26,28 @@ Calendar.ns('Views').WeekChild = (function() {
       return template.header.render(format);
     },
 
-    _renderEvent: function(event) {
+    _renderEvent: function(busytime, event) {
       var render = template.event.render({
         calendarId: event.calendarId,
-        eventId: event._id,
+        busytimeId: busytime._id,
         title: event.remote.title
       });
 
       return render;
+    },
+
+    /**
+     * Assigns an element's height in the week view, overrides base class to
+     * account for a discrepancy in height calculation introduced by margins in
+     * CSS.
+     *
+     * @param {HTMLElement} element target to apply top/height to.
+     * @param {Numeric} duration in hours, minutes as decimal part.
+     */
+    _assignHeight: function(element, hoursDuration) {
+      var percHeight = hoursDuration * 100;
+      var pxHeight = hoursDuration * 2;
+      element.style.height = 'calc(' + percHeight + '% + ' + pxHeight + 'px)';
     },
 
     create: function() {

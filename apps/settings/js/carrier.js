@@ -3,85 +3,57 @@
 
 'use strict';
 
-// create a fake mozMobileConnection if required (e.g. desktop browser)
-var gMobileConnection = (function(window) {
-  var navigator = window.navigator;
-  if (('mozMobileConnection' in navigator) &&
-      navigator.mozMobileConnection &&
-      navigator.mozMobileConnection.data) {
-    return navigator.mozMobileConnection;
-  }
+// handle carrier settings
+var Carrier = (function newCarrier(window, document, undefined) {
+  var APN_FILE = 'shared/resources/apn.json';
+  var gAPNPanel = document.getElementById('carrier-apnSettings');
 
-  var initialized = false;
-  var fakeICCInfo = { shortName: 'Fake Free-Mobile', mcc: 208, mnc: 15 };
-  var fakeNetwork = { shortName: 'Fake Orange F', mcc: 208, mnc: 1 };
+  /**
+   * gCompatibleAPN holds all compatible APNs matching the current iccInfo
+   * (mcc,mnc) for every usage filter
+   */
 
-  function fakeEventListener(type, callback, bubble) {
-    if (initialized)
-      return;
-
-    // simulates a connection to a data network;
-    setTimeout(function fakeCallback() {
-      initialized = true;
-      callback();
-    }, 5000);
-  }
-
-  //var automaticNetworkSelection = true;
-
-  return {
-    addEventListener: fakeEventListener,
-    iccInfo: fakeICCInfo,
-    get data() {
-      return initialized ? { network: fakeNetwork } : null;
-    }
-  };
-})(this);
-
-// handle data settings
-window.addEventListener('localized', function getCarrierSettings() {
-  var APN_FILE = 'service_providers.xml';
+  var gCompatibleAPN = null;
   var gUserChosenAPN = false;
 
   // query <apn> elements matching the mcc/mnc arguments
-  function queryAPN(apnDocument, usageFilter) {
-    var query = '//gsm[network-id' +
-        '[@mcc=' + gMobileConnection.iccInfo.mcc + ']' + // Mobile Country Code
-        '[@mnc=' + gMobileConnection.iccInfo.mnc + ']' + // Mobile Network Code
-        ']/apn';
+  function queryAPN(callback, usageFilter) {
+    usageFilter = usageFilter || 'default';
+    if (!callback)
+      return;
 
-    var xpe = new XPathEvaluator();
-    var nsResolver = xpe.createNSResolver(apnDocument);
-    var result = xpe.evaluate(query, apnDocument, nsResolver, 0, null);
-
-    var found = [];
-    var res = result.iterateNext();
-    while (res) { // turn each resulting XML element into a JS object
-      var apn = {
-        id: res.getAttribute('value'),
-        name: '',
-        plan: '',
-        usage: '',
-        username: '',
-        password: '',
-        dns: []
-      };
-      var node = res.firstElementChild;
-      while (node) {
-        if (node.tagName == 'dns') {
-          apn.dns.push(node.textContent);
-        } else {
-          apn[node.tagName] = node.textContent || node.getAttribute('type');
+    // filter APNs by usage
+    var filter = function(apnList) {
+      var found = [];
+      for (var i = 0; i < apnList.length; i++) {
+        if (apnList[i].type.indexOf(usageFilter) != -1) {
+          found.push(apnList[i]);
         }
-        node = node.nextElementSibling;
       }
-      if (!usageFilter || apn.usage === usageFilter) {
-        found.push(apn);
-      }
-      res = result.iterateNext();
+      return found;
+    };
+
+    // early way out if the query has already been performed
+    if (gCompatibleAPN) {
+      callback(filter(gCompatibleAPN));
+      return;
     }
 
-    return found;
+    // load and query APN database, then trigger callback on results
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', APN_FILE, true);
+    xhr.responseType = 'json';
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState == 4 && (xhr.status == 200 || xhr.status === 0)) {
+        var apn = xhr.response;
+        var mcc = gMobileConnection.iccInfo.mcc;
+        var mnc = gMobileConnection.iccInfo.mnc;
+        // get a list of matching APNs
+        gCompatibleAPN = apn[mcc] ? (apn[mcc][mnc] || []) : [];
+        callback(filter(gCompatibleAPN));
+      }
+    };
+    xhr.send();
   }
 
   // update APN fields
@@ -101,11 +73,13 @@ window.addEventListener('localized', function getCarrierSettings() {
       var input = document.createElement('input');
       input.type = 'radio';
       input.name = 'APN.name';
-      input.value = item.name || item.id;
+      input.value = item.carrier || item.apn;
       input.onclick = function fillAPNData() {
-        rilData('apn').value = item.id;
-        rilData('user').value = item.username;
-        rilData('passwd').value = item.password;
+        rilData('apn').value = item.apn || '';
+        rilData('user').value = item.user || '';
+        rilData('passwd').value = item.password || '';
+        rilData('httpProxyHost').value = item.proxy || '';
+        rilData('httpProxyPort').value = item.port || '';
       };
 
       // include the radio button element in a list item
@@ -114,7 +88,7 @@ window.addEventListener('localized', function getCarrierSettings() {
       label.appendChild(input);
       label.appendChild(span);
       var a = document.createElement('a');
-      a.textContent = item.name || item.id;
+      a.textContent = item.carrier || item.apn;
       var li = document.createElement('li');
       li.appendChild(label);
       li.appendChild(a);
@@ -140,7 +114,7 @@ window.addEventListener('localized', function getCarrierSettings() {
       var request = settings.createLock().get(key);
       request.onsuccess = function() {
         var found = false;
-        if (request.result[key] != undefined) {
+        if (request.result[key] !== undefined) {
           for (var i = 0; i < radios.length; i++) {
             radios[i].checked = (request.result[key] === radios[i].value);
             found = found || radios[i].checked;
@@ -153,7 +127,7 @@ window.addEventListener('localized', function getCarrierSettings() {
     }
 
     // set current APN to 'custom' on user modification
-    document.getElementById('apnSettings').onchange = function onChange(event) {
+    gAPNPanel.onchange = function onChange(event) {
       gUserChosenAPN = true;
       if (event.target.type == 'text') {
         var lastInput = lastItem.querySelector('input');
@@ -167,7 +141,7 @@ window.addEventListener('localized', function getCarrierSettings() {
   }
 
   // restart data connection by toggling it off and on again
-  function restartDataConnection() {
+  function restartDataConnection(forceStart) {
     var settings = Settings.mozSettings;
     if (!settings)
       return;
@@ -181,7 +155,7 @@ window.addEventListener('localized', function getCarrierSettings() {
 
     var request = settings.createLock().get(key);
     request.onsuccess = function() {
-      if (request.result[key]) {
+      if (request.result[key] || forceStart) {
         setDataState(false);    // turn data off
         setTimeout(function() { // turn data back on
           setDataState(true);
@@ -189,16 +163,6 @@ window.addEventListener('localized', function getCarrierSettings() {
       }
     };
   }
-
-  // load the APN database
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', APN_FILE, true);
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState == 4 && (xhr.status == 200 || xhr.status === 0)) {
-      updateAPNList(queryAPN(xhr.responseXML, 'internet'));
-    }
-  };
-  xhr.send();
 
   // update network information when the data connection has changed
   function updateConnection() {
@@ -209,13 +173,12 @@ window.addEventListener('localized', function getCarrierSettings() {
 
     // display data carrier name
     var name = data ? (data.shortName || data.longName) : '';
-    document.getElementById('data-desc').textContent = name;
     document.getElementById('dataNetwork-desc').textContent = name;
-
-    // force data connection to restart if changes are validated
-    apnSettings.querySelector('button[type=submit]').onclick =
-        restartDataConnection;
   }
+
+  // 2G|3G network selection
+  document.getElementById('preferredNetworkType').onchange =
+    restartDataConnection;
 
   // 'Data Roaming' message
   var settings = Settings.mozSettings;
@@ -236,13 +199,49 @@ window.addEventListener('localized', function getCarrierSettings() {
     // get the initial setting value
     var req = settings.createLock().get(dataRoamingSetting);
     req.onsuccess = function roaming_getStatusSuccess() {
-      displayDataRoamingMessage(req.result[dataRoamingSetting]);
+      var enabled = req.result && req.result[dataRoamingSetting];
+      displayDataRoamingMessage(enabled);
     };
   } else {
     document.getElementById('dataRoaming-expl').hidden = true;
   }
 
-  /* network operator selection: auto/manual */
+  // auto-select the first matching APN
+  // when the data connection is enabled for the first time
+  if (settings) {
+    var apnSetting = 'ril.data.apn';
+    var dataSwitch = document.querySelector('input[name="ril.data.enabled"]');
+
+    var applyFirstAPN = function(apnItems) {
+      if (!apnItems || !apnItems.length)
+        return;
+
+      var item = apnItems[0];
+      var lock = settings.createLock();
+      lock.set({ 'ril.data.apn': item.apn || '' });
+      lock.set({ 'ril.data.user': item.user || '' });
+      lock.set({ 'ril.data.passwd': item.password || '' });
+      lock.set({ 'ril.data.httpProxyHost': item.proxy || '' });
+      lock.set({ 'ril.data.httpProxyPort': item.port || '' });
+      restartDataConnection(true);
+
+      delete(dataSwitch.onclick);
+    }
+
+    // check if `ril.data.apn' is undefined or empty
+    var req = settings.createLock().get(apnSetting);
+    req.onsuccess = function apn_getStatusSuccess() {
+      if (!req.result[apnSetting] || !req.result[apnSetting].length) {
+        dataSwitch.onclick = function dataSwitch_click(event) {
+          event.preventDefault();
+          event.stopPropagation();
+          queryAPN(applyFirstAPN);
+        };
+      }
+    };
+  }
+
+  // network operator selection: auto/manual
   var opAutoSelect = document.getElementById('operator-autoSelect');
   var opAutoSelectInput = opAutoSelect.querySelector('input');
   var opAutoSelectState = opAutoSelect.querySelector('small');
@@ -343,7 +342,7 @@ window.addEventListener('localized', function getCarrierSettings() {
       clear: clear,
       scan: scan
     };
-  }) (document.getElementById('availableOperators'));
+  })(document.getElementById('availableOperators'));
 
   // toggle autoselection
   opAutoSelectInput.onchange = function() {
@@ -356,9 +355,26 @@ window.addEventListener('localized', function getCarrierSettings() {
     }
   };
 
-  // startup
-  gMobileConnection.addEventListener('datachange', updateConnection);
-  updateConnection();
-  updateSelectionMode();
-});
+  // public API
+  return {
+    // display matching APNs
+    fillAPNList: function carrier_fillAPNList() {
+      queryAPN(updateAPNList);
+      // force data connection to restart if changes are validated
+      gAPNPanel.querySelector('button[type=submit]').onclick =
+          restartDataConnection;
+    },
+
+    // startup
+    init: function carrier_init() {
+      gMobileConnection.addEventListener('datachange', updateConnection);
+      updateConnection();
+      updateSelectionMode();
+      this.fillAPNList(); // XXX this should be done later -- not during init()
+    }
+  };
+})(this, document);
+
+// startup
+onLocalized(Carrier.init.bind(Carrier));
 

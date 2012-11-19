@@ -28,6 +28,10 @@ section[role="region"] > header:first-child sup {
   padding-right: 1rem;
 }
 
+.view-contacts-list .view-body-inner {
+  padding-left: 1.5rem;
+}
+
 #contact-name-title {
   max-width: 22rem;
   float: left;
@@ -36,39 +40,39 @@ section[role="region"] > header:first-child sup {
 /* Contact detail main section */
 
 .view-contact-profile article.view-body {
-  overflow: scroll;
   position: absolute;
-  min-height: 100%;
-  width: -moz-calc(100% + 1rem);
+  width: calc(100% + 1rem);
+  min-height: calc(100% + 2rem);
 }
 
 .view-contact-profile .view-body-inner {
-  background: transparent no-repeat center -8rem;
+  background: transparent no-repeat;
+  transform: translateY(-7rem);
   background-size: 100% auto;
   padding: 0;
   background-color: #f5f5f5;
   overflow: visible;
   position: relative;
-  min-height: calc(100% - 5rem);
+  min-height: 100%;
+}
+
+#contact-detail-inner {
+  padding-bottom: 1rem;
 }
 
 .view-contact-profile .view-body-inner.up {
-  background-position: center -8rem;
-  -moz-transition: background-position 0.25s ease-out;
+  transform: translateY(-7rem);
+  transition: transform 0.25s ease-out;
 }
 
 .view-contact-profile .view-body-inner > section {
   padding: 0 2rem;
   background: #f5f5f5;
-  min-height: 100%;
+  min-height: calc(100% - 16rem);
   overflow: hidden;
   width: 100%;
   position: absolute;
   -moz-box-sizing: border-box;
-}
-
-.view-contact-profile .view-body-inner > section #toggle-favorite {
-  padding-bottom: 1rem;
 }
 
 .view-contact-profile .view-body-inner hr {
@@ -80,12 +84,12 @@ section[role="region"] > header:first-child sup {
 }
 
 .view-contact-profile .view-body-inner > section.no-photo {
-  transform: translateY(0);
+  transform: translateY(8rem);
 }
 
 .view-contact-profile .view-body-inner > section.up {
-  transform: translateY(8rem);
-  -moz-transition: transform 0.5s ease-out;
+  transform: translateY(16rem);
+  transition: transform 0.5s ease-out;
 }
 
 .view-contact-profile .view-body-inner .comment-notes {
@@ -102,11 +106,23 @@ section[role="region"] > header:first-child sup {
   border-bottom: solid 1px #dbd9d9;
   margin-bottom: 1rem;
   word-wrap: break-word;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 #contact-detail li .item-body-exp {
   padding-bottom: 1rem;
 }
+
+#contact-detail li button {
+  margin: 0;
+}
+
+#contact-detail .social-actions button {
+  margin-bottom: 1rem;
+}
+
 
 #contact-detail h2 {
   text-transform: uppercase;
@@ -121,29 +137,79 @@ section[role="region"] > header:first-child sup {
   pointer-events: none;
 }
 
+.view-jumper span[role="button"] {
+  display: inline-block;
+  margin-right: 0;
+}
+
 /* Edit contact section */
-.view-edit-contact form  > section {
-  margin: 2rem 0 0 0;
+.view-edit-contact .tail-actions {
+  padding-top: 0.7rem;
+  margin: 1rem 0 2rem;
+  border-top: solid 0.1rem #dbdbdb;
+}
+
+.view-edit-contact form li > section {
   padding: 0;
   border: none;
 }
-.view-edit-contact form  > section.first {
+.view-edit-contact form li > section.first {
   margin: 0;
 }
 
-.view-edit-contact form  > section:not(.first) {
-  position: relative;
+.view-edit-contact form li {
   margin-right: 3rem;
 }
 
-.view-edit-contact form  > section div {
+.view-edit-contact form li > section{
   position: relative;
+}
+
+.view-edit-contact form li > section div {
+  position: relative;
+}
+
+.view-edit-contact form li section + button {
+  margin-top: -0.7rem;
+  border-radius: 0 0 0.4rem 0.4rem;
+}
+
+.view-edit-contact form li section + button:after {
+  display: none;
 }
 
 .view-edit-contact .fillflow-row-action {
   width: 5rem;
   height: 5rem;
   margin: -2.5rem 0 0 0;
+}
+
+.view-edit-contact .fillflow-row-action:after {
+  display: none;
+}
+
+.view-edit-contact .fillflow-row-action:active {
+  background: none;
+}
+
+/* FB info (non-editable) */
+.view-edit-contact .facebook fieldset {
+  border-color: #255c95;
+  background: #cbd4df;
+  color: #969696;
+}
+
+.view-edit-contact .facebook fieldset legend,
+.view-edit-contact .facebook fieldset input {
+  color: #969696;
+}
+
+.view-edit-contact .facebook fieldset section {
+  border-left-color: #255c95;
+}
+
+.view-edit-contact .facebook fieldset section p {
+  border-bottom-color: #255c95;
 }
 
 hr {
@@ -161,7 +227,7 @@ form p textarea + button[type="reset"].hide {
 }
 
 fieldset legend.action {
-  padding-right: 1rem;
+  padding-right: 1.8rem;
 }
 
 fieldset legend.action:after {
@@ -206,7 +272,7 @@ fieldset legend.action:after {
   overflow: hidden;
   width: 1.5rem;
   height: 1.5rem;
-  margin-left: 1rem;
+  margin: -0.2rem 1rem 0 0;
 }
 
 .icon-social.icon-fb {
@@ -245,7 +311,7 @@ fieldset legend.action:after {
   padding: 2rem;
   opacity: 0;
   -moz-box-sizing: border-box;
-  -moz-transition: opacity 0.3s ease-out;
+  transition: opacity 0.3s ease-out;
 }
 
 .loading-container {
@@ -275,7 +341,7 @@ fieldset legend.action:after {
 
 .removed fieldset, .removed legend, .removed input {
   background-color: transparent;
-  color: #ccc
+  color: #ccc;
   pointer-events: none;
 }
 
@@ -319,7 +385,7 @@ body[role="application"] section[role="region"] > header .icon.icon-settings
      { background-image: url(/contacts/style/gphx/bitmap/default/vw-header/icons/settings.png); }
 
 section.view[data-state="active"] {
-  -moz-transition: transform 0.5s ease;
+  transition: transform 0.5s ease;
 }
 
 #view-settings ul li {
@@ -328,6 +394,21 @@ section.view[data-state="active"] {
     color: #000000;
     min-height: 6rem;
     position: relative;
+}
+
+#view-settings ul li[aria-disabled="true"]:after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #e6e6e6;
+  opacity: 0.7;
+}
+
+#view-settings ul li[aria-disabled="true"] {
+  pointer-events: none;
 }
 
 #view-settings ul li > label:not([for]) {
@@ -513,4 +594,16 @@ label.switch input:checked + span:after {
   background: url("/contacts/style/images/arrow_big.png") no-repeat scroll 93% 0.5rem transparent;
   height: 5rem;
   padding-top: 3.5rem;
+}
+
+#statusMsg {
+  position: fixed;
+  -moz-transition: -moz-transform .5s ease;
+  -moz-transform: translateY(8rem);
+  pointer-events: none;
+}
+
+#statusMsg.visible {
+  -moz-transform: translateY(0);
+  z-index: 1001;
 }

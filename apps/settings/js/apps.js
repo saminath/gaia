@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- /
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil -*- */
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
 'use strict';
@@ -22,10 +22,12 @@ var ApplicationsList = {
   ],
 
   container: document.querySelector('#appPermissions > ul'),
-  detailTitle: document.querySelector('#appPermissionsDetails > header > h1'),
-  developerName: document.querySelector('#developer-infos > h3'),
-  developerLink: document.querySelector('#developer-infos > a'),
-  detailPermissionsList: document.querySelector('#appPermissionsDetails > ul'),
+  detailTitle: document.querySelector('#appPermissions-details > header > h1'),
+  developerHeader: document.getElementById('developer-header'),
+  developerInfos: document.getElementById('developer-infos'),
+  developerName: document.querySelector('#developer-infos > a'),
+  developerLink: document.querySelector('#developer-infos > small > a'),
+  detailPermissionsList: document.querySelector('#permissionsListHeader + ul'),
   detailPermissionsHeader: document.getElementById('permissionsListHeader'),
   uninstallButton: document.getElementById('uninstall-app'),
 
@@ -45,7 +47,7 @@ var ApplicationsList = {
     navigator.mozApps.mgmt.getAll().onsuccess = function mozAppGotAll(evt) {
       var apps = evt.target.result;
       apps.forEach(function(app) {
-        if (!self._isManageable(app))
+        if (!app.removable)
           return;
 
         self._apps.push(app);
@@ -59,8 +61,9 @@ var ApplicationsList = {
   render: function al_render() {
     this.container.innerHTML = '';
 
+    var listFragment = document.createDocumentFragment();
     this._apps.forEach(function appIterator(app) {
-      var icon = '';
+      var icon = null;
       if (app.manifest.icons &&
           Object.keys(app.manifest.icons).length) {
 
@@ -72,20 +75,32 @@ var ApplicationsList = {
           iconURL = app.origin + '/' + iconURL;
         }
 
-        icon = '<img src="' + iconURL + '" />';
+        icon = document.createElement('img');
+        icon.src = iconURL;
       }
 
       var item = document.createElement('li');
-      item.innerHTML = '<a href="#appPermissionsDetails">' +
-                       icon + app.manifest.name + '</a>';
+
+      var link = document.createElement('a');
+      link.href = '#appPermissions-details';
+      if (icon) {
+        link.appendChild(icon);
+      }
+      var name = document.createTextNode(app.manifest.name);
+      link.appendChild(name);
+
+      item.appendChild(link);
       item.onclick = this.showAppDetails.bind(this, app);
-      this.container.appendChild(item);
+
+      listFragment.appendChild(item);
     }, this);
+
+    this.container.appendChild(listFragment);
   },
 
   oninstall: function al_oninstall(evt) {
     var app = evt.application;
-    if (!this._isManageable(app))
+    if (!app.removable)
       return;
 
     this._apps.push(app);
@@ -106,7 +121,7 @@ var ApplicationsList = {
       return false;
     });
 
-    if (!app || !this._isManageable(app))
+    if (!app || !app.removable)
       return;
 
     window.location.hash = '#appPermissions';
@@ -120,11 +135,28 @@ var ApplicationsList = {
     this._displayedApp = app;
 
     var manifest = app.manifest;
+    var developer = manifest.developer;
     this.detailTitle.textContent = manifest.name;
-    this.developerName.textContent = manifest.developer.name;
-    this.developerLink.href = manifest.developer.url;
-    this.developerLink.textContent = manifest.developer.url;
 
+    if (!developer || !('name' in developer)) {
+      this.developerInfos.hidden = true;
+      this.developerHeader.hidden = true;
+    } else {
+      this.developerName.textContent = developer.name;
+      this.developerInfos.hidden = false;
+      this.developerHeader.hidden = false;
+      if (!developer.url) {
+        delete this.developerName.dataset.href;
+        delete this.developerLink.href;
+        this.developerLink.hidden = true;
+      } else {
+        this.developerLink.hidden = false;
+        this.developerName.dataset.href = developer.url;
+        this.developerLink.href = developer.url;
+        this.developerLink.dataset.href = developer.url;
+        this.developerLink.textContent = developer.url;
+      }
+    }
     this.detailPermissionsList.innerHTML = '';
 
     var _ = navigator.mozL10n.get;
@@ -140,7 +172,8 @@ var ApplicationsList = {
       if ((manifest.permissions && perm in manifest.permissions) ||
           value === 'allow') {
         var item = document.createElement('li');
-        item.textContent = _(perm);
+        var content = document.createElement('span');
+        content.textContent = _(perm);
 
         var select = document.createElement('select');
         select.dataset.perm = perm;
@@ -168,7 +201,8 @@ var ApplicationsList = {
           select.focus();
         };
 
-        item.appendChild(select);
+        content.appendChild(select);
+        item.appendChild(content);
         this.detailPermissionsList.appendChild(item);
       }
     }, this);
@@ -196,12 +230,8 @@ var ApplicationsList = {
 
     if (confirm(_('uninstallConfirm', {app: name}))) {
       this._displayedApp.uninstall();
-      this._displayedAppp = null;
+      this._displayedApp = null;
     }
-  },
-
-  _isManageable: function al_isManageable(app) {
-    return (app.removable && app.manifest.launch_path !== undefined);
   },
 
   _changePermission: function al_removePermission(app, perm, value) {
@@ -219,9 +249,5 @@ var ApplicationsList = {
   }
 };
 
-window.addEventListener('localized', function init(evt) {
-  window.removeEventListener('localized', init);
-
-  ApplicationsList.init();
-});
+onLocalized(ApplicationsList.init.bind(ApplicationsList));
 

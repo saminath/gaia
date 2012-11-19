@@ -34,16 +34,19 @@ suite('views/week_child', function() {
   });
 
   test('#_renderEvent', function() {
-    var data = Factory('event', {
+    var event = Factory('event', {
       remote: {
         title: 'UX'
       }
     });
 
-    var result = subject._renderEvent(data);
-    assert.ok(result);
+    var busytime = Factory('busytime');
 
+    var result = subject._renderEvent(busytime, event);
+
+    assert.ok(result);
     assert.include(result, 'UX');
+    assert.include(result, busytime._id);
   });
 
   test('#_renderHeader', function() {
@@ -55,6 +58,18 @@ suite('views/week_child', function() {
     var out = subject._renderHeader();
     assert.ok(out, 'html');
     assert.include(out, format, 'has format');
+  });
+
+  test('#_assignPosition', function() {
+      var busy = Factory('busytime', {
+        startDate: new Date(2012, 0, 1, 0, 15),
+        endDate: new Date(2012, 0, 1, 3, 30)
+      });
+      var el = document.createElement('div');
+      subject.date = new Date(2012, 0, 1);
+      subject._assignPosition(busy, el);
+
+      assert.equal(el.style.height, 'calc(325% + 6.5px)', 'height');
   });
 
   test('#create', function() {

@@ -46,6 +46,15 @@ var CardsView = (function() {
   // List of sorted apps
   var userSortedApps = [];
   var HVGA = document.documentElement.clientWidth < 480;
+  var cardsViewShown = false;
+
+  // init events
+  var gd = new GestureDetector(cardsView);
+  gd.startDetecting();
+
+  // A list of all the URLs we've created via URL.createObjectURL which we
+  // haven't yet revoked.
+  var screenshotObjectURLs = [];
 
   /*
    * Returns an icon URI
@@ -80,6 +89,9 @@ var CardsView = (function() {
   // not an issue here given that the user has to hold the HOME button down
   // for one second before the switcher will appear.
   function showCardSwitcher() {
+    if (cardSwitcherIsShown())
+      return;
+
     // events to handle
     window.addEventListener('lock', CardsView);
     window.addEventListener('attentionscreenshow', CardsView);
@@ -94,6 +106,7 @@ var CardsView = (function() {
 
     // Switch to homescreen
     WindowManager.launch(null);
+    cardsViewShown = true;
 
     // If user is not able to sort apps manualy,
     // display most recetly active apps on the far left
@@ -166,11 +179,13 @@ var CardsView = (function() {
       runningApps[displayedApp].frame.blur();
 
     function addCard(origin, app, displayedAppCallback) {
+      // Display card switcher background first to make user focus on the
+      // frame closing animation without disturbing by homescreen display.
+      if (displayedApp == origin && displayedAppCallback) {
+        setTimeout(displayedAppCallback);
+      }
       // Not showing homescreen
       if (app.frame.classList.contains('homescreen')) {
-        if (displayedApp == origin && displayedAppCallback)
-          setTimeout(displayedAppCallback);
-
         return;
       }
 
@@ -203,9 +218,22 @@ var CardsView = (function() {
 
         var subtitle = document.createElement('p');
         subtitle.textContent =
-          PopupManager.getOriginFromUrl(popupFrame.dataset.url);
+          PopupManager.getOpenedOriginFromOpener(origin);
         card.appendChild(subtitle);
         card.classList.add('popup');
+      }
+
+      if (TrustedUIManager.hasTrustedUI(origin)) {
+        var popupFrame = TrustedUIManager.getDialogFromOrigin(origin);
+        frameForScreenshot = popupFrame.frame;
+        var header = document.createElement('section');
+        header.setAttribute('role', 'region');
+        header.classList.add('skin-organic');
+        header.innerHTML = '<header><button><span class="icon icon-close">';
+        header.innerHTML += '</span></button><h1>' + popupFrame.name;
+        header.innerHTML += '</h1></header>';
+        card.appendChild(header);
+        card.classList.add('trustedui');
       }
 
       cardsList.appendChild(card);
@@ -217,17 +245,15 @@ var CardsView = (function() {
       frameForScreenshot.getScreenshot(rect.width, rect.height).onsuccess =
         function gotScreenshot(screenshot) {
           if (screenshot.target.result) {
-            card.style.backgroundImage =
-                'url(' + screenshot.target.result + ')';
+            var objectURL = URL.createObjectURL(screenshot.target.result);
+            screenshotObjectURLs.push(objectURL);
+            card.style.backgroundImage = 'url(' + objectURL + ')';
           }
-
-          if (displayedApp == origin && displayedAppCallback)
-            setTimeout(displayedAppCallback);
         };
 
       // Set up event handling
       // A click elsewhere in the card switches to that task
-      card.addEventListener('click', runApp);
+      card.addEventListener('tap', runApp);
     }
   }
 
@@ -250,6 +276,13 @@ var CardsView = (function() {
 
     // Make the cardsView overlay inactive
     cardsView.classList.remove('active');
+    cardsViewShown = false;
+
+    // Release our screenshot blobs.
+    screenshotObjectURLs.forEach(function(url) {
+      URL.revokeObjectURL(url);
+    });
+    screenshotObjectURLs = [];
 
     // And remove all the cards from the document after the transition
     cardsView.addEventListener('transitionend', function removeCards() {
@@ -270,7 +303,7 @@ var CardsView = (function() {
   }
 
   function cardSwitcherIsShown() {
-    return cardsView.classList.contains('active');
+    return cardsViewShown;
   }
 
   //scrolling cards
@@ -306,7 +339,7 @@ var CardsView = (function() {
     evt.stopPropagation();
     evt.target.setCapture(true);
     cardsView.addEventListener('mousemove', CardsView);
-    cardsView.addEventListener('mouseup', CardsView);
+    cardsView.addEventListener('swipe', CardsView);
 
     initialCardViewPosition = cardsView.scrollLeft;
     initialTouchPosition = {
@@ -384,23 +417,25 @@ var CardsView = (function() {
   function onEndEvent(evt) {
     evt.stopPropagation();
     var element = evt.target;
+    var eventDetail = evt.detail;
+    var direction = eventDetail.direction;
+
     document.releaseCapture();
     cardsView.removeEventListener('mousemove', CardsView);
-    cardsView.removeEventListener('mouseup', CardsView);
+    cardsView.removeEventListener('swipe', CardsView);
 
     var touchPosition = {
-        x: evt.touches ? evt.touches[0].pageX : evt.pageX,
-        y: evt.touches ? evt.touches[0].pageY : evt.pageY
+        x: eventDetail.end.pageX,
+        y: eventDetail.end.pageY
     };
 
     if (SNAPPING_SCROLLING && !draggingCardUp && reorderedCard === null) {
-      var differenceX = initialTouchPosition.x - touchPosition.x;
-      if (Math.abs(differenceX) > threshold) {
-        if (differenceX > 0 &&
+      if (Math.abs(eventDetail.dx) > threshold) {
+        if (direction === 'left' &&
             currentDisplayed <= cardsList.children.length) {
           currentDisplayed++;
           alignCard(currentDisplayed);
-        } else if (differenceX < 0 && currentDisplayed > 0) {
+        } else if (direction === 'right' && currentDisplayed > 0) {
           currentDisplayed--;
           alignCard(currentDisplayed);
         }
@@ -412,14 +447,13 @@ var CardsView = (function() {
     // if the element we start dragging on
     // is a card and we are not in reordering mode
     if (
-      evt.target.classList.contains('card') &&
+      element.classList.contains('card') &&
       MANUAL_CLOSING &&
       reorderedCard === null
     ) {
 
-      var differenceY = initialTouchPosition.y - touchPosition.y;
       draggingCardUp = false;
-      if (differenceY > removeCardThreshold) {
+      if (-eventDetail.dy > removeCardThreshold) {
 
         // remove the app also from the ordering list
         if (
@@ -435,7 +469,7 @@ var CardsView = (function() {
         // Without removing the listener before closing card
         // sometimes the 'click' event fires, even if 'mouseup'
         // uses stopPropagation()
-        element.removeEventListener('click', runApp);
+        element.removeEventListener('tap', runApp);
 
         // Remove the icon from the task list
         cardsList.removeChild(element);
@@ -449,7 +483,7 @@ var CardsView = (function() {
 
         return;
       } else {
-        evt.target.style.MozTransform = '';
+        element.style.MozTransform = '';
       }
     }
 
@@ -516,7 +550,7 @@ var CardsView = (function() {
         onMoveEvent(evt);
         break;
 
-      case 'mouseup':
+      case 'swipe':
         onEndEvent(evt);
         break;
 

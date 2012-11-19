@@ -87,7 +87,7 @@
 
 /* text label */
 .apps ol > li > div > span > span {
-  font-size: -moz-calc(5 * 0.226rem); /* 5pt */
+  font-size: -moz-calc(5.75 * 0.226rem); /* was 5pt */
   text-shadow: 1px 1px 3px rgba(0,0,0,0.6);
 }
 
@@ -100,5 +100,42 @@
   position: relative;
   height: 1.6rem; /* 15px in otoro */
   margin: 0 auto;
-  font-weight: bold;
+  font-family: 'MozTT', sans-serif;
+  font-weight: 500;
+}
+
+/* Alternative icons when an app is being installed */
+.loading:after {
+  margin: 8px;
+  content: "";
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  z-index: 30000;
+  width: 6rem;
+  height: 6rem;
+  background: url('/style/images/loading_spinner.png');
+  animation: rotate 2.25s linear infinite;
+}
+
+body[data-transitioning] .loading:after {
+  animation-name: none;
+}
+
+.loading img {
+  margin-top: 0.4rem;
+  margin-left: -0.4rem;
+}
+
+.loading span {
+  margin-top: 0.4rem;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(1deg)
+  }
+  to {
+    transform: rotate(360deg)
+  }
 }
