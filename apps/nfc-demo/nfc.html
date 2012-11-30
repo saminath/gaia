@@ -239,7 +239,7 @@
             debug("Starting Tag Discovery...");
 
             // Ndef Discovery
-            navigator.mozNfc.onconnected = function(event) {
+            navigator.mozNfc.onndefdiscovered = function(event) {
               debug("Found tag!");
               /*
               if (nfcUI.hasPendingMessage()) {
@@ -310,18 +310,18 @@
 
           function removeNdefConnectListener() {
 	    debug("Stopping Tag Discovery...");
-	    navigator.mozNfc.onconnected = null;
+	    navigator.mozNfc.onndefdiscovered = null;
           }
 
           function addNdefDisconnectListener() {
-	    navigator.mozNfc.ondisconnected = function(event) {
+	    navigator.mozNfc.onndefdisconnected = function(event) {
               var message = "Tag no longer in range.";
               nfcUI.appendTextAndScroll($("#area"), message+"\n");
             }
           }
 
           function removeNdefDisconnectListener() {
-            navigator.mozNfc.ondisconnected = null;
+            navigator.mozNfc.onndefdisconnected = null;
           }
 
           function debug(message) {
