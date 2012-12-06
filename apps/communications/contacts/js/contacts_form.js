@@ -39,6 +39,28 @@ contacts.Form = (function() {
   var PHOTO_WIDTH = 320;
   var PHOTO_HEIGHT = 320;
 
+  var textFieldsCache = {
+    _textFields: null,
+
+    get: function textFieldsCache_get() {
+      if (!this._textFields) {
+        var form = dom.getElementById('contact-form');
+        var fields = form.querySelectorAll('input.textfield');
+        var removedFields =
+          Array.slice(form.querySelectorAll('.removed input.textfield'));
+        this._textFields = Array.filter(fields, function (field) {
+          return removedFields.indexOf(field) == -1;
+        });
+      }
+
+      return this._textFields;
+    },
+
+    clear: function textFieldsCache_clear() {
+      this._textFields = null;
+    }
+  };
+
   var initContainers = function cf_initContainers() {
     deleteContactButton = dom.querySelector('#delete-contact');
     thumb = dom.querySelector('#thumbnail-photo');
@@ -91,7 +113,7 @@ contacts.Form = (function() {
         container: noteContainer
       }
     };
-  }
+  };
 
   var init = function cf_init(tags, currentDom) {
     dom = currentDom || document;
@@ -107,7 +129,6 @@ contacts.Form = (function() {
     dom.addEventListener('cancelInput', function() {
       checkDisableButton();
     });
-
   };
 
   var render = function cf_render(contact, callback, pFbContactData) {
@@ -149,7 +170,7 @@ contacts.Form = (function() {
       currentPhoto = contact.photo[0];
       var button = addRemoveIconToPhoto();
       // Only can be removed a device contact photo
-      if (! (deviceContact.photo && deviceContact.photo.length > 0) ) {
+      if (!(deviceContact.photo && deviceContact.photo.length > 0)) {
         button.classList.add('hide');
         // Avoid saving the image to the Contacts DB
         thumbAction.classList.add(REMOVED_CLASS);
@@ -166,20 +187,21 @@ contacts.Form = (function() {
       var msg = _('deleteConfirmMsg');
       var yesObject = {
         title: _('remove'),
+        isDanger: true,
         callback: function onAccept() {
           deleteContact(currentContact);
-          CustomDialog.hide();
+          ConfirmDialog.hide();
         }
       };
 
       var noObject = {
         title: _('cancel'),
         callback: function onCancel() {
-          CustomDialog.hide();
+          ConfirmDialog.hide();
         }
       };
 
-      CustomDialog.show(null, msg, noObject, yesObject);
+      ConfirmDialog.show(null, msg, noObject, yesObject);
     };
   };
 
@@ -218,14 +240,15 @@ contacts.Form = (function() {
       var currentObj = object[i] || {};
       insertField(type, currentObj);
     }
-  }
+  };
 
   var onNewFieldClicked = function onNewFieldClicked(evt) {
     var type = evt.target.dataset['fieldType'];
     evt.preventDefault();
     contacts.Form.insertField(type);
+    textFieldsCache.clear();
     return false;
-  }
+  };
 
   var insertField = function insertField(type, object) {
     if (!type || !configs[type]) {
@@ -288,7 +311,7 @@ contacts.Form = (function() {
       contacts.List.remove(contact.id);
       Contacts.setCurrent({});
       Contacts.navigation.home();
-    }
+    };
     var request;
 
     if (fb.isFbContact(contact)) {
@@ -303,7 +326,7 @@ contacts.Form = (function() {
     request.onerror = function errorDelete() {
       console.error('Error removing the contact');
     };
-  }
+  };
 
   var getCurrentPhoto = function cf_getCurrentPhoto() {
     var photo = [];
@@ -312,7 +335,7 @@ contacts.Form = (function() {
       photo = currentPhoto;
     }
     return photo;
-  }
+  };
 
   var saveContact = function saveContact() {
     currentContact = currentContact || {};
@@ -433,8 +456,8 @@ contacts.Form = (function() {
 
     request.onerror = function onerror() {
       console.error('Error saving contact', request.error.name);
-    }
-  }
+    };
+  };
 
   var getPhones = function getPhones(contact) {
     var selector = '#view-contact-form form div.phone-template:not(.removed)';
@@ -458,7 +481,7 @@ contacts.Form = (function() {
         carrier: carrierField
       };
     }
-  }
+  };
 
   var getEmails = function getEmails(contact) {
     var selector = '#view-contact-form form div.email-template:not(.removed)';
@@ -479,7 +502,7 @@ contacts.Form = (function() {
         type: typeField
       };
     }
-  }
+  };
 
   var getAddresses = function getAddresses(contact) {
     var selector = '#view-contact-form form div.address-template:not(.removed)';
@@ -514,7 +537,7 @@ contacts.Form = (function() {
         type: typeField
       };
     }
-  }
+  };
 
   var getNotes = function getNotes(contact) {
     var selector = '#view-contact-form form div.note-template:not(.removed)';
@@ -531,13 +554,13 @@ contacts.Form = (function() {
       contact['note'] = contact['note'] || [];
       contact['note'].push(noteValue);
     }
-  }
+  };
 
   var resetForm = function resetForm() {
     currentPhoto = null;
     thumbAction.querySelector('p').classList.remove('hide');
     var removeIcon = thumbAction.querySelector('button#' + IMG_DELETE_ID);
-    if(removeIcon) {
+    if (removeIcon) {
       thumbAction.removeChild(removeIcon);
     }
     saveButton.removeAttribute('disabled');
@@ -562,7 +585,8 @@ contacts.Form = (function() {
       'adr': 0,
       'note': 0
     };
-  }
+    textFieldsCache.clear();
+  };
 
   var resetRemoved = function cf_resetRemoved() {
     var removedFields = dom.querySelectorAll('.removed');
@@ -574,26 +598,25 @@ contacts.Form = (function() {
     if (removeButton) {
       thumbAction.removeChild(removeButton);
     }
-  }
+  };
 
-  var checkDisableButton = function checkDisable() {
+  var checkDisableButton = function checkDisableButton() {
     var saveButton = dom.getElementById('save-button');
-    if (emptyForm('contact-form')) {
+    if (emptyForm()) {
       saveButton.setAttribute('disabled', 'disabled');
     } else {
       saveButton.removeAttribute('disabled');
     }
   };
 
-  var emptyForm = function emptyForm(id) {
-    var form = dom.getElementById(id);
-    var inputs = form.querySelectorAll('input.textfield');
-    for (var i = 0; i < inputs.length; i++) {
-      if (inputs[i].value != '')
+  var emptyForm = function emptyForm() {
+    var textFields = textFieldsCache.get();
+    for (var i = textFields.length - 1; i >= 0; i--) {
+      if (textFields[i].value)
         return false;
     }
     return true;
-  }
+  };
 
   var removeFieldIcon = function removeFieldIcon(selector) {
     var delButton = document.createElement('button');
@@ -612,6 +635,7 @@ contacts.Form = (function() {
       event.preventDefault();
       var elem = document.getElementById(selector);
       elem.classList.toggle(REMOVED_CLASS);
+      textFieldsCache.clear();
       checkDisableButton();
       return false;
     };
@@ -624,7 +648,7 @@ contacts.Form = (function() {
     thumbAction.classList.remove(FB_CLASS);
 
     var out = thumbAction.querySelector('button#' + IMG_DELETE_ID);
-    if(!out) {
+    if (!out) {
       out = removeFieldIcon(thumbAction.id);
       thumbAction.appendChild(out);
     }
@@ -635,7 +659,7 @@ contacts.Form = (function() {
     thumbAction.classList.add('with-photo');
 
     return out;
-  }
+  };
 
   var pickImage = function pickImage() {
     var activity = new MozActivity({
@@ -660,11 +684,11 @@ contacts.Form = (function() {
                    Contacts.updatePhoto(resized, thumb);
                    currentPhoto = resized;
                  });
-    }
+    };
 
     activity.onerror = function() {
       window.console.error('Error in the activity', activity.error);
-    }
+    };
 
     return false;
   };

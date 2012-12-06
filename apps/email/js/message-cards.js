@@ -80,6 +80,8 @@ function MessageListCard(domNode, mode, args) {
     domNode.getElementsByClassName('msg-messages-sync-more')[0];
   this.syncMoreNode
     .addEventListener('click', this.onGetMoreMessages.bind(this), false);
+  this.progressNode =
+    domNode.getElementsByClassName('msg-list-progress')[0];
 
   // - header buttons: non-edit mode
   domNode.getElementsByClassName('msg-folder-list-btn')[0]
@@ -283,8 +285,8 @@ MessageListCard.prototype = {
    * Show a folder, returning true if we actually changed folders or false if
    * we did nothing because we were already in the folder.
    */
-  showFolder: function(folder) {
-    if (folder === this.curFolder)
+  showFolder: function(folder, forceNewSlice) {
+    if (folder === this.curFolder && !forceNewSlice)
       return false;
 
     if (this.messagesSlice) {
@@ -309,6 +311,8 @@ MessageListCard.prototype = {
 
   showSearch: function(folder, phrase, filter) {
     console.log('sf: showSearch. phrase:', phrase, phrase.length);
+    var tab = this.domNode.getElementsByClassName('filter')[0];
+    var nodes = tab.getElementsByClassName('msg-search-filter');
     if (this.messagesSlice) {
       this.messagesSlice.die();
       this.messagesSlice = null;
@@ -318,6 +322,13 @@ MessageListCard.prototype = {
     this.curPhrase = phrase;
     this.curFilter = filter;
 
+    for (var i = 0; i < nodes.length; i++) {
+      if (nodes[i].dataset.filter != this.curFilter) {
+        nodes[i].setAttribute('aria-selected', 'false');
+        continue;
+      }
+      nodes[i].setAttribute('aria-selected', 'true');
+    }
     if (phrase.length < 1)
       return false;
 
@@ -371,17 +382,30 @@ MessageListCard.prototype = {
     if (newStatus === 'synchronizing') {
       this.syncingNode.classList.remove('collapsed');
       this.syncMoreNode.classList.add('collapsed');
+
+      this.progressNode.value = this.messagesSlice ?
+                                this.messagesSlice.syncProgress : 0;
+      this.progressNode.classList.remove('hidden');
     }
+    // (cover both 'synced' and 'syncfailed')
     else {
       this.syncingNode.classList.add('collapsed');
+      this.progressNode.classList.add('hidden');
     }
+
+    // If there was a problem talking to the server, notify the user and provide
+    // a means to attempt to talk to the server again.  We have made onRefresh
+    // pretty clever, so it can do all the legwork on accomplishing this goal.
+    if (newStatus === 'syncfailed')
+      Toaster.logRetryable(newStatus, this.onRefresh.bind(this));
   },
 
   showEmptyLayout: function() {
     var text = this.domNode.
       getElementsByClassName('msg-list-empty-message-text')[0];
     text.textContent = this.mode == 'search' ?
-      mozL10n.get('messages-search-empty'):mozL10n.get('messages-folder-empty');
+      mozL10n.get('messages-search-empty') :
+      mozL10n.get('messages-folder-empty');
     this.messageEmptyContainer.classList.remove('collapsed');
     this.toolbar.editBtn.classList.add('disabled');
     this.toolbar.searchBtn.classList.add('disabled');
@@ -684,7 +708,26 @@ MessageListCard.prototype = {
   },
 
   onRefresh: function() {
-    this.messagesSlice.refresh();
+    switch (this.messagesSlice.status) {
+      // If we're still synchronizing, then the user is not well served by
+      // queueing a refresh yet, let's just squash this.
+      case 'new':
+      case 'synchronizing':
+        break;
+      // If we fully synchronized, then yes, let us refresh.
+      case 'synced':
+        this.messagesSlice.refresh();
+        break;
+      // If we failed to talk to the server, then let's only do a refresh if we
+      // know about any messages.  Otherwise let's just create a new slice by
+      // forcing reentry into the folder.
+      case 'syncfailed':
+        if (this.messagesSlice.items.length)
+          this.messagesSlice.refresh();
+        else
+          this.showFolder(this.curFolder, /* force new slice */ true);
+        break;
+    }
   },
 
   onStarMessages: function() {
@@ -799,6 +842,9 @@ function MessageReaderCard(domNode, mode, args) {
     .addEventListener('click', this.onMove.bind(this), false);
   domNode.getElementsByClassName('msg-forward-btn')[0]
     .addEventListener('click', this.onForward.bind(this), false);
+
+  this.scrollContainer =
+    domNode.getElementsByClassName('scrollregion-below-header')[0];
 
   this.envelopeNode = domNode.getElementsByClassName('msg-envelope-bar')[0];
   this.envelopeNode
@@ -947,7 +993,8 @@ MessageReaderCard.prototype = {
           return;
 
         for (var i = 0; i < self.htmlBodyNodes.length; i++) {
-          self.body.showEmbeddedImages(self.htmlBodyNodes[i]);
+          self.body.showEmbeddedImages(self.htmlBodyNodes[i],
+                                       self.iframeResizeHandler);
         }
       });
       // XXX really we should check for external images to display that load
@@ -956,25 +1003,14 @@ MessageReaderCard.prototype = {
     }
     else {
       for (var i = 0; i < this.htmlBodyNodes.length; i++) {
-        this.body.showExternalImages(this.htmlBodyNodes[i]);
+        this.body.showExternalImages(this.htmlBodyNodes[i],
+                                     this.iframeResizeHandler);
       }
       loadBar.classList.add('collapsed');
     }
   },
 
-  onDownloadAttachmentClick: function(node, attachment) {
-    node.setAttribute('state', 'downloading');
-    attachment.download(function downloaded() {
-      node.setAttribute('state', 'downloaded');
-    });
-  },
-
-  onViewAttachmentClick: function(node, attachment) {
-    console.log('trying to open', attachment._file, 'type:',
-                attachment.mimetype);
-    if (!attachment._file)
-      return;
-
+  getAttachmentBlob: function(attachment, callback) {
     try {
       // Get the file contents as a blob, so we can open the blob
       var storageType = attachment._file[0];
@@ -988,36 +1024,67 @@ MessageReaderCard.prototype = {
       };
 
       getreq.onsuccess = function() {
-        try {
-          // Now that we have the file, use an activity to open it
-          var file = getreq.result;
-          var activity = new MozActivity({
-            name: 'open',
-            data: {
-              type: attachment.mimetype,
-              blob: file
-            }
-          });
-          activity.onerror = function() {
-            console.warn('Problem with "open" activity', activity.error.name);
-          };
-          activity.onsuccess = function() {
-            console.log('"open" activity allegedly succeeded');
-          };
-        }
-        catch (ex) {
-          console.warn('Problem creating "open" activity:', ex, '\n', ex.stack);
-        }
+        // Now that we have the file, return the blob within callback function
+        var blob = getreq.result;
+        callback(blob);
       };
-    }
-    catch (ex) {
+    } catch (ex) {
       console.warn('Exception getting attachment from device storage:',
                    attachment._file, '\n', ex, '\n', ex.stack);
     }
   },
 
+  onDownloadAttachmentClick: function(node, attachment) {
+    var blobs = this.attachmentBlobs;
+    node.setAttribute('state', 'downloading');
+    attachment.download(function downloaded() {
+      if (!attachment._file)
+        return;
+      this.getAttachmentBlob(attachment, function callback(blob) {
+        var storageType = attachment._file[0];
+        var filename = attachment._file[1];
+        blobs[storageType + '/' + filename] = blob;
+        node.setAttribute('state', 'downloaded');
+      });
+    }.bind(this));
+  },
+
+  onViewAttachmentClick: function(node, attachment) {
+    console.log('trying to open', attachment._file, 'type:',
+                attachment.mimetype);
+    var blobs = this.attachmentBlobs;
+    if (!attachment._file)
+      return;
+
+    try {
+      // Now that we have the file, use an activity to open it
+      var storageType = attachment._file[0];
+      var filename = attachment._file[1];
+      var blob = blobs[storageType + '/' + filename];
+      if (!blob) {
+        throw new Error('Blob does not exist');
+      }
+      var activity = new MozActivity({
+        name: 'open',
+        data: {
+          type: attachment.mimetype,
+          blob: blob
+        }
+      });
+      activity.onerror = function() {
+        console.warn('Problem with "open" activity', activity.error.name);
+      };
+      activity.onsuccess = function() {
+        console.log('"open" activity allegedly succeeded');
+      };
+    }
+    catch (ex) {
+      console.warn('Problem creating "open" activity:', ex, '\n', ex.stack);
+    }
+  },
+
   onHyperlinkClick: function(event, linkNode, linkUrl, linkText) {
-    if(confirm(mozL10n.get('browse-to-url-prompt', { url: linkUrl })))
+    if (confirm(mozL10n.get('browse-to-url-prompt', { url: linkUrl })))
       window.open(linkUrl, '_blank');
   },
 
@@ -1040,8 +1107,9 @@ MessageReaderCard.prototype = {
         node.setAttribute('class', cname);
 
       var subnodes = MailAPI.utils.linkifyPlain(rep[i + 1], document);
-      for(var i in subnodes)
-        node.appendChild(subnodes[i]);
+      for (var iNode = 0; iNode < subnodes.length; iNode++) {
+        node.appendChild(subnodes[iNode]);
+      }
 
       bodyNode.appendChild(node);
     }
@@ -1104,10 +1172,12 @@ MessageReaderCard.prototype = {
         this._populatePlaintextBodyNode(rootBodyNode, rep);
       }
       else if (repType === 'html') {
-        var iframe = createAndInsertIframeForContent(
-          rep, rootBodyNode, null,
+        var iframeShim = createAndInsertIframeForContent(
+          rep, this.scrollContainer, rootBodyNode, null,
           'interactive', this.onHyperlinkClick.bind(this));
+        var iframe = iframeShim.iframe;
         var bodyNode = iframe.contentDocument.body;
+        this.iframeResizeHandler = iframeShim.resizeHandler;
         MailAPI.utils.linkifyHTML(iframe.contentDocument);
         this.htmlBodyNodes.push(bodyNode);
         if (body.checkForExternalImages(bodyNode))
@@ -1146,6 +1216,7 @@ MessageReaderCard.prototype = {
     var attachmentsContainer =
       domNode.getElementsByClassName('msg-attachments-container')[0];
     if (body.attachments && body.attachments.length) {
+      this.attachmentBlobs = {};
       var attTemplate = msgNodes['attachment-item'],
           filenameTemplate =
             attTemplate.getElementsByClassName('msg-attachment-filename')[0],
@@ -1174,6 +1245,13 @@ MessageReaderCard.prototype = {
           .addEventListener('click',
                             this.onViewAttachmentClick.bind(
                               this, attachmentNode, attachment));
+        if (attachment.isDownloaded) {
+          this.getAttachmentBlob(attachment, function callback(blob) {
+            var storageType = attachment._file[0];
+            var filename = attachment._file[1];
+            this.attachmentBlobs[storageType + '/' + filename] = blob;
+          }.bind(this));
+        }
       }
     }
     else {

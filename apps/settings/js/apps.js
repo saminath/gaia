@@ -8,7 +8,7 @@ var ApplicationsList = {
   _displayedApp: null,
 
   _permissions: [
-    'power', 'sms', 'contacts', 'telephony', 'mozBluetooth', 'browser',
+    'power', 'sms', 'contacts', 'telephony', 'browser',
     'mozApps', 'mobileconnection', 'mozFM', 'systemXHR', 'background',
     'backgroundservice', 'settings', 'alarm', 'camera', 'fmradio', 'voicemail',
     'wifi-manage', 'wifi', 'networkstats-manage', 'geolocation',
@@ -179,7 +179,7 @@ var ApplicationsList = {
         select.dataset.perm = perm;
 
         var askOpt = document.createElement('option');
-        askOpt.value = 'ask';
+        askOpt.value = 'prompt';
         askOpt.text = _('ask');
         select.add(askOpt);
 

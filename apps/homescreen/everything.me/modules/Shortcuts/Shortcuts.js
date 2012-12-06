@@ -19,8 +19,6 @@ Evme.Shortcuts = new function() {
             "onBeforeScrollEnd": function(){ swiped = false; $el.removeClass("swiping"); }
         });
         
-        $el.bind("click", onListClick);
-        
         Evme.EventHandler.trigger(_name, "init");
     };
     
@@ -31,7 +29,7 @@ Evme.Shortcuts = new function() {
             icons = data.icons;
             
         for (var id in icons) {
-            Evme.IconManager.add(id, icons[id], Evme.Utils.getIconsFormat());
+            Evme.IconManager.add(id, icons[id], Evme.Utils.ICONS_FORMATS.small);
         }
         
         for (var i=0; i<_shortcuts.length; i++) {
@@ -253,13 +251,6 @@ Evme.Shortcuts = new function() {
         
         $("#" + Evme.Utils.getID()).append($style);
         setDesign = true;
-    }
-    
-    function onListClick(e) {
-        if (e.originalTarget.id == 'shortcuts-list') {
-            Evme.EventHandler.trigger(_name, "listClick", {
-            });
-        }
     }
     
     function cbShow(bReport) {

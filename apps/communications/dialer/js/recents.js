@@ -76,6 +76,12 @@ var Recents = {
       getElementById('add-contact-action-menu');
   },
 
+  get callMenuItem() {
+    delete this.callMenuItem;
+    return this.callMenuItem = document.
+      getElementById('call-menuitem');
+  },
+
   get createNewContactMenuItem() {
     delete this.createNewContactMenuItem;
     return this.createNewContactMenuItem = document.
@@ -92,24 +98,6 @@ var Recents = {
     delete this.cancelActionMenuItem;
     return this.cancelActionMenuItem = document.
       getElementById('cancel-action-menu');
-  },
-
-  get recentsDeletionConfirmation() {
-    delete this.recentsDeletionConfirmation;
-    return this.recentsDeletionConfirmation = document.
-      getElementById('recents-deletion-confirmation');
-  },
-
-  get recentsDeletionCancel() {
-    delete this.recentsDeletionCancel;
-    return this.recentsDeletionCancel = document.
-      getElementById('recents-deletion-cancel');
-  },
-
-  get recentsDeletionConfirm() {
-    delete this.recentsDeletionConfirm;
-    return this.recentsDeletionConfirm = document.
-      getElementById('recents-deletion-confirm');
   },
 
   init: function re_init() {
@@ -151,6 +139,10 @@ var Recents = {
       this.recentsContainer.addEventListener('click',
         this.click.bind(this));
     }
+    if (this.callMenuItem) {
+      this.callMenuItem.addEventListener('click',
+        this.call.bind(this));
+    }
     if (this.addContactActionMenu) {
       this.addContactActionMenu.addEventListener('submit',
         this.formSubmit.bind(this));
@@ -166,18 +158,6 @@ var Recents = {
     if (this.cancelActionMenuItem) {
       this.cancelActionMenuItem.addEventListener('click',
         this.cancelActionMenu.bind(this));
-    }
-    if (this.recentsDeletionConfirmation) {
-      this.recentsDeletionConfirmation.addEventListener('submit',
-        this.formSubmit.bind(this));
-    }
-    if (this.recentsDeletionCancel) {
-      this.recentsDeletionCancel.addEventListener('click',
-        this.cancelRecentsDeletion.bind(this));
-    }
-    if (this.recentsDeletionConfirm) {
-      this.recentsDeletionConfirm.addEventListener('click',
-        this.deleteSelectedRecents.bind(this));
     }
 
     // Setting up the SimplePhoneMatcher
@@ -327,11 +307,22 @@ var Recents = {
   },
 
   executeDeletion: function re_executeDeletion() {
-    this.recentsDeletionConfirmation.classList.add('visible');
-  },
-
-  cancelRecentsDeletion: function re_cancelRecentsDeletion() {
-    this.recentsDeletionConfirmation.classList.remove('visible');
+    var self = this;
+    ConfirmDialog.show(
+      null,
+      _('confirm-deletion'),
+      {
+        title: _('cancel'),
+        callback: function() {
+          ConfirmDialog.hide();
+        }
+      },
+      {
+        title: _('delete'),
+        isDanger: true,
+        callback: self.deleteSelectedRecents.bind(self)
+      }
+    );
   },
 
   deleteSelectedRecents: function re_deleteSelectedRecents() {
@@ -352,7 +343,7 @@ var Recents = {
     RecentsDBManager.deleteList.call(RecentsDBManager,
       itemsToDelete, function deleteCB() {
         RecentsDBManager.get(function(recents) {
-          self.recentsDeletionConfirmation.classList.remove('visible');
+          ConfirmDialog.hide();
           self.render(recents);
           document.body.classList.remove('recents-edit');
         });
@@ -437,18 +428,12 @@ var Recents = {
     }
 
     if (!document.body.classList.contains('recents-edit')) {
-      if (target.classList.contains('call-log-contact-photo')) {
-        event.stopPropagation();
-        var contactId = target.parentNode.dataset['contactId'];
-        var phoneNumber = target.parentNode.dataset.num.trim();
-        Recents.viewOrCreate(contactId, phoneNumber);
-      } else if (target.classList.contains('log-item')) {
-        var number = target.dataset.num.trim();
-        if (number) {
-          this.updateLatestVisit();
-          CallHandler.call(number);
-        }
+      var contactId = null;
+      var phoneNumber = target.dataset.num.trim();
+      if (target.classList.contains('isContact')) {
+        contactId = target.dataset.contactId;
       }
+      Recents.viewOrCreate(contactId, phoneNumber);
     } else {
       //Edit mode
       if (target.classList.contains('call-log-contact-photo')) {
@@ -499,6 +484,14 @@ var Recents = {
     this.addContactActionMenu.classList.remove('visible');
   },
 
+  call: function re_call() {
+    if (this.newPhoneNumber) {
+      this.updateLatestVisit();
+      CallHandler.call(this.newPhoneNumber);
+    }
+    this.addContactActionMenu.classList.remove('visible');
+  },
+
   cancelActionMenu: function re_cancelActionMenu() {
     this.addContactActionMenu.classList.remove('visible');
   },
@@ -508,6 +501,7 @@ var Recents = {
     var src = '/contacts/index.html';
     if (contactId) {
       src += '#view-contact-details?id=' + contactId;
+      src += '&tel=' + phoneNumber;
       var timestamp = new Date().getTime();
       contactsIframe.src = src + '&timestamp=' + timestamp;
       window.location.hash = '#contacts-view';
@@ -558,11 +552,11 @@ var Recents = {
       '        <span class="entry-count">' +
       '        </span>' +
       '      </section>' +
-      '      <section class="secondary-info">' +
+      '      <section class="secondary-info ellipsis">' +
       '        <span class="call-time">' +
                  Utils.prettyDate(recent.date) +
       '        </span>' +
-      '        <span class="call-additional-info ellipsis">' +
+      '        <span class="call-additional-info">' +
       '        </span>' +
       '      </section>' +
       '    </div>' +
@@ -664,6 +658,9 @@ var Recents = {
         var photoURL = URL.createObjectURL(contact.photo[0]);
         contactPhoto.style.backgroundImage = 'url(' + photoURL + ')';
         logItem.classList.add('contact-photo-available');
+      } else {
+        contactPhoto.style.backgroundImage = null;
+        logItem.classList.remove('contact-photo-available');
       }
       var phoneNumberAdditionalInfo = Utils.getPhoneNumberAdditionalInfo(
         matchingTel, contact);
@@ -785,7 +782,7 @@ var Recents = {
     if (!isNaN(primaryInfoNodeWidth) && !isNaN(primaryInfoMainNodeWidth) &&
       !isNaN(entryCountNodeWidth) &&
       (primaryInfoNodeWidth < primaryInfoMainNodeWidth + entryCountNodeWidth)) {
-      var newWidth = primaryInfoNodeWidth - entryCountNodeWidth - 4;
+      var newWidth = primaryInfoNodeWidth - entryCountNodeWidth - 5;
       primaryInfoMainNode.classList.add('ellipsed');
       primaryInfoMainNode.style.width = newWidth + 'px';
     }

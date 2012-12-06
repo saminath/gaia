@@ -62,7 +62,7 @@ body {
     opacity: 0;
   }
   100% {
-    opacity: 100%;
+    opacity: 1;
   }
 }
 
@@ -356,6 +356,7 @@ body {
   top: 0;
 }
 
+#screen.attention > #windows > iframe.appWindow.fullscreen-app,
 #screen.attention > #windowSprite,
 #screen.fullscreen-app.attention > #windowSprite {
   height: calc(100% - 40px);
@@ -531,12 +532,9 @@ iframe.backgroundWindow {
   Styles for FTU starting
 */
 
-#screen.ftu > [data-z-index-level="statusbar"]{
-  z-index: 3;
-}
-
-#screen.ftu > [data-z-index-level="lockscreen"]{
-  z-index: 3;
+#screen.ftu > [data-z-index-level="app"] > iframe.appWindow.homescreen,
+#screen.ftu > [data-z-index-level="app"] > iframe.appWindow.homescreen.active {
+  opacity: 0;
 }
 
 #screen.ftuStarting #lockscreen {
