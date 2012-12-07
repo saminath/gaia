@@ -140,6 +140,7 @@ var LockScreen = {
     if (conn && conn.voice) {
       conn.addEventListener('voicechange', this);
       conn.addEventListener('cardstatechange', this);
+      conn.addEventListener('iccinfochange', this);
       this.updateConnState();
       this.connstate.hidden = false;
     }
@@ -245,6 +246,7 @@ var LockScreen = {
         break;
       case 'voicechange':
       case 'cardstatechange':
+      case 'iccinfochange':
         this.updateConnState();
 
       case 'click':
@@ -268,13 +270,11 @@ var LockScreen = {
         var overlay = this.overlay;
         var target = evt.target;
 
-        if (target === leftTarget || target === rightTarget) {
-          break;
-        }
-
-        if (overlay.classList.contains('triggered') &&
-            target != leftTarget && target != rightTarget) {
-          this.unloadPanel();
+        // Reset timer when touch while overlay triggered
+        if (this.overlay.classList.contains('triggered')) {
+          clearTimeout(this.triggeredTimeoutId);
+          this.triggeredTimeoutId = setTimeout(this.unloadPanel.bind(this),
+                                               this.TRIGGERED_TIMEOUT);
           break;
         }
 
@@ -724,6 +724,7 @@ var LockScreen = {
       return;
 
     var voice = conn.voice;
+    var iccInfo = conn.iccInfo;
     var connstateLine1 = this.connstate.firstElementChild;
     var connstateLine2 = this.connstate.lastElementChild;
     var _ = navigator.mozL10n.get;
@@ -809,6 +810,14 @@ var LockScreen = {
     }
 
     var carrierName = voice.network.shortName || voice.network.longName;
+
+    if (iccInfo.isDisplaySpnRequired && iccInfo.spn) {
+      if (iccInfo.isDisplayNetworkNameRequired) {
+        carrierName = carrierName + ' ' + iccInfo.spn;
+      } else {
+        carrierName = iccInfo.spn;
+      }
+    }
 
     if (voice.roaming) {
       var l10nArgs = { operator: carrierName };
