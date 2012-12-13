@@ -9,7 +9,8 @@ function includeJS(elementContainer) {
     "js/records/nfc_sms.js",
     "js/records/nfc_smartposter.js",
     "js/nfc_writer.js",
-    "js/nfc_ui.js"
+    "js/nfc_ui.js",
+    "js/nfc_main.js"
   );
   for (var i=0; i < scripts.length; i++) {
     var element = document.createElement('script');
