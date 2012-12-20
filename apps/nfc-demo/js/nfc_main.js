@@ -204,12 +204,8 @@ function addNdefConnectListener() {
   // Ndef Discovery
   navigator.mozNfc.onndefdiscovered = function(event) {
     debug("Found tag!");
-    /*
-    if (nfcUI.hasPendingMessage()) {
-    nfcUI.writePendingMessage();
-    //return; // Overwrite tag, return.
-    }*/
     $("#taglist").css("display", "inline");
+
     $("#actionlist").css("display", "inline");
 
     var html ='<li data-role="list-divider" role="heading">NDEF Tag</li>';
@@ -268,7 +264,6 @@ function addNdefConnectListener() {
 
     nfcUI.writePendingMessage();
   };
-  console.log("YYYYYYYYYYYYYYYYYYYY 2");
 }
 
 function removeNdefConnectListener() {
@@ -294,11 +289,11 @@ function debug(message) {
 
 
 // Main Document:
-$(document).ready(function () {
+$(document).bind("ready", function () {
   nfcUI.setMessageArea("#area");
   console.log("====XXXX=========");
   $("#startbutton").bind( "click", function(event, ui) {
-    if(isListening != true) {
+    if (isListening != true) {
       $("#buttontext").text("Stop Tag Discovery");
       isListening = true;
       addNdefConnectListener();
@@ -312,5 +307,37 @@ $(document).ready(function () {
       removeNdefDisconnectListener();
     }
   });
+
+  // Attach event handlers to each ui action button:
+  $("#button_nfc_empty_id").click(function(event) {
+    nfcWriter.postEmptyTag();
+  });
+  $("#button_nfc_text_id").click(function(event) {
+    nfcWriter.postTextFormtoNdef('#nfc_text_form_id');
+  });
+  $("#button_nfc_smartposter_url_id").click(function(event) { 
+    nfcWriter.postSmartPosterUriFormtoNdef('#nfc_smartposter_url_form_id');
+  });
+  $("#button_nfc_uri_id").click(function(event) {
+    nfcWriter.postUriFormtoNdef('#nfc_uri_form_id');
+  });
+  $("#button_nfc_push_p2p_uri_id").click(function(event) {
+    nfcUI.p2p = true;
+    nfcWriter.postUriFormtoNdef('#nfc_uri_form_id');
+    nfcUI.writePendingMessage();
+  });
+  $("#button_nfc_smartposter_email_id").click(function(event) {
+    nfcWriter.postSmartPosterEmailFormtoNdef('#nfc_smartposter_email_form_id');
+  });
+  $("#button_nfc_email_id").click(function(event) {
+    nfcWriter.postEmailFormtoNdef('#nfc_email_form_id');
+  });
+  $("#button_nfc_sms_id").click(function(event) {
+    nfcWriter.postSmsFormtoNdef('#nfc_sms_form_id');
+  });
+  $("#button_nfc_contact_id").click(function(event) {
+    nfcWriter.postContactFormToNdef('#nfc_contact_form_id');
+  });
+  
 });
 

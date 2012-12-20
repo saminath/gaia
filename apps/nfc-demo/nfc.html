@@ -16,8 +16,6 @@
         </script>
         <script src="js/nfc.js">
         </script>
-        <script src="js/nfc_main.js">
-        </script>
     </head>
     <body>
         <div data-role="page" id="page1">
@@ -58,7 +56,7 @@
                 <div data-role="collapsible"><h2>Tag Eraser</h2>
                     <div id="nfc_empty_form_id">
                         <label for="basic">Erase Tag</label>
-                        <button onclick="nfcWriter.postEmptyTag();">Erase Tag</button>
+                        <button id="button_nfc_empty_id">Erase Tag</button>
                     </div>
                 </div>
 
@@ -66,7 +64,7 @@
                     <div id="nfc_text_form_id">
                         <label for="basic">Text</label>
                         <input class="text" value="Dummy text"/>
-                        <button onclick="nfcWriter.postTextFormtoNdef('#nfc_text_form_id');">Write Text Tag</button>
+                        <button id="button_nfc_text_id">Write Text Tag</button>
                     </div>
                 </div>
 
@@ -78,16 +76,16 @@
                         <input class="titleLang" value="en-US">
                         <label for="basic">URI</label>
                         <input class="uri" value="http://www.nfc-forum.org"/>
-                        <button onclick="nfcWriter.postSmartPosterUriFormtoNdef('#nfc_smartposter_url_form_id');">Write URI Tag</button>
+                        <button id="button_nfc_smartposter_url_id">Write URI Tag</button>
                     </div>
                 </div>
 
                 <div data-role="collapsible"><h2>URI Tag Writer</h2>
-                    <div id="nfc_url_form_id">
+                    <div id="nfc_uri_form_id">
                         <label for="basic">URI</label>
                         <input class="uri" value="http://www.nytimes.com"/>
-                        <button onclick="nfcWriter.postUriFormtoNdef('#nfc_url_form_id');">Write URI Tag</button>
-                        <button onclick="nfcUI.p2p = true; nfcWriter.postUriFormtoNdef('#nfc_url_form_id'); nfcUI.writePendingMessage();">Push URI P2P</button>
+                        <button id="button_nfc_uri_id">Write URI Tag</button>
+                        <button id="button_nfc_push_p2p_uri_id">Push URI P2P</button>
                     </div>
                 </div>
 
@@ -103,7 +101,7 @@
                         <input class="emailSubject" value="Subject text."/>
                         <label for="basic">Email Message:</label>
                         <input class="emailBody" value="This is body text.  -Someone"/>
-                        <button onclick="nfcWriter.postSmartPosterEmailFormtoNdef('#nfc_smartposter_email_form_id');">Write Email Tag</button>
+                        <button id="button_nfc_smartposter_email_id">Write Email Tag</button>
                     </div>
                 </div>
 
@@ -115,7 +113,7 @@
                         <input class="emailSubject" value="Subject text."/>
                         <label for="basic">Email Message:</label>
                         <input class="emailBody" value="This is body text.\n\n -Someone"/>
-                        <button onclick="nfcWriter.postEmailFormtoNdef('#nfc_email_form_id');">Write Email Tag</button>
+                        <button id="button_nfc_email_id">Write Email Tag</button>
                     </div>
                 </div>
 
@@ -125,7 +123,7 @@
                         <input class="smsPhoneNumber" value="16502294797"/>
                         <label for="basic">Message</label>
                         <input class="smsMessage" value="This is text."/>
-                        <button onclick="nfcWriter.postSmsFormtoNdef('#nfc_sms_form_id');">Write SMS Tag</button>
+                        <button id="button_nfc_sms_id">Write SMS Tag</button>
                     </div>
                 </div>
 
@@ -162,7 +160,7 @@
                         <label for="basic">Mobile</label>
                         <input class ="nfc_contact_payload_mobile"
                             type="text" name="nfc_contact_payload_mobile" value="12345679"/>
-                        <button onclick="nfcWriter.postContactFormToNdef('#nfc_contact_form_id');">Write Contact Tag</button>
+                        <button id="button_nfc_contact_id">Write Contact Tag</button>
                     </div>
                 </div>
             </div>
