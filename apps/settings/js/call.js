@@ -26,8 +26,10 @@ var Calls = (function(window, document, undefined) {
 
   // Display rule info.
   function displayRule(rules, elementId, settingKey) {
-    var textInput = document.querySelector('input[data-setting="ril.cf.' + settingKey + '.number"]');
-    var switchInput = document.querySelector('input[name="ril.cf.' + settingKey + '.enabled"]');
+    var textSelector = 'input[data-setting="ril.cf.' + settingKey + '.number"]';
+    var textInput = document.querySelector(textSelector);
+    var switchSelector = 'input[name="ril.cf.' + settingKey + '.enabled"]';
+    var switchInput = document.querySelector(switchSelector);
 
     for (var i = 0; i < rules.length; i++) {
       if (rules[i].active &&
@@ -36,6 +38,7 @@ var Calls = (function(window, document, undefined) {
           _('callForwardingForwardingVoiceTo') + ' ' + rules[i].number;
         textInput.value = rules[i].number;
         switchInput.checked = true;
+        document.getElementById('cf-' + settingKey + '-number').disabled = true;
         return;
       }
     }
@@ -44,9 +47,21 @@ var Calls = (function(window, document, undefined) {
       _('callForwardingNotForwarding');
     textInput.value = '';
     switchInput.checked = false;
+    document.getElementById('cf-' + settingKey + '-number').disabled = false;
   };
 
-  // Display what's happening while getting call forwarding info.
+  // Enable/disable tapping on call forwarding entry.
+  function toggleTapOnEntry() {
+    var elementIds = ['li-cfu-desc',
+                      'li-cfmb-desc',
+                      'li-cfnrep-desc',
+                      'li-cfnrea-desc'];
+    elementIds.forEach(function(id) {
+      document.getElementById(id).classList.toggle('disabled');
+    });
+  };
+
+  // Display what's happening while requesting call forwarding info.
   function displayInfoForAll(what) {
     document.getElementById('cfu-desc').textContent =
       document.getElementById('cfmb-desc').textContent =
@@ -55,9 +70,28 @@ var Calls = (function(window, document, undefined) {
             what;
   };
 
+  // Check whether call forwaring is enabled for that specific reason.
+  function checkForCallForwardingReasonEnabled(reason, callback) {
+    var req = gMobileConnection.getCallForwardingOption(reason);
+    req.onsuccess = function() {
+      var rules = req.result;
+      for (var i = 0; i < rules.length; i++) {
+        if (rules[i].active &&
+            ((_voiceServiceClassMask & rules[i].serviceClass) != 0)) {
+          callback(true);
+          return;
+        }
+      }
+      callback(false);
+    };
+    req.onerror = function() {
+      callback(false);
+    };
+  };
+
   // Get current call forwarding rules.
   function getCallForwardingOption() {
-    displayInfoForAll(_('callForwardingGetting'));
+    displayInfoForAll(_('callForwardingRequesting'));
 
     // Queries rules for unconditional call forwarding.
     var unconditional = gMobileConnection.getCallForwardingOption(
@@ -90,20 +124,37 @@ var Calls = (function(window, document, undefined) {
           notReachable.onsuccess = function() {
             var notReachableRules = notReachable.result;
             displayRule(notReachableRules, 'cfnrea-desc', 'notreachable');
+
+            toggleTapOnEntry();
+
+            // Hide call forwarding icon if neccesary
+            checkForCallForwardingReasonEnabled(_cfReason.CALL_FORWARD_REASON_UNCONDITIONAL,
+              function onsuccess(enabled) {
+                var settings = window.navigator.mozSettings;
+                var lock = settings.createLock();
+                var key = 'ril.cf.unconditional.enabled';
+                var request = lock.get(key);
+                request.onsuccess = function() {
+                  if (!enabled && request.result[key]) {
+                    var cset = {}; cset[key] = false;
+                    lock.set(cset);
+                  }
+                };
+            });
           };
-          notReachable.onerror = function () {
+          notReachable.onerror = function() {
             displayInfoForAll(_('callForwardingQueryError'));
           };
         };
-        noReply.onerror = function () {
+        noReply.onerror = function() {
           displayInfoForAll(_('callForwardingQueryError'));
         };
       };
-      mobileBusy.onerror = function () {
+      mobileBusy.onerror = function() {
         displayInfoForAll(_('callForwardingQueryError'));
       };
     };
-    unconditional.onerror = function () {
+    unconditional.onerror = function() {
       displayInfoForAll(_('callForwardingQueryError'));
     };
   };
@@ -114,7 +165,7 @@ var Calls = (function(window, document, undefined) {
     init: function calls_init() {
       var settings = window.navigator.mozSettings;
       if (!settings) {
-        // TODO: Update UI with some error info.
+        displayInfoForAll(_('callForwardingQueryError'));
         return;
       }
       getCallForwardingOption();
@@ -124,7 +175,8 @@ var Calls = (function(window, document, undefined) {
                          'notreachable'];
       settingKeys.forEach(function(key) {
         settings.addObserver('ril.cf.' + key + '.enabled', function(event) {
-          var textInput = document.querySelector('input[data-setting="ril.cf.' + key + '.number"]');
+          var selector = 'input[data-setting="ril.cf.' + key + '.number"]';
+          var textInput = document.querySelector(selector);
           var mozMobileCFInfo = {};
 
           mozMobileCFInfo['action'] = event.settingValue ?
@@ -132,33 +184,37 @@ var Calls = (function(window, document, undefined) {
             _cfAction.CALL_FORWARD_ACTION_DISABLE;
           switch (key) {
             case 'unconditional':
-              mozMobileCFInfo['reason'] = _cfReason.CALL_FORWARD_REASON_UNCONDITIONAL;
+              mozMobileCFInfo['reason'] =
+                _cfReason.CALL_FORWARD_REASON_UNCONDITIONAL;
               break;
             case 'mobilebusy':
-              mozMobileCFInfo['reason'] = _cfReason.CALL_FORWARD_REASON_MOBILE_BUSY;
+              mozMobileCFInfo['reason'] =
+                _cfReason.CALL_FORWARD_REASON_MOBILE_BUSY;
               break;
             case 'noreply':
-              mozMobileCFInfo['reason'] = _cfReason.CALL_FORWARD_REASON_NO_REPLY;
+              mozMobileCFInfo['reason'] =
+                _cfReason.CALL_FORWARD_REASON_NO_REPLY;
               break;
             case 'notreachable':
-              mozMobileCFInfo['reason'] = _cfReason.CALL_FORWARD_REASON_NOT_REACHABLE;
+              mozMobileCFInfo['reason'] =
+                _cfReason.CALL_FORWARD_REASON_NOT_REACHABLE;
               break;
           }
-          mozMobileCFInfo['serviceClass'] = gMobileConnection.ICC_SERVICE_CLASS_VOICE;
+          mozMobileCFInfo['serviceClass'] =
+            gMobileConnection.ICC_SERVICE_CLASS_VOICE;
           // TODO: Check number.
           mozMobileCFInfo['number'] = textInput.value;
           mozMobileCFInfo['timeSecond'] =
-            mozMobileCFInfo['reason'] != _cfReason.CALL_FORWARD_REASON_NO_REPLY ?
-            0 : 20;
-          console.log(JSON.stringify(mozMobileCFInfo));
+            mozMobileCFInfo['reason'] !=
+              _cfReason.CALL_FORWARD_REASON_NO_REPLY ? 0 : 20;
 
           var req = gMobileConnection.setCallForwardingOption(mozMobileCFInfo);
           req.onsuccess = function() {
-            console.log("Success");
+            toggleTapOnEntry();
             getCallForwardingOption();
           };
           req.onerror = function() {
-            console.log("Error");
+            toggleTapOnEntry();
             getCallForwardingOption();
           };
         });
@@ -169,3 +225,4 @@ var Calls = (function(window, document, undefined) {
 
 // Startup.
 onLocalized(Calls.init.bind(Calls));
+

@@ -4,6 +4,7 @@ var CallScreen = {
   _ticker: null,
   _screenLock: null,
 
+  body: document.body,
   screen: document.getElementById('call-screen'),
   views: document.getElementById('views'),
 
@@ -51,12 +52,15 @@ var CallScreen = {
 
     this.calls.addEventListener('click',
                                 OnCallHandler.toggleCalls);
-
   },
 
-  setCallerContactImage: function cs_setCallerContactImage(image_url) {
-    var photoURL = URL.createObjectURL(image_url);
-    this.mainContainer.style.backgroundImage = 'url(' + photoURL + ')';
+  setCallerContactImage: function cs_setCallerContactImage(image_url, force) {
+    var photoURL;
+    var isString = (typeof image_url == 'string');
+    photoURL = isString ? image_url : URL.createObjectURL(image_url);
+    if (!this.mainContainer.style.backgroundImage || force) {
+      this.mainContainer.style.backgroundImage = 'url(' + photoURL + ')';
+    }
   },
 
   toggleMute: function cs_toggleMute() {
@@ -81,14 +85,14 @@ var CallScreen = {
 
   showKeypad: function cs_showKeypad() {
     KeypadManager.render('oncall');
-    this.views.classList.add('show');
+    this.body.classList.add('showKeypad');
   },
 
   hideKeypad: function cs_hideKeypad() {
     KeypadManager.restorePhoneNumber();
     KeypadManager.restoreAdditionalContactInfo();
     KeypadManager.formatPhoneNumber();
-    this.views.classList.remove('show');
+    this.body.classList.remove('showKeypad');
   },
 
   render: function cs_render(layout_type) {
@@ -127,7 +131,7 @@ var CallScreen = {
 
   showIncoming: function cs_showIncoming() {
     // Hiding the keypad
-    this.views.classList.remove('show');
+    this.body.classList.remove('showKeypad');
 
     this.callToolbar.classList.add('transparent');
     this.incomingContainer.classList.add('displayed');
@@ -161,7 +165,6 @@ var CallScreen = {
 var OnCallHandler = (function onCallHandler() {
   // Changing this will probably require markup changes
   var CALLS_LIMIT = 2;
-  var _ = navigator.mozL10n.get;
 
   var handledCalls = [];
   var telephony = window.navigator.mozTelephony;
@@ -173,9 +176,12 @@ var OnCallHandler = (function onCallHandler() {
   var ringing = false;
 
   /* === Settings === */
-  var activePhoneSound = true;
-  SettingsListener.observe('audio.volume.notification', true, function(value) {
+  var activePhoneSound = null;
+  SettingsListener.observe('ring.enabled', true, function(value) {
     activePhoneSound = !!value;
+    if (ringing && activePhoneSound) {
+      ringtonePlayer.play();
+    }
   });
 
   var selectedPhoneSound = '';
@@ -184,7 +190,7 @@ var OnCallHandler = (function onCallHandler() {
     ringtonePlayer.pause();
     ringtonePlayer.src = value;
 
-    if (ringing) {
+    if (ringing && activePhoneSound) {
       ringtonePlayer.play();
     }
   });
@@ -196,10 +202,11 @@ var OnCallHandler = (function onCallHandler() {
   }
 
   var ringtonePlayer = new Audio();
+  ringtonePlayer.mozAudioChannelType = 'ringer';
   ringtonePlayer.src = selectedPhoneSound;
   ringtonePlayer.loop = true;
 
-  var activateVibration = true;
+  var activateVibration = null;
   SettingsListener.observe('vibration.enabled', true, function(value) {
     activateVibration = !!value;
   });
@@ -288,20 +295,26 @@ var OnCallHandler = (function onCallHandler() {
       if (document.mozHidden) {
         window.addEventListener('mozvisibilitychange', function waitOn() {
           window.removeEventListener('mozvisibilitychange', waitOn);
-          navigator.vibrate([100, 100, 100]);
+          if (activateVibration) {
+            navigator.vibrate([100, 100, 100]);
+          }
         });
       } else {
-        navigator.vibrate([100, 100, 100]);
+        if (activateVibration) {
+          navigator.vibrate([100, 100, 100]);
+        }
       }
 
-      var number = (call.number.length ? call.number : _('unknown'));
-      Contacts.findByNumber(number, function lookupContact(contact) {
-        if (contact && contact.name) {
-          CallScreen.incomingNumber.textContent = contact.name;
-          return;
-        }
+      LazyL10n.get(function localized(_) {
+        var number = (call.number.length ? call.number : _('unknown'));
+        Contacts.findByNumber(number, function lookupContact(contact) {
+          if (contact && contact.name) {
+            CallScreen.incomingNumber.textContent = contact.name;
+            return;
+          }
 
-        CallScreen.incomingNumber.textContent = number;
+          CallScreen.incomingNumber.textContent = number;
+        });
       });
 
       CallScreen.showIncoming();
@@ -330,16 +343,20 @@ var OnCallHandler = (function onCallHandler() {
 
   function handleFirstIncoming(call) {
     var vibrateInterval = 0;
-    if (activateVibration) {
+    if (activateVibration != false) {
       vibrateInterval = window.setInterval(function vibrate() {
-        if ('vibrate' in navigator) {
+        // Wait for the setting value to return before starting a vibration.
+        if ('vibrate' in navigator && activateVibration) {
           navigator.vibrate([200]);
         }
       }, 600);
     }
 
-    if (activePhoneSound) {
+    if (activePhoneSound == true) {
       ringtonePlayer.play();
+      ringing = true;
+    } else if (activePhoneSound == null) {
+      // Let's wait for the setting to return before playing any sound.
       ringing = true;
     }
 
@@ -374,19 +391,20 @@ var OnCallHandler = (function onCallHandler() {
     displayed = !displayed;
     animating = true;
 
-    CallScreen.screen.classList.remove('animate');
-    CallScreen.screen.classList.toggle('prerender');
+    var callScreen = CallScreen.screen;
+    callScreen.classList.remove('animate');
+    callScreen.classList.toggle('prerender');
 
     window.addEventListener('MozAfterPaint', function ch_finishAfterPaint() {
       window.removeEventListener('MozAfterPaint', ch_finishAfterPaint);
 
       window.setTimeout(function cs_transitionNextLoop() {
-        CallScreen.screen.classList.add('animate');
-        CallScreen.screen.classList.toggle('displayed');
-        CallScreen.screen.classList.toggle('prerender');
+        callScreen.classList.add('animate');
+        callScreen.classList.toggle('displayed');
+        callScreen.classList.toggle('prerender');
 
-        CallScreen.screen.addEventListener('transitionend', function trWait() {
-          CallScreen.screen.removeEventListener('transitionend', trWait);
+        callScreen.addEventListener('transitionend', function trWait() {
+          callScreen.removeEventListener('transitionend', trWait);
 
           animating = false;
 
@@ -514,11 +532,13 @@ var OnCallHandler = (function onCallHandler() {
 
   function endAndAnswer() {
     var callToEnd = telephony.active;
-    holdAndAnswer();
+    var callToAnswer = handledCalls[handledCalls.length - 1].call;
 
-    callToEnd.onheld = function hangUpAfterHold() {
-      callToEnd.hangUp();
-    };
+    callToEnd.addEventListener('disconnected', function disconnected() {
+      callToEnd.removeEventListener('disconnected', disconnected);
+      callToAnswer.answer();
+    });
+    callToEnd.hangUp();
 
     CallScreen.hideIncoming();
   }
@@ -546,7 +566,7 @@ var OnCallHandler = (function onCallHandler() {
 
     // If not we're rejecting the last incoming call
     if (!handledCalls.length) {
-      toggleScreen();
+      exitCallScreen(true);
       return;
     }
 
@@ -598,25 +618,24 @@ var OnCallHandler = (function onCallHandler() {
   };
 })();
 
-window.addEventListener('localized', function callSetup(evt) {
-  window.removeEventListener('localized', callSetup);
+window.addEventListener('load', function callSetup(evt) {
+  window.removeEventListener('load', callSetup);
 
-  // Set the 'lang' and 'dir' attributes to <html> when the page is translated
-  document.documentElement.lang = navigator.mozL10n.language.code;
-  document.documentElement.dir = navigator.mozL10n.language.direction;
-
-  // <body> children are hidden until the UI is translated
-  document.body.classList.remove('hidden');
-
-  KeypadManager.init(true);
+  OnCallHandler.setup();
   CallScreen.init();
   CallScreen.syncSpeakerEnabled();
-  OnCallHandler.setup();
-  if (navigator.mozSettings) {
+
+  KeypadManager.init(true);
+
+  var isLocked = (window.location.hash === '#locked');
+  // After investigating in #815629, it seems that
+  // lock screen animation over the Wallpaper image is not
+  // performing well, so we are not painting it when is locked
+  // Being tracked in #817988
+  if (navigator.mozSettings && !isLocked) {
     var req = navigator.mozSettings.createLock().get('wallpaper.image');
     req.onsuccess = function cs_wi_onsuccess() {
-      CallScreen.mainContainer.style.backgroundImage =
-        'url(' + req.result['wallpaper.image'] + ')';
+      CallScreen.setCallerContactImage(req.result['wallpaper.image']);
     };
   }
 });

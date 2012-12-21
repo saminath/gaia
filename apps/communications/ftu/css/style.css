@@ -18,12 +18,12 @@ html, body {
 /* Basics */
 
 [role=region] {
-  width: 100%;
-  height: 100%;
   visibility: hidden;
   position: absolute;
   top: 0;
   left: 0;
+  right: 0;
+  bottom: 0;
   overflow-x: auto;
   background: url(images/bgtop.png) top left no-repeat,
               url(images/bgbottom.png) bottom left no-repeat,
@@ -36,8 +36,11 @@ html, body {
 }
 
 [role=main] {
-  height: calc(100% - 11.5rem);
-  position: relative;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 5rem;
+  bottom: 6.5rem;
 }
 
 [role=main] > [role=region] {
@@ -92,7 +95,7 @@ html, body {
   background: url(images/next.png) no-repeat center center;
 }
 
-[role=navigation] #join {
+[role=navigation] #wifi-join-button {
   display:none;
 }
 
@@ -108,7 +111,7 @@ html, body {
   display: none;
 }
 
-[role=navigation].secondary-menu #join {
+[role=navigation].secondary-menu #wifi-join-button {
   display: block;
 }
 
@@ -136,7 +139,7 @@ html, body {
 
  .step-state:before {
   content: "";
-  width: calc(100% / 5);
+  width: calc(100% / 6);
   height: 0.6rem;
   position: absolute;
   top: 50%;
@@ -152,23 +155,23 @@ html, body {
 }
 
 .step-2.step-state:before {
-  transform: translateX(75%);
+  transform: translateX(100%);
 }
 
 .step-3.step-state:before {
-  transform: translateX(150%);
-}
-
-.step-4.step-state:before {
   transform: translateX(200%);
 }
 
-.step-5.step-state:before {
+.step-4.step-state:before {
   transform: translateX(300%);
 }
 
-.step-6.step-state:before {
+.step-5.step-state:before {
   transform: translateX(400%);
+}
+
+.step-6.step-state:before {
+  transform: translateX(500%);
 }
 
 /*
@@ -183,59 +186,59 @@ html, body {
   Splash screen
 */
 
-#splash {
+#splash-screen {
   opacity: 0;
   z-index: 3000;
   transition: all 1s ease;
-  background-image: url(images/powered.png);
+  background-image: url(/shared/resources/branding/powered.png);
   background-size: 100% auto;
 }
 
-#splash.show {
+#splash-screen.show {
   opacity: 1;
 }
 /*
   Pin code screen
 */
 
-#pincode .pin_container {
+#pincode-screen .pin_container {
   height: calc(100% - 10rem);
 }
 
-#pincode section header {
+#pincode-screen section header {
   padding: 1.5rem 3rem 0.5rem 3rem;
   color: black;
   font-size: 1.5rem;
 }
 
-#pincode .input-wrapper {
+#pincode-screen .input-wrapper {
   padding: 0 1.5rem;
   position: relative;
 }
 
-#pincode #pin_error {
+#pincode-screen #pin-error {
   padding: 1rem 2rem;
   font-size: 1.5rem;
   color: red;
 }
 
-#pincode #sim-pin.onerror {
+#pincode-screen #pin-input.onerror {
   border-color: red;
 }
 
-#pincode .input-wrapper input {
+#pincode-screen .input-wrapper input {
   font-size: 2rem;
   padding-left: 1.5rem;
   pointer-events: none;
 }
 
-#pincode #fake-sim-pin {
+#pincode-screen #fake-sim-pin {
   margin-top: -4rem;
   opacity: 0;
   pointer-events: auto;
 }
 
-#pincode input[type="number"] {
+#pincode-screen input[type="number"] {
     -moz-box-sizing: border-box;
     display: block;
     overflow: hidden;
@@ -290,18 +293,18 @@ html, body {
   Finish process
 */
 
-#finish, #tutorialFinish {
+#finish-screen, #tutorialFinish {
   opacity: 0;
   z-index: 3010;
   transition: all 1s ease;
   background: #3b4547;
 }
 
-#finish.show, #tutorialFinish.show {
+#finish-screen.show, #tutorialFinish.show {
   opacity: 1;
 }
 
-#finish h1, #tutorialFinish h1 {
+#finish-screen h1, #tutorialFinish h1 {
   margin: 0;
   color: white;
   font-size: 4.1rem;
@@ -310,7 +313,7 @@ html, body {
   line-height: 4rem;
 }
 
-#finish h2, #tutorialFinish h2 {
+#finish-screen h2, #tutorialFinish h2 {
   margin: 0;
   color: white;
   font-size: 1.8rem;
@@ -319,14 +322,14 @@ html, body {
   line-height: 2rem;
 }
 
-#finish p, #tutorialFinish p {
+#finish-screen p, #tutorialFinish p {
   margin: 0;
   color: white;
   font-size: 1.4rem;
   font-weight: normal;
 }
 
-#finish .content {
+#finish-screen .content {
   background: url(images/icon_tour.png) no-repeat center 95%;
 }
 
@@ -334,17 +337,17 @@ html, body {
   background: url(images/thumb-up.png) no-repeat center 70%;
 }
 
-#finish .content, #tutorialFinish .content {
+#finish-screen .content, #tutorialFinish .content {
   height: calc(100% - 6rem);
   padding: 0 3rem;
   width: calc(100% - 6rem);
 }
 
-#finish [role=navigation],#tutorialFinish [role=navigation] {
+#finish-screen [role=navigation],#tutorialFinish [role=navigation] {
   border-top: .1rem solid #697476;
 }
 
-#finish [role=navigation] button,#tutorialFinish [role=navigation] button {
+#finish-screen [role=navigation] button,#tutorialFinish [role=navigation] button {
   text-align: center;
 }
 
@@ -475,7 +478,9 @@ html, body {
   Import
 */
 
-#import_contacts li,
+#import_contacts li {
+  padding: 0 3.5rem;
+}
 #wifi li {
   padding: 0 1.5rem;
 }
@@ -515,6 +520,14 @@ html, body {
 
 #import_contacts ul:first-child li:last-child {
   margin-bottom: 0;
+}
+
+#sim-import-button {
+  background: url('images/import_sim.png') center left no-repeat;
+}
+
+#fb_import {
+  background: url('images/import_fb.png') center left no-repeat;
 }
 
 /*
@@ -666,6 +679,68 @@ html, body {
   font-weight: 500;
 }
 
+/* external url loader */
+iframe.external {
+  width: 100%;
+  height: 100%;
+  /* using position absolute makes the container not overflowing */
+  position: absolute;
+  border: none;
+}
+
+/* your privacy */
+/* see Bug 819886 */
+i.hack-first-child {
+  display: none;
+}
+
+#about-your-privacy ul li > a {
+  display: block;
+  text-decoration: none;
+  outline: 0;
+  color: #000;
+  -moz-box-sizing: border-box;
+  height: 6rem;
+  font-size: 1.9rem;
+  line-height: 6rem;
+  padding: 0 3rem;
+}
+
+#about-your-privacy article {
+  padding: 0;
+}
+
+/*
+ * Privacy icons
+ */
+
+#about-your-privacy .privacy-menuitem {
+  padding-left: 5.5rem;
+  background-repeat: no-repeat;
+  background-position: 1.4rem center;
+}
+
+.privacy-browserOS {
+  background-image: -moz-image-rect(url(/shared/resources/branding/privacy_sprite.png), 0, 32, 32, 0);
+}
+
+.privacy-everythingME {
+  background-image: -moz-image-rect(url(/shared/resources/branding/privacy_sprite.png), 0, 64, 32, 32);
+}
+
+.privacy-marketPlace {
+  background-image: -moz-image-rect(url(/shared/resources/branding/privacy_sprite.png), 0, 96, 32, 64);
+}
+
+/* no connection error dialog */
+#offline-error-dialog {
+  display: none;
+}
+
+#offline-error-dialog.visible {
+  display: block;
+}
+
 /*
  * Lists
  */
@@ -813,23 +888,36 @@ html, body {
   Tutorial
 */
 
-#tutorial [role=main] > [role=region] {
+#tutorial-screen [role=main] > [role=region] {
   background-color: #474747;
   color: white;
 }
 
-#tutorial [role=main] {
-  height: 100%;
-  position: relative;
+#tutorial-screen [role=main] {
+  top: 0;
+  bottom: 0;
 }
 
-#tutorial header {
-  height: 6rem;
-  padding: 3rem 2.5rem 0 2.5rem;
+#tutorial-screen header {
+  height: 5rem;
   font-size: 1.4rem;
-  margin-bottom: 1rem;
+  padding: 3rem 1.5rem 1rem 1.5rem;
+  text-align: left;
 }
 
-#tutorial section {
+#tutorial-screen section {
   text-align: center;
+}
+
+/* Tutorial Steps state */
+#tutorial-screen .step-state {
+  border-bottom: none;
+  top: 1.5rem;
+}
+
+#tutorial-screen .step-state:before {
+  width: calc(100% / 5);
+  height: 0.3rem;
+  margin-top: -0.2rem;
+  background: #FFFFFF;
 }
