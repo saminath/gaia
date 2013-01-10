@@ -630,7 +630,7 @@ li[role="tab"] a {
   outline: none;
   margin-left: -30px;
   text-overflow: ellipsis;
-  max-width: calc(33% - 37px);
+  max-width: calc(33% - 39px);
   overflow: hidden;
 }
 
@@ -878,6 +878,9 @@ li[role="listitem"] small {
 
 #settings li button {
   margin: 0;
+  height: auto;
+  line-height: 2rem;
+  padding: 1rem 1.5rem;
 }
 
 

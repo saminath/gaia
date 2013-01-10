@@ -18,6 +18,9 @@ var SimLock = {
     // Display the dialog only after lockscreen is unlocked
     // To prevent keyboard being displayed behind it.
     window.addEventListener('unlock', this);
+
+    // always monitor card state change
+    conn.addEventListener('cardstatechange', this.showIfLocked.bind(this));
   },
 
   handleEvent: function sl_handleEvent(evt) {
@@ -67,9 +70,13 @@ var SimLock = {
       return false;
 
     if (LockScreen.locked)
-      return;
+      return false;
 
     switch (conn.cardState) {
+      // do nothing in absent and null card states
+      case null:
+      case 'absent':
+        break;
       case 'pukRequired':
       case 'pinRequired':
         SimPinDialog.show('unlock', this.onClose);

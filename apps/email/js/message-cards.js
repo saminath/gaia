@@ -14,6 +14,25 @@ const SCROLL_MIN_BUFFER_SCREENS = 2;
 const SCROLL_MAX_RETENTION_SCREENS = 7;
 
 /**
+ * Format the message subject appropriately.  This means ensuring that if the
+ * subject is empty, we use a placeholder string instead.
+ *
+ * @param subjectNode the DOM node for the message's subject
+ * @param message the message object
+ */
+function displaySubject(subjectNode, message) {
+  var subject = message.subject && message.subject.trim();
+  if (subject) {
+    subjectNode.textContent = subject;
+    subjectNode.classList.remove('msg-no-subject');
+  }
+  else {
+    subjectNode.textContent = mozL10n.get('message-no-subject');
+    subjectNode.classList.add('msg-no-subject');
+  }
+}
+
+/**
  * List messages for listing the contents of folders ('nonsearch' mode) and
  * searches ('search' mode).  Multi-editing is just a state of the card.
  *
@@ -379,25 +398,30 @@ MessageListCard.prototype = {
   },
 
   onStatusChange: function(newStatus) {
-    if (newStatus === 'synchronizing') {
-      this.syncingNode.classList.remove('collapsed');
-      this.syncMoreNode.classList.add('collapsed');
+    switch (newStatus) {
+      case 'synchronizing':
+      case 'syncblocked':
+        this.syncingNode.classList.remove('collapsed');
+        this.syncMoreNode.classList.add('collapsed');
+        this.hideEmptyLayout();
 
-      this.progressNode.value = this.messagesSlice ?
-                                this.messagesSlice.syncProgress : 0;
-      this.progressNode.classList.remove('hidden');
-    }
-    // (cover both 'synced' and 'syncfailed')
-    else {
-      this.syncingNode.classList.add('collapsed');
-      this.progressNode.classList.add('hidden');
-    }
+        this.progressNode.value = this.messagesSlice ?
+                                  this.messagesSlice.syncProgress : 0;
+        this.progressNode.classList.remove('hidden');
+        break;
+      case 'syncfailed':
+        // If there was a problem talking to the server, notify the user and
+        // provide a means to attempt to talk to the server again.  We have made
+        // onRefresh pretty clever, so it can do all the legwork on
+        // accomplishing this goal.
+        Toaster.logRetryable(newStatus, this.onRefresh.bind(this));
 
-    // If there was a problem talking to the server, notify the user and provide
-    // a means to attempt to talk to the server again.  We have made onRefresh
-    // pretty clever, so it can do all the legwork on accomplishing this goal.
-    if (newStatus === 'syncfailed')
-      Toaster.logRetryable(newStatus, this.onRefresh.bind(this));
+        // Fall through...
+      case 'synced':
+        this.syncingNode.classList.add('collapsed');
+        this.progressNode.classList.add('hidden');
+        break;
+    }
   },
 
   showEmptyLayout: function() {
@@ -582,8 +606,8 @@ MessageListCard.prototype = {
       dateNode.dataset.time = message.date.valueOf();
       dateNode.textContent = prettyDate(message.date);
       // subject
-      msgNode.getElementsByClassName('msg-header-subject')[0]
-        .textContent = message.subject;
+      displaySubject(msgNode.getElementsByClassName('msg-header-subject')[0],
+                     message);
       // snippet
       msgNode.getElementsByClassName('msg-header-snippet')[0]
         .textContent = message.snippet;
@@ -638,7 +662,7 @@ MessageListCard.prototype = {
       if (matches.subject)
         appendMatchItemTo(matches.subject[0], subjectNode);
       else
-        subjectNode.textContent = message.subject;
+        displaySubject(subjectNode, message);
 
       // snippet
       var snippetNode = msgNode.getElementsByClassName('msg-header-snippet')[0];
@@ -1151,10 +1175,10 @@ MessageReaderCard.prototype = {
     dateNode.dataset.time = header.date.valueOf();
     dateNode.textContent = prettyDate(header.date);
 
-    domNode.getElementsByClassName('msg-reader-header-label')[0]
-      .textContent = header.subject;
-    domNode.getElementsByClassName('msg-envelope-subject')[0]
-      .textContent = header.subject;
+    displaySubject(domNode.getElementsByClassName('msg-reader-header-label')[0],
+                   header);
+    displaySubject(domNode.getElementsByClassName('msg-envelope-subject')[0],
+                   header);
 
     // -- Bodies
     var rootBodyNode = domNode.getElementsByClassName('msg-body-container')[0],

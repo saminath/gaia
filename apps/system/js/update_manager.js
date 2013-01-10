@@ -19,6 +19,8 @@ var UpdateManager = {
   _errorTimeout: null,
   _wifiLock: null,
   _systemUpdateDisplayed: false,
+  _conn: null,
+  _edgeTypes: ['edge', 'is95a', 'is95b', 'gprs'],
   NOTIFICATION_BUFFERING_TIMEOUT: 30 * 1000,
   TOASTER_TIMEOUT: 1200,
 
@@ -78,6 +80,17 @@ var UpdateManager = {
 
     SettingsListener.observe('gaia.system.checkForUpdates', false,
                              this.checkForUpdates.bind(this));
+
+    // We maintain the the edge and nowifi data attributes to show
+    // a warning on the download dialog
+    window.addEventListener('wifi-statuschange', this);
+    this.updateWifiStatus();
+
+    this._conn = window.navigator.mozMobileConnection;
+    if (this._conn) {
+      this._conn.addEventListener('datachange', this);
+      this.updateEdgeStatus();
+    }
   },
 
   startDownloads: function um_startDownloads(evt) {
@@ -256,7 +269,7 @@ var UpdateManager = {
   render: function um_render() {
     var _ = navigator.mozL10n.get;
 
-    this.toasterMessage.innerHTML = _('updatesAvailableMessage', {
+    this.toasterMessage.innerHTML = _('updateAvailableInfo', {
                                       n: this.updatesQueue.length
                                     });
 
@@ -271,7 +284,7 @@ var UpdateManager = {
                   });
       }
     } else {
-      message = _('updatesAvailableMessage', {
+      message = _('updateAvailableInfo', {
                  n: this.updatesQueue.length
                 });
     }
@@ -423,7 +436,9 @@ var UpdateManager = {
 
   onuninstall: function um_onuninstall(evt) {
     this.updatableApps.some(function appIterator(updatableApp, index) {
-      if (updatableApp.app === evt.application) {
+      // The application object we get from the event
+      // has only origin and manifestURL properties
+      if (updatableApp.app.manifestURL === evt.application.manifestURL) {
         this.removeFromAll(updatableApp);
         return true;
       }
@@ -435,14 +450,19 @@ var UpdateManager = {
     if (!evt.type)
       return;
 
-    if (evt.type === 'applicationinstall') {
-      this.oninstall(evt.detail);
-      return;
-    }
-
-    if (evt.type === 'applicationuninstall') {
-      this.onuninstall(evt.detail);
-      return;
+    switch (evt.type) {
+      case 'applicationinstall':
+        this.oninstall(evt.detail);
+        break;
+      case 'applicationuninstall':
+        this.onuninstall(evt.detail);
+        break;
+      case 'datachange':
+        this.updateEdgeStatus();
+        break;
+      case 'wifi-statuschange':
+        this.updateWifiStatus();
+        break;
     }
 
     if (evt.type !== 'mozChromeEvent')
@@ -454,6 +474,24 @@ var UpdateManager = {
       this.systemUpdatable.size = detail.size;
       this.addToUpdatesQueue(this.systemUpdatable);
     }
+  },
+
+  updateEdgeStatus: function su_updateEdgeStatus() {
+    if (!this._conn)
+      return;
+
+    var data = this._conn.data;
+    this.downloadDialog.dataset.edge =
+      (this._edgeTypes.indexOf(data.type) !== -1);
+  },
+
+  updateWifiStatus: function su_updateWifiStatus() {
+    var wifiManager = window.navigator.mozWifiManager;
+    if (!wifiManager)
+      return;
+
+    this.downloadDialog.dataset.nowifi =
+      (wifiManager.connection.status != 'connected');
   },
 
   checkForUpdates: function su_checkForUpdates(shouldCheck) {

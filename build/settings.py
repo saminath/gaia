@@ -25,7 +25,6 @@ settings = {
  "audio.volume.telephony": 5,
  "bluetooth.enabled": False,
  "camera.shutter.enabled": True,
- "debug.dev-mode": False,
  "debug.grid.enabled": False,
  "debug.oop.disabled": False,
  "debug.fps.enabled": False,
@@ -55,9 +54,9 @@ settings = {
  "keyboard.layouts.japanese": False,
  "keyboard.layouts.portuguese": False,
  "keyboard.layouts.spanish": False,
- "keyboard.vibration": True,
+ "keyboard.vibration": False,
  "keyboard.clicksound": False,
- "keyboard.wordsuggestion": True,
+ "keyboard.wordsuggestion": False,
  "language.current": "en-US",
  "lockscreen.passcode-lock.code": "0000",
  "lockscreen.passcode-lock.timeout": 0,
@@ -132,7 +131,9 @@ settings = {
  "vibration.enabled": True,
  "wifi.enabled": True,
  "wifi.disabled_by_wakelock": False,
- "wifi.notification": False
+ "wifi.notification": False,
+ "icc.displayTextTimeout": 10000,
+ "icc.inputTextTimeout": 30000
 }
 
 def main():

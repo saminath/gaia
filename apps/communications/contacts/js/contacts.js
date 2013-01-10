@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 var _ = navigator.mozL10n.get;
 var TAG_OPTIONS;
@@ -21,7 +21,10 @@ var Contacts = (function() {
       saveButton,
       editContactButton,
       settings,
-      settingsButton;
+      settingsButton,
+      cancelButton,
+      addButton,
+      appTitleElement;
 
   var readyToPaint = false;
   var firstContacts = null;
@@ -145,6 +148,9 @@ var Contacts = (function() {
     customTag = document.getElementById('custom-tag');
     settings = document.getElementById('view-settings');
     settingsButton = document.getElementById('settings-button');
+    cancelButton = document.getElementById('cancel_activity');
+    addButton = document.getElementById('add-contact-button');
+    appTitleElement = cancelButton.parentNode.querySelector('h1');
 
     TAG_OPTIONS = {
       'phone-type' : [
@@ -188,16 +194,16 @@ var Contacts = (function() {
   };
 
   var checkCancelableActivity = function cancelableActivity() {
-    var cancelButton = document.getElementById('cancel_activty');
-    var addButton = document.getElementById('add-contact-button');
     if (ActivityHandler.currentlyHandling) {
       cancelButton.classList.remove('hide');
       addButton.classList.add('hide');
       settingsButton.classList.add('hide');
+      appTitleElement.textContent = _('selectContact');
     } else {
       cancelButton.classList.add('hide');
       addButton.classList.remove('hide');
       settingsButton.classList.remove('hide');
+      appTitleElement.textContent = _('contacts');
     }
   };
 
@@ -247,21 +253,20 @@ var Contacts = (function() {
         break;
       default:
         // if more than one required type of data
-        var prompt1 = new ValueSelector(selectDataStr);
+        var prompt1 = new ValueSelector();
         for (var i = 0; i < dataSet.length; i++) {
           var data = dataSet[i].value,
               carrier = dataSet[i].carrier || '';
-          prompt1.addToList(data + ' ' + carrier, function(itemData) {
-            return function() {
-              prompt1.hide();
-              result[type] = itemData;
-              ActivityHandler.postPickSuccess(result);
-            }
-          }(data));
-
+          prompt1.addToList(data + ' ' + carrier);
         }
+
+        prompt1.onchange = function onchange(itemData) {
+          prompt1.hide();
+          result[type] = itemData;
+          ActivityHandler.postPickSuccess(result);
+        };
         prompt1.show();
-    }
+    } // switch
   };
 
   var contactListClickHandler = function originalHandler(id) {
@@ -443,13 +448,7 @@ var Contacts = (function() {
     if (ActivityHandler.currentlyHandling) {
       ActivityHandler.postPickSuccess({ number: number });
     } else {
-      var telephony = navigator.mozTelephony;
-      if (telephony) {
-        var sanitizedNumber = number.replace(/-/g, '');
-        var call = telephony.dial(sanitizedNumber);
-      } else {
-        console.log('Telephony unavailable? : ' + e);
-      }
+      TelephonyHelper.call(number);
     }
   };
 
@@ -587,7 +586,7 @@ var Contacts = (function() {
   var initEventListeners = function initEventListener() {
     // Definition of elements and handlers
     utils.listeners.add({
-      '#cancel_activty': handleCancel, // Activity (any) cancellation
+      '#cancel_activity': handleCancel, // Activity (any) cancellation
       '#cancel-edit': handleCancel, // Cancel edition
       '#save-button': contacts.Form.saveContact,
       '#add-contact-button': showAddContact,
@@ -632,7 +631,7 @@ var Contacts = (function() {
   var getFirstContacts = function c_getFirstContacts() {
     var onerror = function() {
       console.error('Error getting first contacts');
-    }
+    };
     contacts.List.getAllContacts(onerror, function(contacts) {
       firstContacts = contacts;
       if (readyToPaint) {
@@ -674,7 +673,7 @@ var Contacts = (function() {
 })();
 
 window.addEventListener('localized', function initContacts(evt) {
-
+  window.removeEventListener('localized', initContacts);
   fb.init(function contacts_init() {
     Contacts.onLocalized();
 

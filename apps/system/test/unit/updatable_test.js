@@ -9,64 +9,51 @@ requireApp('system/test/unit/mock_apps_mgmt.js');
 requireApp('system/test/unit/mock_chrome_event.js');
 requireApp('system/test/unit/mock_custom_dialog.js');
 requireApp('system/test/unit/mock_utility_tray.js');
+requireApp('system/test/unit/mock_manifest_helper.js');
+requireApp('system/test/unit/mocks_helper.js');
 
-// We're going to swap those with mock objects
-// so we need to make sure they are defined.
-if (!this.CustomDialog) {
-  this.CustomDialog = null;
-}
-if (!this.UpdateManager) {
-  this.UpdateManager = null;
-}
-if (!this.WindowManager) {
-  this.WindowManager = null;
-}
-if (!this.UtilityTray) {
-  this.UtilityTray = null;
-}
+
+var mocksForUpdatable = [
+  'CustomDialog',
+  'UpdateManager',
+  'WindowManager',
+  'UtilityTray',
+  'ManifestHelper'
+];
+
+mocksForUpdatable.forEach(function(mockName) {
+  if (!window[mockName]) {
+    window[mockName] = null;
+  }
+});
 
 suite('system/Updatable', function() {
   var subject;
   var mockApp;
 
-  var realUpdateManager;
-  var realWindowManager;
-  var realUtilityTray;
   var realDispatchEvent;
-  var realCustomDialog;
   var realL10n;
+
+  var mocksHelper;
 
   var lastDispatchedEvent = null;
   var fakeDispatchEvent;
 
   suiteSetup(function() {
-    realUpdateManager = window.UpdateManager;
-    window.UpdateManager = MockUpdateManager;
-
-    realWindowManager = window.WindowManager;
-    window.WindowManager = MockWindowManager;
-
-    realCustomDialog = window.CustomDialog;
-    window.CustomDialog = MockCustomDialog;
-
-    realUtilityTray = window.UtilityTray;
-    window.UtilityTray = MockUtilityTray;
-
     realL10n = navigator.mozL10n;
     navigator.mozL10n = {
       get: function get(key) {
         return key;
       }
     };
+
+    mocksHelper = new MocksHelper(mocksForUpdatable);
+    mocksHelper.suiteSetup();
   });
 
   suiteTeardown(function() {
-    window.UpdateManager = realUpdateManager;
-    window.WindowManager = realWindowManager;
-    window.CustomDialog = realCustomDialog;
-    window.UtilityTray = realUtilityTray;
-
     navigator.mozL10n = realL10n;
+    mocksHelper.suiteTeardown();
   });
 
   setup(function() {
@@ -81,14 +68,13 @@ suite('system/Updatable', function() {
       };
     };
     subject._dispatchEvent = fakeDispatchEvent;
+
+    mocksHelper.setup();
   });
 
   teardown(function() {
-    MockUpdateManager.mTeardown();
     MockAppsMgmt.mTeardown();
-    MockCustomDialog.mTeardown();
-    MockWindowManager.mTeardown();
-    MockUtilityTray.mTeardown();
+    mocksHelper.teardown();
 
     subject._dispatchEvent = realDispatchEvent;
     lastDispatchedEvent = null;
@@ -97,6 +83,13 @@ suite('system/Updatable', function() {
   suite('init', function() {
     test('should keep a reference to the app', function() {
       assert.equal(mockApp, subject.app);
+    });
+
+    test('should handle fresh app with just an updateManifest', function() {
+      var freshApp = new MockApp();
+      freshApp.manifest = undefined;
+      subject = new AppUpdatable(freshApp);
+      assert.equal(freshApp, subject.app);
     });
   });
 
@@ -427,38 +420,78 @@ suite('system/Updatable', function() {
         });
       });
 
-      suite('update-progress', function() {
+      suite('update download events', function() {
         var event;
         setup(function() {
           subject = new SystemUpdatable(98734);
           subject.download();
-          event = new MockChromeEvent({
-            type: 'update-progress',
-            progress: 1234,
-            total: 98734
+        });
+
+        suite('when the download starts', function() {
+          setup(function() {
+            event = new MockChromeEvent({
+              type: 'update-download-started',
+              total: 98734
+            });
+          });
+
+          test('should clear paused flag', function() {
+            subject.paused = true;
+            subject.handleEvent(event);
+            assert.isFalse(subject.paused);
           });
         });
 
-        test('should send progress to update manager', function() {
-          subject.handleEvent(event);
-          assert.equal(1234, MockUpdateManager.mProgressCalledWith);
+        suite('when the download receives progress', function() {
+          setup(function() {
+            event = new MockChromeEvent({
+              type: 'update-download-progress',
+              progress: 1234,
+              total: 98734
+            });
+          })
+
+          test('should send progress to update manager', function() {
+            subject.handleEvent(event);
+            assert.equal(1234, MockUpdateManager.mProgressCalledWith);
+          });
+
+          test('should send progress delta to update manager', function() {
+            subject.handleEvent(event);
+            event.detail.progress = 2234;
+            subject.handleEvent(event);
+            assert.equal(1000, MockUpdateManager.mProgressCalledWith);
+          });
         });
 
-        test('should send progress delta to update manager', function() {
-          subject.handleEvent(event);
-          event.detail.progress = 2234;
-          subject.handleEvent(event);
-          assert.equal(1000, MockUpdateManager.mProgressCalledWith);
+        suite('when the download is paused', function() {
+          setup(function() {
+            event = new MockChromeEvent({
+              type: 'update-download-stopped',
+              paused: true
+            });
+            subject.handleEvent(event);
+          });
+
+          test('should set the paused flag', function() {
+            assert.isTrue(subject.paused);
+          });
+          test('shouldn\'t signal "started uncompressing"', function() {
+            assert.isFalse(MockUpdateManager.mStartedUncompressingCalled);
+          });
         });
 
         suite('when the download is complete', function() {
           setup(function() {
             event = new MockChromeEvent({
-              type: 'update-progress',
-              progress: 98734,
-              total: 98734
+              type: 'update-download-stopped',
+              paused: false
             });
             subject.handleEvent(event);
+          });
+
+          test('should clear the paused flag', function() {
+            assert.isFalse(subject.paused);
           });
 
           test('should signal the UpdateManager', function() {

@@ -14,6 +14,7 @@
     <script defer src="shared/js/notification_helper.js"></script>
     <script defer src="shared/js/async_storage.js"></script>
     <script defer src="shared/js/mobile_operator.js"></script>
+    <script defer src="shared/js/manifest_helper.js"></script>
 
     <!-- Wrapper -->
     <link rel="stylesheet" type="text/css" href="style/wrapper/wrapper.css">
@@ -33,7 +34,8 @@
 
     <!-- Include shared resources
     <link rel="resource" type="application/json" href="shared/resources/apn.json"/>
-    <link rel="resource" type="image/png" href="shared/resources/branding/"/>
+    <link rel="resource" type="image/png" href="shared/resources/branding/initlogo.png"/>
+    <link rel="resource" type="image/png" href="shared/resources/branding/splash_screen_generic.png"/>
     -->
 
     <!-- applications.js must not be deferred
@@ -53,10 +55,6 @@
     <script defer src="js/system_dialog.js"></script>
     <script defer src="js/icc_cache.js"></script>
 
-    <!-- Battery Manager -->
-    <link rel="stylesheet" type="text/css" href="style/battery_manager/battery_manager.css">
-    <script defer src="js/battery_manager.js"></script>
-
     <!-- Grid View -->
     <link rel="stylesheet" type="text/css" href="style/gridview/gridview.css">
     <script defer src="js/gridview.js"></script>
@@ -72,6 +70,10 @@
     <!-- Sleep Menu -->
     <link rel="stylesheet" type="text/css" href="style/sleep_menu/sleep_menu.css">
     <script defer src="js/sleep_menu.js"></script>
+
+    <!-- Battery Manager -->
+    <link rel="stylesheet" type="text/css" href="style/battery_manager/battery_manager.css">
+    <script defer src="js/battery_manager.js"></script>
 
     <!-- Keyboard -->
     <script defer src="js/keyboard_manager.js"></script>
@@ -204,6 +206,9 @@
     <!-- homescreen from being displayed must come before this script. -->
     <script defer src="js/window_manager.js"></script>
 
+    <!-- Remote Debugger -->
+    <script defer src="js/remote_debugger.js"></script>
+
     <!-- z-indexes of all the overlays in the system -->
     <link rel="stylesheet" type="text/css" href="style/zindex.css">
 
@@ -307,9 +312,13 @@
         <!-- quick settings -->
         <div id="quick-settings">
           <a href="#" id="quick-settings-wifi" data-enabled="false"></a>
+          <div class="separator"></div>
           <a href="#" id="quick-settings-data" data-enabled="false"></a>
+          <div class="separator"></div>
           <a href="#" id="quick-settings-bluetooth" data-enabled="false"></a>
+          <div class="separator"></div>
           <a href="#" id="quick-settings-power-save" data-enabled="false"></a>
+          <div class="separator"></div>
           <a href="#" id="quick-settings-full-app" data-enabled="false"></a>
         </div>
 
@@ -404,7 +413,7 @@
             </section>
             <menu>
               <button id="dont-send-report" disabled="true" data-l10n-id="crash-dont-send">Don't Send</button>
-              <button id="send-report" class="recommend" data-l10n-id="crash-send">Send Report</button>
+              <button id="send-report" class="recommend" data-l10n-id="crash-end">Send Report</button>
             </menu>
           </form>
 
@@ -696,20 +705,26 @@
       </form>
 
       <form id="updates-download-dialog" data-type="confirm" role="dialog"
-            data-z-index-level="updates-download-dialog">
+            data-z-index-level="updates-download-dialog" data-nowifi="false" data-edge="false">
         <section>
           <h1>
             Updates
           </h1>
           <ul>
           </ul>
-          <menu>
-            <button id="updates-later-button" type="reset"
-                    data-l10n-id="later">Later</button>
-            <button id="updates-download-button" type="submit"
-              data-l10n-id="download">Download</button>
-          </menu>
         </section>
+        <p id="updates-no-wifi-warning"
+            data-l10n-id="downloadNoWifiWarning">
+        </p>
+        <p id="updates-edge-warning"
+            data-l10n-id="downloadEdgeWarning">
+        </p>
+        <menu>
+          <button id="updates-later-button" type="reset"
+                  data-l10n-id="later">Later</button>
+          <button id="updates-download-button" type="submit"
+            data-l10n-id="download">Download</button>
+        </menu>
       </form>
 
       <div id="lockscreen-camera" data-z-index-level="lockscreen-camera"></div>

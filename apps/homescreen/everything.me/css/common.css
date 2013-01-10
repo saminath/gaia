@@ -4,15 +4,19 @@
     margin: 0;
     padding: 0;
     top: 0;
+    bottom: 0;
     left: 0;
     width: 100%;
-    height: 100%;
     background: transparent;
     background-size: 100% 100%;
     font: normal 12px 'MozTT', Sans-Serif;
     text-align: left;
 }
-#evmeContainer * {
+#evmeContainer.ffos-menu-visible {
+    bottom: 75px;
+}
+
+#evmeContainer *:not([role]) {
     margin: 0;
     padding: 0;
 }
