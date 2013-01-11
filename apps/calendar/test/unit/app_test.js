@@ -45,6 +45,74 @@ suite('app', function() {
     router = subject.router;
   });
 
+  suite('date localization', function() {
+    var expected;
+    var fmt;
+    var id = 0;
+    var realL10n;
+    var l10nMap;
+
+    suiteSetup(function() {
+      realL10n = navigator.mozL10n.get;
+      navigator.mozL10n.get = function(name) {
+        return l10nMap[name] || '';
+      };
+    });
+
+    suiteTeardown(function() {
+      navigator.mozL10n.get = realL10n;
+    });
+
+    function dateElement(date, format) {
+      var el = document.createElement('span');
+      el.dataset.l10nDateFormat = format;
+      el.dataset.date = date.toString();
+      el.textContent = 'you-faiL!';
+
+      document.body.appendChild(el);
+
+      return el;
+    }
+
+    function addExpect(date, formatName, formatValue) {
+      var elId = 'dateId-' + (++id);
+      l10nMap[formatName] = formatValue;
+      dateElement(date, formatName).id = elId;
+
+      expected.push(
+        [elId, fmt.localeFormat(date, formatValue)]
+      );
+    }
+
+    setup(function() {
+      l10nMap = {};
+      fmt = Calendar.App.dateFormat = navigator.mozL10n.DateTimeFormat();
+      expected = [];
+
+      var formatXDate = new Date(2012, 1, 1);
+      var formatCDate = new Date(2012, 1, 1, 7, 2, 9);
+
+      addExpect(formatCDate, 'myl10nKey', '%x');
+      addExpect(formatCDate, 'otherl10nKey', '%c');
+
+      subject.observeDateLocalization();
+      window.dispatchEvent(new Event('localized'));
+    });
+
+    test('updates elements with data-l10n-date-format', function() {
+      expected.forEach(function(item) {
+        var element = document.getElementById(item[0]);
+        var expectedText = item[1];
+
+        assert.equal(
+          element.textContent,
+          expectedText,
+          'should relocalize given'
+        );
+      });
+    });
+  });
+
   suite('PendingManager', function() {
     var subject;
 

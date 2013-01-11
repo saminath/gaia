@@ -77,6 +77,40 @@ Calendar.App = (function(window) {
     }
   };
 
+  var DateL10n = {
+    /**
+     * Localizes all elements with data-l10n-date-format.
+     */
+    localizeElements: function(parent) {
+      var elements = document.querySelectorAll(
+        '[data-l10n-date-format]'
+      );
+
+      var len = elements.length;
+      var i = 0;
+
+      for (; i < len; i++) {
+        DateL10n.localizeElement(elements[i]);
+      }
+    },
+
+    /**
+     * Localize a single element expected to have data-l10n-date-format.
+     */
+    localizeElement: function(element) {
+      var date = element.dataset.date;
+      var formatKey = element.dataset.l10nDateFormat;
+      var format = navigator.mozL10n.get(formatKey);
+
+      if (date) {
+        element.textContent = Calendar.App.dateFormat.localeFormat(
+          new Date(date),
+          format
+        );
+      }
+    }
+  };
+
   /**
    * Focal point for state management
    * within calendar application.
@@ -86,6 +120,8 @@ Calendar.App = (function(window) {
    */
   var App = {
     PendingManager: PendingManager,
+
+    DateL10n: DateL10n,
 
     //XXX: always assumes that app is never lazy loaded
     startingURL: window.location.href,
@@ -202,6 +238,28 @@ Calendar.App = (function(window) {
     },
 
     /**
+     * Observes localized events and localizes elements
+     * with data-l10n-date-format should be registered
+     * after the first localized event.
+     *
+     *
+     * Example:
+     *
+     *
+     *    <span
+     *      data-date="Wed Jan 09 2013 19:25:38 GMT+0100 (CET)"
+     *      data-l10n-date-format="%x">
+     *
+     *      2013/9/19
+     *
+     *    </span>
+     *
+     */
+    observeDateLocalization: function() {
+      window.addEventListener('localized', DateL10n.localizeElements);
+    },
+
+    /**
      * Adds observers to objects capable of being pending.
      *
      * Object must emit some kind of start/complete events
@@ -303,6 +361,9 @@ Calendar.App = (function(window) {
       });
 
       this.dateFormat = navigator.mozL10n.DateTimeFormat();
+
+      // re-localize dates on screen
+      this.observeDateLocalization();
 
       this.timeController.observe();
       this.alarmController.observe();
