@@ -114,9 +114,9 @@ function getRecordActionText(record, handle) {
     return 'text: ' + handle.text + ' (Language: ' + handle.language + ', Encoding: ' + handle.encoding + ')';
   } else if(record.type == nfc.rtd_uri) {
     if(handle.uri.indexOf("tel")==0) {
-      return '<a href="javascript:launchDialer(\'' + handle.uri + '\')">' + handle.uri + '</a>';
+      return '<div class="dialer" href="'+handle.uri+'">'+handle.uri+'</div>';
     } else {
-      return '<a href="javascript:launchBrowser(\'' + handle.uri + '\')">' + handle.uri + '</a>';
+      return '<div class="actionuri" href="'+handle.uri+'">'+handle.uri+'</div>';
     }
   } else if(record.type == "text/x-vCard") {
     return '<a href="javascript:addContact(\'' + handle.first + '\', \'' + handle.last + '\', \'' + handle.cell + '\')">' + 
@@ -170,32 +170,22 @@ function launchDialerApp() {
   };
 }
 
-function launchBrowser(url) {
-  console.log("Adding url " + url + " to settings");
-  if (navigator.mozSettings) {
-    var request = navigator.mozSettings.getLock().set({ 'nfc.open_url': url});
-    request.onsuccess = function() {
-      launchBrowserApp();
-    }
-    request.onerror = function() {
-      console.log("error");
-    }
-  }
-}
+function launchBrowser(URL) {
+  // Launch web activity:
 
-function launchBrowserApp() {
-  console.log("Searching for browser app");
-  navigator.mozApps.mgmt.getAll().onsuccess = function(e) {
-    console.log("Got all apps");
-    var apps = e.target.result;
-    apps.forEach(function(app) {
-      console.log("Discovered app: " + app.origin);
-      if(app.origin.indexOf("browser")>=0) {
-        console.log("Launching browser app");
-        app.launch();
-      }
-    });
-  };
+  var a = new MozActivity({ name: 'view', data: {type: 'url', url: "http://www.google.com"}});
+      a.onsuccess = function() { alert('Success!'); };
+      a.onerror = function() { alert('Failure going to URL'); };
+/*
+  var a = new MozActivity({
+            name: 'record',
+            data: {
+              type: 'photos'
+            }
+          });
+          a.onerror = function ls_activityError() {
+            console.log('MozActivity: camera launch error.');
+          };*/
 }
 
 function addNdefConnectListener() {
@@ -244,7 +234,8 @@ function addNdefConnectListener() {
        } else if(record.tnf == nfc.tnf_absolute_uri) {
          action +='<li data-role="list-divider" role="heading">Action: Open URI</li>';
          action +='<li data-theme="c">';
-         action += handleURIRecord(record);
+         handle = handleURIRecord(record);
+         action += handle;
 	 action +='</li>';
        } else if(record.tnf == nfc.tnf_mime_media) {
          if(record.type == "text/x-vCard") {
@@ -260,6 +251,19 @@ function addNdefConnectListener() {
     $("#taglist").listview("refresh");
 
     $("#actionlist").html(action);
+    $(".actionuri").each(function() {
+      $(this).bind('click', function() {
+        var URL = $(this).attr('href');
+        alert("URL: " + URL);
+        launchBrowser(URL);
+      });
+    });
+    $(".dialer").each(function() {
+      $(this).bind('click', function() {
+        var tel = $(this).attr('href');
+        launchDialer(tel);
+      });
+    });
     $("#actionlist").listview("refresh");
 
     nfcUI.writePendingMessage();
@@ -291,7 +295,6 @@ function debug(message) {
 // Main Document:
 $(document).bind("ready", function () {
   nfcUI.setMessageArea("#area");
-  console.log("====XXXX=========");
   $("#startbutton").bind( "click", function(event, ui) {
     if (isListening != true) {
       $("#buttontext").text("Stop Tag Discovery");
