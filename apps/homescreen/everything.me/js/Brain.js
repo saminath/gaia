@@ -7,7 +7,6 @@ Evme.Brain = new function Evme_Brain() {
     var self = this,
         Brain = this,
         _config = {},
-        logger = null,
         elContainer = null,
         QUERIES_TO_NOT_CACHE = "",
         DEFAULT_NUMBER_OF_APPS_TO_LOAD = 16,
@@ -70,8 +69,6 @@ Evme.Brain = new function Evme_Brain() {
 
         DISPLAY_INSTALLED_APPS = _config.displayInstalledApps;
 
-        logger = _config && _config.logger || console;
-
         ICON_SIZE = Evme.Utils.sendToOS(Evme.Utils.OSMessages.GET_ICON_SIZE);
     };
     
@@ -106,16 +103,13 @@ Evme.Brain = new function Evme_Brain() {
      * @_event (string) : the event that the class sent
      * @_data (object)  : data sent with the event
      */
-    function catchCallback(_class, _event, _data) {
-        logger.debug(_class + "." + _event + "(", (_data || ""), ")");
-        
-        Evme.Utils.log(_class + '.' + _event);
+    function catchCallback(_class, _event, _data) {       
+        Evme.Utils.log('Callback: ' + _class + '.' + _event);
         
         try {
             self[_class] && self[_class][_event] && self[_class][_event](_data || {});
         } catch(ex){
             Evme.Utils.log('CB Error! ' + ex.message);
-            logger.error(ex);
         }
     }
 
@@ -481,24 +475,39 @@ Evme.Brain = new function Evme_Brain() {
             setTimeout(Evme.Utils.isKeyboardVisible? Evme.Helper.showSuggestions : Evme.Helper.showTitle, TIMEOUT_ANDROID_BEFORE_HELPER_CLICK);
         }
     };
-
+    
     // modules/Location/
     this.Location = new function Location() {
-        var self = this;
+        var self = this,
+            CLASS_REQUESTING = 'requesting-location';
 
         // Location is being requested
-        this.requesting = function requesting() {
-            elContainer.classList.add("requesting-location");
+        this.request = function request() {
+            elContainer.classList.add(CLASS_REQUESTING);
         };
-
+        
         // location retrieved successfully
         this.success = function success(data) {
-            elContainer.classList.remove("requesting-location");
+            elContainer.classList.remove(CLASS_REQUESTING);
+            
+            var coords = data && data.position && data.position.coordinates,
+                lat = coords && coords.latitude,
+                lon = coords && coords.longitude;
+            
+            if (lat && lon) {
+                Evme.DoATAPI.setLocation(lat, lon);
+            }
         };
 
         // location request error has occured
         this.error = function error(data) {
-            elContainer.classList.remove("requesting-location");
+            elContainer.classList.remove(CLASS_REQUESTING);
+            
+            var s = [];
+            for (var k in data) {
+                s.push(k + ': ' + data[k]);
+            }
+            Evme.Utils.log('{' + s.join('},{') + '}');
         };
     };
 
@@ -509,7 +518,6 @@ Evme.Brain = new function Evme_Brain() {
         // init sequence ended
         this.init = function init() {
             bShouldGetHighResIcons = Evme.Utils.getIconsFormat() == Evme.Utils.ICONS_FORMATS.Large;
-            Evme.EventHandler && Evme.EventHandler.bind(Brain.App.handleEvents);
         };
 
         // app items loaded
@@ -573,7 +581,6 @@ Evme.Brain = new function Evme_Brain() {
     // modules/Apps/
     this.App = new function App() {
         var self = this,
-            bNeedsLocation = false,
             isKeyboardOpenWhenClicking = false,
             loadingApp = null,
             loadingAppAnalyticsData,
@@ -618,6 +625,11 @@ Evme.Brain = new function Evme_Brain() {
                 Evme.Banner.show('app-install-success', {
                     'name': data.data.name
                 });
+
+                Evme.EventHandler.trigger("App", "addToHomeScreen", {
+                    "id": data.data.id,
+                    "name": data.data.name
+                });
             });
         };
 
@@ -661,7 +673,6 @@ Evme.Brain = new function Evme_Brain() {
 
             loadingApp = data.app;
             loadingAppId = data.data.id;
-            bNeedsLocation = data.data.requiresLocation && !Evme.DoATAPI.hasLocation();
             loadingAppAnalyticsData = {
                 "index": data.index,
                 "keyboardVisible": data.keyboardVisible,
@@ -670,6 +681,7 @@ Evme.Brain = new function Evme_Brain() {
                 "favUrl": data.app.getFavLink(),
                 "name": data.data.name,
                 "id": data.appId,
+                "appType": data.data.appType || "cloud",
                 "query": Searcher.getDisplayedQuery(),
                 "source": Searcher.getDisplayedSource(),
                 "icon": data.data.icon,
@@ -677,6 +689,7 @@ Evme.Brain = new function Evme_Brain() {
             };
 
             var elApp = data.el,
+                appGridPosition = data.app.getPositionOnGrid(),
                 appBounds = elApp.getBoundingClientRect(),
 
                 elAppsList = elApp.parentNode.parentNode,
@@ -691,9 +704,15 @@ Evme.Brain = new function Evme_Brain() {
                     "left": (appsListBounds.width - appBounds.width)/2
                 };
 
+            // update analytics data
+            loadingAppAnalyticsData.rowIndex = appGridPosition.row;
+            loadingAppAnalyticsData.colIndex = appGridPosition.col;
+            loadingAppAnalyticsData.totalRows = appGridPosition.rows;
+            loadingAppAnalyticsData.totalCols = appGridPosition.cols;
+
             Evme.$remove("#loading-app");
 
-            var elPseudo = Evme.$create('li', {'class': "inplace", 'id': "loading-app"}, loadingApp.getHtml()),
+            var elPseudo = Evme.$create('li', {'class': "inplace", 'id': "loading-app"}, loadingApp.getCurrentHtml()),
                 useClass = !data.isFolder;
 
             if (data.data.installed) {
@@ -705,10 +724,7 @@ Evme.Brain = new function Evme_Brain() {
             elPseudo.style.cssText += 'position: absolute; top: ' + oldPos.top + 'px; left: ' + oldPos.left + 'px; -moz-transform: translate3d(0,0,0);';
 
             var appName = Evme.Utils.l10n('apps', 'loading-app');
-            if (bNeedsLocation) {
-                appName = "";
-            }
-
+            
             Evme.$('b', elPseudo, function itemIteration(el) {
                 el.innerHTML = appName;
             });
@@ -722,23 +738,7 @@ Evme.Brain = new function Evme_Brain() {
 
                 elPseudo.style.cssText += "; -moz-transform: translate3d(" + x + "px, " + y + "px, 0);";
 
-                if (bNeedsLocation) {
-                    Evme.Location.requestUserLocation(function onSuccess(data) {
-                        if (Brain.SmartFolder.get()) {
-                            Brain.SmartFolder.loadAppsIntoFolder(function onAppsReloaded(apps) {
-                                updateLoadingAppData(apps);
-                                goToApp(loadingAppAnalyticsData);
-                            });
-                        } else {
-                            Evme.DoATAPI.setLocation(data.coords.latitude, data.coords.longitude);
-                            Searcher.searchAgain(SEARCH_SOURCES.LOCATION_REFRESH);
-                        }
-                    }, function onError(data) {
-                        goToApp(loadingAppAnalyticsData);
-                    });
-                } else {
-                    goToApp(loadingAppAnalyticsData, 500);
-                }
+                goToApp(loadingAppAnalyticsData);
             }, 10);
         };
 
@@ -752,32 +752,14 @@ Evme.Brain = new function Evme_Brain() {
             }
         }
 
-        /**
-         * a separate event listener for when apps are loaded after requesting location
-         * @_class (string) : the class that issued the event (Apps, SmartFolder, Helper, etc.)
-         * @_event (string) : the event that the class sent
-         * @_data (object)  : data sent with the event
-         */
-        this.handleEvents = function handleEvents(_class, _event, _data){
-            if (bNeedsLocation && _class == "Apps" && _event == "loadComplete") {
-                bNeedsLocation = false;
-
-                updateLoadingAppData(_data.data);
-                goToApp(loadingAppAnalyticsData);
-            }
-        };
-
         // continue flow of redirecting to app
-        function goToApp(data, delay) {
-            !delay && (delay = 0);
+        function goToApp(data) {
             data.appUrl = loadingApp.getLink();
             data.isExternal = loadingApp.isExternal();
 
             Evme.EventHandler.trigger("Core", "redirectedToApp", data);
 
-            window.setTimeout(function onTimeout(){
-                self.appRedirectExecute(data);
-            }, delay);
+            self.appRedirectExecute(data);
         }
 
         // actual redirection
@@ -806,7 +788,6 @@ Evme.Brain = new function Evme_Brain() {
             if (loadingApp) {
                 loadingApp = null;
 
-                bNeedsLocation = false;
                 loadingAppAnalyticsData = null;
                 loadingAppId = false;
 
@@ -922,9 +903,9 @@ Evme.Brain = new function Evme_Brain() {
         };
         
         // start the smart folder apps loading process
-        this.loadAppsIntoFolder = function loadAppsIntoFolder(onAppsLoaded) {
+        this.loadAppsIntoFolder = function loadAppsIntoFolder() {
             if (!currentFolder) return;
-
+            
             var experienceId = currentFolder.getExperience(),
                 query = currentFolder.getQuery(),
                 iconsFormat = Evme.Utils.getIconsFormat(),
@@ -958,7 +939,6 @@ Evme.Brain = new function Evme_Brain() {
                 }, function onSuccess(data) {
                     var apps = data.response.apps;
 
-                    currentFolder.appsPaging.limit = NUMBER_OF_APPS_TO_LOAD_IN_FOLDER;
                     currentFolder.appsPaging.max = data.response.paging.max;
 
                     if (currentFolder.appsPaging.max > currentFolder.appsPaging.offset + currentFolder.appsPaging.limit) {
@@ -966,7 +946,7 @@ Evme.Brain = new function Evme_Brain() {
                     } else {
                         currentFolder.MoreIndicator.set(false);
                     }
-
+                    
                     currentFolder.loadApps({
                         "apps": apps,
                         "iconsFormat": iconsFormat,
@@ -974,8 +954,8 @@ Evme.Brain = new function Evme_Brain() {
                     });
 
                     requestSmartFolderApps = null;
-
-                    onAppsLoaded && onAppsLoaded(apps);
+                    
+                    Evme.Location.updateIfNeeded();
                 });
             });
             
@@ -1390,12 +1370,19 @@ Evme.Brain = new function Evme_Brain() {
         
         // an API callback method had en error
         this.clientError = function onAPIClientError(data) {
-            Evme.Utils.log('API Client Error! ' + data.exception.message);
+            Evme.Utils.log('API Client Error: ' + data.exception.message);
         };
         
         // an API callback method had en error
         this.error = function onAPIError(data) {
-            Evme.Utils.log('API Server Error! ' + JSON.stringify(data.response));
+            Evme.Utils.log('API Server Error: ' + JSON.stringify(data.response));
+        };
+        
+        // user location was updated
+        this.setLocation = function setLocation(data) {
+            // TODO in the future, we might want to refresh results
+            // to reflect accurate location.
+            // but for now only the next request will use the location
         };
         
         // construct a valid API url- for debugging purposes
@@ -1543,6 +1530,11 @@ Evme.Brain = new function Evme_Brain() {
                         getAppsComplete(data, options);
                         requestSearch = null;
                         NUMBER_OF_APPS_TO_LOAD = DEFAULT_NUMBER_OF_APPS_TO_LOAD;
+                        
+                        // only try to refresh location of it's a "real" search- with keyboard down
+                        if (exact && appsCurrentOffset === 0 && !Evme.Utils.isKeyboardVisible) {
+                            Evme.Location.updateIfNeeded();
+                        }
                     }, removeSession);
                 }
             });
@@ -1574,6 +1566,7 @@ Evme.Brain = new function Evme_Brain() {
                        'name': name,
                        'installed': true,
                        'appUrl': app.origin,
+                       'appType': app.isBookmark ? 'bookmark' : 'installed',
                        'preferences': '',
                        'icon': Evme.Utils.sendToOS(Evme.Utils.OSMessages.GET_APP_ICON, app),
                        'requiresLocation': false,

@@ -22,6 +22,8 @@ Evme.Utils = new function Evme_Utils() {
         };
     
     this.isKeyboardVisible = false;
+
+    this.EMPTY_IMAGE = "../../images/empty.gif";
     
     this.ICONS_FORMATS = {
         "Small": 10,
@@ -164,6 +166,9 @@ Evme.Utils = new function Evme_Utils() {
         if (!image || typeof image !== "object") {
             return image;
         }
+        if (self.isBlob(image)) {
+            return self.EMPTY_IMAGE;
+        }
         if (!image.MIMEType || image.data.length < 10) {
             return null;
         }
@@ -178,6 +183,27 @@ Evme.Utils = new function Evme_Utils() {
     this.getIconsFormat = function getIconsFormat() {
         return iconsFormat || _getIconsFormat();
     };
+
+    this.isBlob = function isBlob(arg) {
+        return arg instanceof Blob;
+    };
+
+    this.blobToDataURI = function blobToDataURI(blob, cbSuccess, cbError) {
+        if (!self.isBlob(blob)) {
+            cbError && cbError();
+            return;
+        }
+
+        var reader = new FileReader();
+        reader.onload = function() {
+            cbSuccess(reader.result);
+        };
+        reader.onerror = function() {
+            cbError && cbError();
+        };
+
+        reader.readAsDataURL(blob);
+    }
 
     this.setKeyboardVisibility = function setKeyboardVisibility(value){
     	if (self.isKeyboardVisible === value) return;
@@ -284,16 +310,16 @@ Evme.Utils = new function Evme_Utils() {
 
             var docFrag = document.createDocumentFragment();
             for (var i=0; i<apps.length; i++) {
-                var app = new Evme.App(apps[i], numAppsOffset+i, isMore, self);
-                var id = apps[i].id;
-                var icon = app.getIcon();
-
+                var appData = apps[i],
+                    app = new Evme.App(appData, numAppsOffset+i, isMore, self),
+                    id = appData.id,
+                    icon = app.getIcon();
+                
                 icon = Evme.IconManager.parse(id, icon, iconsFormat);
                 app.setIcon(icon);
                 
                 if (Evme.Utils.isKeyboardVisible && (isMore || i<Math.max(apps.length/2, 8))) {
-                    var elApp = app.draw();
-                    docFrag.appendChild(elApp);
+                    docFrag.appendChild(app.draw());
                 } else {
                     doLater.push(app);
                 }
@@ -307,9 +333,9 @@ Evme.Utils = new function Evme_Utils() {
                     iconsResult["cached"].push(icon);
                 }
 
-                appsList[id] = appsList;
+                appsList[''+id] = app;
 
-                if (apps[i].installed) {
+                if (appData.installed) {
                     hasInstalled = true;
                 }
             }
@@ -323,9 +349,8 @@ Evme.Utils = new function Evme_Utils() {
             if (doLater.length > 0) {
                 timeoutAppsToDrawLater = window.setTimeout(function onTimeout(){
                     var docFrag = document.createDocumentFragment();
-                    for (var i=0; i<doLater.length; i++) {
-                        var elApp = doLater[i].draw();
-                        docFrag.appendChild(elApp);
+                    for (var i=0,app; app=doLater[i++];) {
+                        docFrag.appendChild(app.draw());
                     }
                     elList.appendChild(docFrag);
                     

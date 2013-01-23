@@ -57,6 +57,7 @@ settings = {
  "keyboard.vibration": False,
  "keyboard.clicksound": False,
  "keyboard.wordsuggestion": False,
+ "keyboard.current": "en",
  "language.current": "en-US",
  "lockscreen.passcode-lock.code": "0000",
  "lockscreen.passcode-lock.timeout": 0,
@@ -65,6 +66,7 @@ settings = {
  "lockscreen.enabled": True,
  "lockscreen.locked": True,
  "lockscreen.unlock-sound.enabled": False,
+ "mail.sent-sound.enabled": True,
  "operatorvariant.mcc": 0,
  "operatorvariant.mnc": 0,
  "ril.iccInfo.mbdn":"",
@@ -75,7 +77,7 @@ settings = {
  "powersave.enabled": False,
  "powersave.threshold": 0,
  "privacy.donottrackheader.enabled": False,
- "ril.callwaiting.enabled": True,
+ "ril.callwaiting.enabled": None,
  "ril.data.enabled": False,
  "ril.data.apn": "",
  "ril.data.carrier": "",
@@ -132,8 +134,8 @@ settings = {
  "wifi.enabled": True,
  "wifi.disabled_by_wakelock": False,
  "wifi.notification": False,
- "icc.displayTextTimeout": 10000,
- "icc.inputTextTimeout": 30000
+ "icc.displayTextTimeout": 40000,
+ "icc.inputTextTimeout": 40000
 }
 
 def main():

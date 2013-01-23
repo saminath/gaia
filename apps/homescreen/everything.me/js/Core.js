@@ -1,5 +1,5 @@
 window.Evme = new function Evme_Core() {
-    var NAME = "Core", self = this, logger,
+    var NAME = "Core", self = this,
         recalculateHeightRetries = 1,
         TIMEOUT_BEFORE_INIT_SESSION = "FROM CONFIG",
         OPACITY_CHANGE_DURATION = 300,
@@ -10,8 +10,6 @@ window.Evme = new function Evme_Core() {
     this.init = function init() {
         data = Evme.__config;
 
-        logger = (typeof Logger !== "undefined") ? new Logger() : console;
-
         var apiHost = Evme.Utils.getUrlParam("apiHost") || data.apiHost;
         apiHost && Evme.api.setHost(apiHost);
 
@@ -19,7 +17,6 @@ window.Evme = new function Evme_Core() {
 
         Evme.Brain.init({
             "numberOfAppsToLoad": data.numberOfAppsToLoad,
-            "logger": logger,
             "minimumLettersForSearch": data.minimumLettersForSearch,
             "timeBeforeAllowingDialogsRemoval": data.timeBeforeAllowingDialogsRemoval,
             "tips": data.tips,
@@ -29,7 +26,6 @@ window.Evme = new function Evme_Core() {
         });
 
         Evme.DoATAPI.init({
-            "env": data.env.server,
             "apiKey": data.apiKey,
             "appVersion": data.appVersion,
             "authCookieName": data.authCookieName
@@ -61,12 +57,13 @@ window.Evme = new function Evme_Core() {
     };
 
     this.onHideStart = function onHideStart(source) {
+        Evme.Brain.SmartFolder.hideIfOpen();
+        
         if (source === "homeButtonClick") {
             if (
                 Evme.Brain.Shortcuts.hideIfEditing() ||
                 Evme.Brain.ShortcutsCustomize.hideIfOpen() ||
                 Evme.Brain.ShortcutsCustomize.hideIfRequesting() ||
-                Evme.Brain.SmartFolder.hideIfOpen() ||
                 Evme.Searchbar.clearIfHasQuery()
             ) {
                 return true;
@@ -80,11 +77,12 @@ window.Evme = new function Evme_Core() {
     function initObjects(data) {
         Evme.ConnectionMessage.init({
         });
-
+        
         Evme.Location.init({
-
+            "refreshInterval": data.locationInterval,
+            "requestTimeout": data.locationRequestTimeout
         });
-
+        
         Evme.Shortcuts.init({
             "el": Evme.$("#shortcuts"),
             "elLoading": Evme.$("#shortcuts-loading"),
@@ -139,12 +137,10 @@ window.Evme = new function Evme_Core() {
 
         Evme.Analytics.init({
             "config": data.analytics,
-            "logger": logger,
             "namespace": Evme,
             "DoATAPI": Evme.DoATAPI,
             "getCurrentAppsRowsCols": Evme.Apps.getCurrentRowsCols,
             "Brain": Evme.Brain,
-            "env": data.env.server,
             "connectionLow": Evme.Utils.connection().speed != Evme.Utils.connection().SPEED_HIGH,
             "sessionObj": Evme.DoATAPI.Session.get(),
             "pageRenderStartTs": head_ts,

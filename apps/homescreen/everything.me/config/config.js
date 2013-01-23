@@ -16,7 +16,7 @@ Evme.__config = {
     "numberOfAppsToLoad": 16,
     "minHeightForMoreButton": 470,
     "minimumLettersForSearch": 1,
-    "defaultBGImage": "", //"/everything.me/images/clouds.jpg?1",
+    "defaultBGImage": "",
     "bgImageSize": [320, 460],
     "searchbar": {
         "timeBeforeEventPause": 1600,
@@ -51,9 +51,6 @@ Evme.__config = {
         "CLEAR_SEARCHBOX": "clear",
         "SHORTCUT": "shrt"
     },
-    "env": {
-        "server": "prod"
-    },
     "analytics": {
         "enabled": true,
         "providers": {            
@@ -63,7 +60,6 @@ Evme.__config = {
             }
         }
     },
-    "infoLogger": false,
     "maxHistoryEntries": "10",
     "iconsGroupSettings": [
         {
@@ -126,7 +122,11 @@ Evme.__config = {
             "closeOnClick": true
         }
     },
-    "categoriesDialogs": {},
+    // time before refreshing user location (milliseconds)
+    "locationInterval": 10 * 60 * 1000,
+    // timeout for get location request (milliseconds)
+    "locationRequestTimeout": 4000,
+    // internal mapping of IDs to l10n keys- DON'T TOUCH
     "shortcutIdsToL10nKeys": {
         "297": "astrology",
         "288": "autos",
@@ -141,6 +141,8 @@ Evme.__config = {
         "282": "fashion",
         "277": "funny",
         "207": "games",
+        "307": "government",
+        "275": "health",
         "274": "jobs",
         "296": "local",
         "278": "maps",

@@ -416,7 +416,7 @@ var Browser = {
           this.handleCrashedTab(tab);
         break;
 
-      case 'mozbrowserscroll':
+      case 'mozbrowserasyncscroll':
         this.handleScroll(evt);
         break;
       }
@@ -594,7 +594,10 @@ var Browser = {
     }
 
     if (this.urlButtonMode == this.REFRESH && !this.currentTab.crashed) {
-      this.currentTab.dom.reload(true);
+      // https://bugzilla.mozilla.org/show_bug.cgi?id=829616
+      // Switch the hard-reload to soft-reload since hard-reload still has
+      // some issue to be fix (bug 831153).
+      this.currentTab.dom.reload(false);
       return;
     }
 
@@ -1161,7 +1164,7 @@ var Browser = {
     var browserEvents = ['loadstart', 'loadend', 'locationchange',
                          'titlechange', 'iconchange', 'contextmenu',
                          'securitychange', 'openwindow', 'close',
-                         'showmodalprompt', 'error', 'scroll',
+                         'showmodalprompt', 'error', 'asyncscroll',
                          'usernameandpasswordrequired'];
     browserEvents.forEach(function attachBrowserEvent(type) {
       iframe.addEventListener('mozbrowser' + type,
