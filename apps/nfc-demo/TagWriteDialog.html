@@ -10,6 +10,13 @@
   </script>
   <script src="jquery.mobile-1.0.1.min.js">
   </script>
+  <script src="js/nfc_ui.js">
+  </script>
+  <script>
+  $(document).bind("ready", function () {
+    $("#id_write_cancel_button").bind("click", function(event, nfcUI.cancelPendingWrite()));
+  }
+  </script>
 </head>
 
 <body>
@@ -21,7 +28,7 @@
   <div data-role="content" data-theme="c">
     <h1>Message:</h1>
     <p>Please bring your tag near for writing.</p>
-    <a href="docs-dialogs.html" data-role="button" data-rel="back" data-theme="c" onclick="nfcUI.cancelPendingWrite();">
+    <a id="id_write_cancel_button" href="docs-dialogs.html" data-role="button" data-rel="back" data-theme="c">
       Cancel
     </a>
   </div>

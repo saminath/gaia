@@ -172,20 +172,9 @@ function launchDialerApp() {
 
 function launchBrowser(URL) {
   // Launch web activity:
-
   var a = new MozActivity({ name: 'view', data: {type: 'url', url: "http://www.google.com"}});
       a.onsuccess = function() { alert('Success!'); };
       a.onerror = function() { alert('Failure going to URL'); };
-/*
-  var a = new MozActivity({
-            name: 'record',
-            data: {
-              type: 'photos'
-            }
-          });
-          a.onerror = function ls_activityError() {
-            console.log('MozActivity: camera launch error.');
-          };*/
 }
 
 function addNdefConnectListener() {
@@ -254,7 +243,6 @@ function addNdefConnectListener() {
     $(".actionuri").each(function() {
       $(this).bind('click', function() {
         var URL = $(this).attr('href');
-        alert("URL: " + URL);
         launchBrowser(URL);
       });
     });
