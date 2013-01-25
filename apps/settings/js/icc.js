@@ -28,6 +28,10 @@
   var displayTextTimeout = 40000;
   var inputTimeout = 40000;
   var defaultURL = null;
+  var goBackTimer = {
+    timer: null,
+    timeout: 1000
+  };
   var icc;
 
   init();
@@ -71,6 +75,12 @@
       alertbox.classList.add('hidden');
       stkResGoBack();
     }
+    document.getElementById('icc-stk-alert-btn_close').onclick = function() {
+      alertbox.classList.add('hidden');
+      responseSTKCommand({
+        resultCode: icc.STK_RESULT_UICC_SESSION_TERM_BY_USER
+      });
+    };
     document.getElementById('icc-stk-help-exit').onclick = updateMenu;
 
     window.onunload = function() {
@@ -131,14 +141,28 @@
         }
       }
     }
-  }
+  };
 
   function stkResGoBack() {
     iccLastCommandProcessed = true;
     responseSTKCommand({
       resultCode: icc.STK_RESULT_BACKWARD_MOVE_BY_USER
     });
+    // We'll return to settings if no STK response received in a grace period
+    goBackTimer.timer = setTimeout(function() {
+      var page = document.location.protocol + '//' +
+        document.location.host + '/index.html#root';
+      debug('page: ', page);
+      window.location.replace(page);
+    }, goBackTimer.timeout);
   };
+
+  function stkCancelGoBack() {
+    if (goBackTimer.timer) {
+      window.clearTimeout(goBackTimer.timer);
+      goBackTimer.timer = null;
+    }
+  }
 
   /**
    * Updates the STK header buttons
@@ -203,8 +227,12 @@
     iccLastCommand = command;
     var options = command.options;
 
+    stkCancelGoBack();
+
     // By default a generic screen
     setSTKScreenType(STK_SCREEN_DEFAULT);
+
+    reopenSettings();
 
     switch (command.typeOfCommand) {
       case icc.STK_CMD_SELECT_ITEM:
@@ -271,8 +299,8 @@
         responseSTKCommand({
           resultCode: icc.STK_RESULT_OK
         });
-        if(options.text) {
-          debug("display text" + options.text)
+        if (options.text) {
+          debug('display text' + options.text);
           command.options.userClear = true;
           displayText(command);
         }
@@ -457,6 +485,8 @@
     debug('Showing STK main menu');
     stkOpenAppName = null;
 
+    stkCancelGoBack();
+
     var reqApplications =
       window.navigator.mozSettings.createLock().get('icc.applications');
     reqApplications.onsuccess = function icc_getApplications() {
@@ -577,9 +607,9 @@
     stkLastSelectedTest = event.target.textContent;
   }
 
-  function calculateDurationInMS(duration) {
-    var timeout = duration.timeInterval;
-    switch (duration.timeUnit) {
+  function calculateDurationInMS(timeUnit, timeInterval) {
+    var timeout = timeInterval;
+    switch (timeUnit) {
       case icc.STK_TIME_UNIT_MINUTE:
         timeout *= 3600000;
         break;
@@ -608,7 +638,8 @@
 
     debug('STK Input title: ' + options.text);
 
-    document.addEventListener('mozvisibilitychange', sendSessionEndTROnFocusLose, true);
+    document.addEventListener('mozvisibilitychange',
+        sendSessionEndTROnFocusLose, true);
     var li = document.createElement('li');
     var p = document.createElement('p');
     p.id = 'stk-item-title';
@@ -698,11 +729,11 @@
   }
 
   /**
-   * Check the length of the input is valid.
+   * Check if the length of the input is valid.
    *
-   * @param inputLen    The length of the input.
-   * @param minLen      Minimum length required of the input.
-   * @param maxLen      Maximum length required of the input.
+   * @param {Integer} inputLen    The length of the input.
+   * @param {Integer} minLen      Minimum length required of the input.
+   * @param {Integer} maxLen      Maximum length required of the input.
    */
   function checkInputLengthValid(inputLen, minLen, maxLen) {
     return (inputLen >= minLen) && (inputLen <= maxLen);
@@ -713,15 +744,12 @@
    */
   function displayText(command, cb) {
     var options = command.options;
-    if (!options.userClear) {
-      var timeoutId = setTimeout(function() {
-        alertbox.classList.add('hidden');
-        if (cb) {
-          cb(false);
-        }
-      },
-      displayTextTimeout);
-    }
+    var timeoutId = setTimeout(function() {
+      alertbox.classList.add('hidden');
+      if (cb) {
+        cb(false);
+      }
+    }, displayTextTimeout);
 
     alertbox_btn.onclick = function() {
       clearTimeout(timeoutId);
@@ -743,7 +771,7 @@
 
     var tonePlayer = new Audio();
     var selectedPhoneSound;
-    if (typeof options.tone == "string") {
+    if (typeof options.tone == 'string') {
       options.tone = options.tone.charCodeAt(0);
     }
     switch (options.tone) {
@@ -780,10 +808,18 @@
     }
     tonePlayer.src = selectedPhoneSound;
     tonePlayer.loop = true;
-    tonePlayer.play();
 
-    if (options.duration) {
-      timeout = calculateDurationInMS(options.duration);
+    var timeout = 0;
+    if (options.duration &&
+        options.duration.timeUnit &&
+        options.duration.timeInterval) {
+      timeout = calculateDurationInMS(options.duration.timeUnit,
+        options.duration.timeInterval);
+    } else if (options.timeUnit && options.timeInterval) {
+      timeout = calculateDurationInMS(options.timUnit, options.timeInterval);
+    }
+    if (timeout) {
+      debug('Tone stop in (ms): ', timeout);
       setTimeout(function() {
         tonePlayer.pause();
       }, timeout);
@@ -800,6 +836,8 @@
       alertbox_msg.textContent = options.text;
       alertbox.classList.remove('hidden');
     }
+
+    tonePlayer.play();
   }
 
   /**
@@ -807,7 +845,9 @@
    */
   function displayNotification(command) {
     var options = command.options;
-    NotificationHelper.send('STK', options.text);
+    NotificationHelper.send('STK', options.text, '', function() {
+      alert(options.text);
+    });
   }
 
   /**
@@ -822,15 +862,15 @@
    */
   function showURL(options) {
     var url = options.url;
-    if(url == null || url.length == 0) {
+    if (url == null || url.length == 0) {
       url = defaultURL;
     }
-    debug("Final URL to open: " + url);
-    if(url !== null && url.length !== 0) {
+    debug('Final URL to open: ' + url);
+    if (url !== null && url.length !== 0) {
       if (!options.confirmMessage || confirm(options.confirmMessage)) {
         // Sanitise url just in case it doesn't start with http or https
         // the web activity won't work, so add by default the http protocol
-        if (url.search("^https?://") == -1) {
+        if (url.search('^https?://') == -1) {
           // Our url doesn't contains the protocol
           url = 'http://' + url;
         }
