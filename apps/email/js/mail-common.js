@@ -4,6 +4,15 @@
 
 var mozL10n = navigator.mozL10n;
 
+// Dependcy handling for Cards
+// We match the first section of each card type to the key
+// E.g., setup-progress, would load the 'setup' lazyCards.setup
+var lazyCards = {
+    compose: ['js/compose-cards.js', 'style/compose-cards.css'],
+    settings: ['js/setup-cards.js', 'style/setup-cards.css'],
+    setup: ['js/setup-cards.js', 'style/setup-cards.css']
+};
+
 function dieOnFatalError(msg) {
   console.error('FATAL:', msg);
   throw new Error(msg);
@@ -383,8 +392,21 @@ var Cards = {
    */
   pushCard: function(type, mode, showMethod, args, placement) {
     var cardDef = this._cardDefs[type];
-    if (!cardDef)
+    var typePrefix = type.split('-')[0]; 
+
+    if (!cardDef && lazyCards[typePrefix]) {
+      var args = Array.slice(arguments);
+      var resources = lazyCards[typePrefix];
+      resources.push(function() {
+        this.pushCard.apply(this, args);
+      }.bind(this));
+
+      this.eatEventsUntilNextCard();
+      App.loader.load.apply(App.loader, resources);
+      return;
+    } else if (!cardDef)
       throw new Error('No such card def type: ' + type);
+
     var modeDef = cardDef.modes[mode];
     if (!modeDef)
       throw new Error('No such card mode: ' + mode);
@@ -402,7 +424,7 @@ var Cards = {
     if (!placement) {
       cardIndex = this._cardStack.length;
       insertBuddy = null;
-      domNode.classList.add(cardIndex === 0 ? 'before': 'after');
+      domNode.classList.add(cardIndex === 0 ? 'before' : 'after');
     }
     else if (placement === 'left') {
       cardIndex = this.activeCardIndex++;
@@ -466,27 +488,31 @@ var Cards = {
   },
 
   folderSelector: function(callback) {
-    // XXX: Unified folders will require us to make sure we get the folder list
-    //      for the account the message originates from.
-    if (!this.folderPrompt) {
-      var selectorTitle = mozL10n.get('messages-folder-select');
-      this.folderPrompt = new ValueSelector(selectorTitle);
-    }
     var self = this;
-    var folderCardObj = Cards.findCardObject(['folder-picker', 'navigation']);
-    var folderImpl = folderCardObj.cardImpl;
-    var folders = folderImpl.foldersSlice.items;
-    for (var i = 0; i < folders.length; i++) {
-      var folder = folders[i];
-      this.folderPrompt.addToList(folder.name, folder.depth, function(folder) {
-        return function() {
-          self.folderPrompt.hide();
-          callback(folder);
-        }
-      }(folder));
 
-    }
-    this.folderPrompt.show();
+    App.loader.load('style/value_selector.css', 'js/value_selector.js', function() {
+      // XXX: Unified folders will require us to make sure we get the folder list
+      //      for the account the message originates from.
+      if (!self.folderPrompt) {
+        var selectorTitle = mozL10n.get('messages-folder-select');
+        self.folderPrompt = new ValueSelector(selectorTitle);
+      }
+
+      var folderCardObj = Cards.findCardObject(['folder-picker', 'navigation']);
+      var folderImpl = folderCardObj.cardImpl;
+      var folders = folderImpl.foldersSlice.items;
+      for (var i = 0; i < folders.length; i++) {
+        var folder = folders[i];
+        self.folderPrompt.addToList(folder.name, folder.depth, function(folder) {
+          return function() {
+            self.folderPrompt.hide();
+            callback(folder);
+          }
+        }(folder));
+
+      }
+      self.folderPrompt.show();
+    });
   },
 
   moveToCard: function(query, showMethod) {
@@ -751,12 +777,6 @@ var Cards = {
 
     // Hide toaster while active card index changed:
     Toaster.hide();
-    // Popup toaster that pended for previous card view.
-    var pendingToaster = Toaster.pendingStack.slice(-1)[0];
-    if (pendingToaster && showMethod == 'immediate') {
-      pendingToaster();
-      Toaster.pendingStack.pop();
-    }
 
     this.activeCardIndex = cardIndex;
     if (cardInst)
@@ -774,7 +794,7 @@ var Cards = {
         this._eatingEventsUntilNextCard = false;
       if (this._animatingDeadDomNodes.length) {
         // Use a setTimeout to give the animation some space to settle.
-        setTimeout(function () {
+        setTimeout(function() {
           this._animatingDeadDomNodes.forEach(function(domNode) {
             if (domNode.parentNode)
               domNode.parentNode.removeChild(domNode);
@@ -789,6 +809,13 @@ var Cards = {
       if (endNode.classList.contains('disabled-anim-vertical')) {
         removeClass(endNode, 'disabled-anim-vertical');
         addClass(endNode, 'anim-vertical');
+      }
+
+      // Popup toaster that pended for previous card view.
+      var pendingToaster = Toaster.pendingStack.slice(-1)[0];
+      if (pendingToaster) {
+        pendingToaster();
+        Toaster.pendingStack.pop();
       }
     }
   },
@@ -992,6 +1019,35 @@ var Toaster = {
   }
 };
 
+/**
+ * Confirm dialog helper function. Display the dialog by providing dialog body
+ * element and button id/handler function.
+ *
+ */
+var ConfirmDialog = {
+  dialog: null,
+  show: function(dialog, confirm, cancel) {
+    this.dialog = dialog;
+    var formSubmit = function(evt) {
+      this.hide();
+      switch (evt.explicitOriginalTarget.id) {
+        case confirm.id:
+          confirm.handler();
+          break;
+        case cancel.id:
+          if (cancel.handler)
+            cancel.handler();
+          break;
+      }
+      return false;
+    };
+    dialog.addEventListener('submit', formSubmit.bind(this));
+    document.body.appendChild(dialog);
+  },
+  hide: function() {
+    document.body.removeChild(this.dialog);
+  }
+};
 ////////////////////////////////////////////////////////////////////////////////
 // Attachment Formatting Helpers
 

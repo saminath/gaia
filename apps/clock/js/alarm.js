@@ -297,10 +297,17 @@ var BannerView = {
       innerHTML = _('countdown-lessThanAnHour', {
         minutes: _('nMinutes', { n: this._remainMinutes })
       });
-    } else {
+    } else if (this._remainHours < 24) {
       innerHTML = _('countdown-moreThanAnHour', {
-        hours: _('nRemainHours', { n: this._remainHours }),
+        hours: _('nHours', { n: this._remainHours }),
         minutes: _('nRemainMinutes', { n: this._remainMinutes })
+      });
+    } else {
+      var remainDays = Math.floor(this._remainHours / 24);
+      var remainHours = this._remainHours - (remainDays * 24);
+      innerHTML = _('countdown-moreThanADay', {
+        days: _('nRemainDays', { n: remainDays }),
+        hours: _('nRemainHours', { n: remainHours })
       });
     }
     this.bannerCountdown.innerHTML = '<p>' + innerHTML + '</p>';
@@ -393,7 +400,8 @@ var AlarmList = {
     var content = '';
     var id = 'a[data-id="' + alarm.id + '"]';
     var alarmItem = this.alarms.querySelector(id);
-    var summaryRepeat = summarizeDaysOfWeek(alarm.repeat);
+    var summaryRepeat =
+      (alarm.repeat === '0000000') ? '' : summarizeDaysOfWeek(alarm.repeat);
     var isChecked = alarm.enabled ? ' checked="true"' : '';
     var d = new Date();
     d.setHours(alarm.hour);
@@ -432,7 +440,8 @@ var AlarmList = {
     var content = '';
 
     alarmDataList.forEach(function al_fillEachList(alarm) {
-      var summaryRepeat = summarizeDaysOfWeek(alarm.repeat);
+      var summaryRepeat =
+        (alarm.repeat === '0000000') ? '' : summarizeDaysOfWeek(alarm.repeat);
       var isChecked = alarm.enabled ? ' checked="true"' : '';
       var d = new Date();
       d.setHours(alarm.hour);
@@ -878,7 +887,17 @@ var AlarmEditView = {
   },
 
   load: function aev_load(alarm) {
-    if (this.timePicker.hour === null)
+    // For faster page load the second section of the clock is inserted as
+    // a comment. If this is the case let's convert it to HTML first.
+    if (this.element.hidden) {
+      this.element.innerHTML = this.element.childNodes[1].data;
+      this.element.hidden = false;
+      this.init();
+      // translate content
+      navigator.mozL10n.translate(this.element);
+    }
+
+    if (this.timePicker.hour == null)
       this.initTimePicker();
 
     if (!alarm) {
@@ -1033,24 +1052,3 @@ var AlarmEditView = {
 
 };
 
-window.addEventListener('keyup', function goBack(evt) {
-  if (document.location.hash != '#root' &&
-      evt.keyCode === evt.DOM_VK_ESCAPE) {
-
-    evt.preventDefault();
-    evt.stopPropagation();
-
-    document.location.hash = 'root';
-  }
-});
-
-window.addEventListener('localized', function showBody() {
-  document.documentElement.lang = navigator.mozL10n.language.code;
-  document.documentElement.dir = navigator.mozL10n.language.direction;
-  // <body> children are hidden until the UI is translated
-  document.body.classList.remove('hidden');
-  ClockView.init();
-  AlarmList.init();
-  AlarmEditView.init();
-  ActiveAlarmController.init();
-});
