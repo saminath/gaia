@@ -3,6 +3,19 @@ var nfcUI = {
 pendingNdefMessage: null,
 messageArea: null,
 p2p: false,
+isConnected: false,
+
+setConnectedState: function(connectedState) {
+  if (connectedState) {
+    this.isConnected = true;
+  } else {
+    this.isConnected = false;
+  }
+},
+
+getConnectedState: function() {
+  return isConnected;
+},
 
 hasPendingMessage: function() {
   if (this.pendingNdefMessage == null) {
@@ -17,6 +30,10 @@ postPendingMessage: function(msgRecord) {
   // Open Write Dialog:
   if(!this.p2p) {
     $("#nfc_tag_write_dialog").click();
+    if (this.isConnected) {
+      this.writePendingMessage();
+      this.closeTagWriteDialog();
+    }
   }
 },
 

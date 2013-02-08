@@ -189,6 +189,7 @@ function addNdefConnectListener() {
   // Ndef Discovery
   navigator.mozNfc.onndefdiscovered = function(event) {
     debug("Found tag!");
+    nfcUI.setConnectedState(true);
     $("#taglist").css("display", "inline");
 
     $("#actionlist").css("display", "inline");
@@ -272,6 +273,7 @@ function removeNdefConnectListener() {
 function addNdefDisconnectListener() {
   navigator.mozNfc.onndefdisconnected = function(event) {
     var message = "Tag no longer in range.";
+    nfcUI.setConnectedState(false);
     nfcUI.appendTextAndScroll($("#area"), message+"\n");
   }
 }
