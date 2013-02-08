@@ -172,9 +172,15 @@ function launchDialerApp() {
 
 function launchBrowser(URL) {
   // Launch web activity:
-  var a = new MozActivity({ name: 'view', data: {type: 'url', url: "http://www.google.com"}});
-      a.onsuccess = function() { alert('Success!'); };
-      a.onerror = function() { alert('Failure going to URL'); };
+  var a = new MozActivity({
+            name: "view",
+            data: {
+              type: "url",
+              url: URL
+            }
+          });
+      a.onsuccess = function() { debug("Activity sent to view with URL: " + URL); };
+      a.onerror = function() { alert('Failure going to URL:' + URL); };
 }
 
 function addNdefConnectListener() {
@@ -279,23 +285,30 @@ function debug(message) {
   nfcUI.appendTextAndScroll($("#area"), message+"\n");
 }
 
+function setListenState(boolState) {
+  if (boolState == true) {
+    $("#buttontext").text("Stop Tag Discovery");
+    isListening = true;
+    addNdefConnectListener();
+    addNdefDisconnectListener();
+  } else {
+    $("#buttontext").text("Start Tag Discovery");
+    $("#taglist").css("display", "none");
+    $("#actionlist").css("display", "none");
+    isListening = false;
+    removeNdefConnectListener();
+    removeNdefDisconnectListener();
+  }
+}
 
 // Main Document:
 $(document).bind("ready", function () {
   nfcUI.setMessageArea("#area");
   $("#startbutton").bind( "click", function(event, ui) {
     if (isListening != true) {
-      $("#buttontext").text("Stop Tag Discovery");
-      isListening = true;
-      addNdefConnectListener();
-      addNdefDisconnectListener();
+      setListenState(true);
     } else {
-      $("#buttontext").text("Start Tag Discovery");
-      $("#taglist").css("display", "none");
-      $("#actionlist").css("display", "none");
-      isListening = false;
-      removeNdefConnectListener();
-      removeNdefDisconnectListener();
+      setListenState(false);
     }
   });
 
