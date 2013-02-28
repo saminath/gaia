@@ -285,7 +285,7 @@ var Camera = {
     }
 
     this._shutterSound = new Audio('./resources/sounds/shutter.ogg');
-    this._shutterSound.mozAudioChannelType = 'publicnotification';
+    this._shutterSound.mozAudioChannelType = 'notification';
 
     if ('mozSettings' in navigator) {
       var req = navigator.mozSettings.createLock().get(this._shutterKey);
@@ -726,7 +726,13 @@ var Camera = {
       window.setTimeout(this.resumePreview.bind(this), this.PREVIEW_PAUSE);
   },
 
+  takePictureError: function camera_takePictureError() {
+    alert(navigator.mozL10n.get('error-saving-title') + '. ' +
+          navigator.mozL10n.get('error-saving-text'));
+  },
+
   takePictureSuccess: function camera_takePictureSuccess(blob) {
+    this._config.position = null;
     this._manuallyFocused = false;
     this.hideFocusRing();
     this.restartPreview();
@@ -749,11 +755,7 @@ var Camera = {
         this.checkStorageSpace();
 
       }).bind(this);
-
-      addreq.onerror = function() {
-        alert(navigator.mozL10n.get('error-saving-title') + '. ' +
-              navigator.mozL10n.get('error-saving-text'));
-      };
+      addreq.onerror = this.takePictureError;
     }).bind(this));
   },
 
@@ -904,11 +906,15 @@ var Camera = {
   takePicture: function camera_takePicture() {
     this._config.rotation = this._phoneOrientation;
     this._config.pictureSize = this._pictureSize;
-    if (this._position) {
+    // We do not attach our current position to the exif of photos
+    // that are taken via an activity as that leaks position information
+    // to other apps without permission
+    if (this._position && !this._pendingPick) {
       this._config.position = this._position;
     }
     this._cameraObj
-      .takePicture(this._config, this.takePictureSuccess.bind(this));
+      .takePicture(this._config, this.takePictureSuccess.bind(this),
+                   this.takePictureError);
   },
 
   showOverlay: function camera_showOverlay(id) {

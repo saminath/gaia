@@ -99,16 +99,18 @@
     // Load STK apps
     updateMenu();
 
+    // XXX https://bugzilla.mozilla.org/show_bug.cgi?id=844727
+    // We should use Settings.settingsCache first
+    var settings = Settings.mozSettings;
+    var lock = settings.createLock();
     // Update displayTextTimeout with settings parameter
-    var reqDisplayTimeout =
-      window.navigator.mozSettings.createLock().get('icc.displayTextTimeout');
+    var reqDisplayTimeout = lock.get('icc.displayTextTimeout');
     reqDisplayTimeout.onsuccess = function icc_getDisplayTimeout() {
       displayTextTimeout = reqDisplayTimeout.result['icc.displayTextTimeout'];
     };
 
     // Update inputTimeout with settings parameter
-    var reqInputTimeout =
-      window.navigator.mozSettings.createLock().get('icc.inputTextTimeout');
+    var reqInputTimeout = lock.get('icc.inputTextTimeout');
     reqInputTimeout.onsuccess = function icc_getInputTimeout() {
       inputTimeout = reqInputTimeout.result['icc.inputTextTimeout'];
     };
@@ -288,16 +290,18 @@
 
       case icc.STK_CMD_SET_UP_CALL:
         debug(' STK:Setup Phone Call. Number: ' + options.address);
-        var msg = '';
+        var confirmed = true;
         if (options.confirmMessage) {
-          msg += options.confirmMessage;
+          confirmed = confirm(options.confirmMessage);
         }
-        var confirmed = confirm(msg + ' ' + options.address);
         iccLastCommandProcessed = true;
         responseSTKCommand({
           hasConfirmed: confirmed,
           resultCode: icc.STK_RESULT_OK
         });
+        if (options.callMessage) {
+          alert(options.callMessage);
+        }
         break;
 
       case icc.STK_CMD_LAUNCH_BROWSER:
@@ -743,7 +747,7 @@
       clearTimeout(timeoutId);
       alertbox.classList.add('hidden');
       stkResGoBack();
-    }
+    };
 
     alertbox_btnclose.onclick = function() {
       clearTimeout(timeoutId);
@@ -831,7 +835,7 @@
         closeToneAlert();
         iccLastCommandProcessed = true;
         responseSTKCommand({ resultCode: icc.STK_RESULT_OK });
-      }
+      };
       alertbox_btnback.onclick = function() {
         closeToneAlert();
         stkResGoBack();

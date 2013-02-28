@@ -7,11 +7,11 @@
  * Try and keep at least this many display heights worth of undisplayed
  * messages.
  */
-const SCROLL_MIN_BUFFER_SCREENS = 2;
+var SCROLL_MIN_BUFFER_SCREENS = 2;
 /**
  * Keep around at most this many display heights worth of undisplayed messages.
  */
-const SCROLL_MAX_RETENTION_SCREENS = 7;
+var SCROLL_MAX_RETENTION_SCREENS = 7;
 
 /**
  * Format the message subject appropriately.  This means ensuring that if the
@@ -101,6 +101,11 @@ function MessageListCard(domNode, mode, args) {
     .addEventListener('click', this.onGetMoreMessages.bind(this), false);
   this.progressNode =
     domNode.getElementsByClassName('msg-list-progress')[0];
+  // The active timeout that will cause us to set the progressbar to
+  // indeterminate 'candybar' state when it fires.  Reset every time a new
+  // progress notification is received.
+  this.progressCandybarTimer = null;
+  this._bound_onCandybarTimeout = this.onCandybarTimeout.bind(this);
 
   // - header buttons: non-edit mode
   domNode.getElementsByClassName('msg-folder-list-btn')[0]
@@ -166,6 +171,16 @@ function MessageListCard(domNode, mode, args) {
     this.showSearch(args.folder, args.phrase || '', args.filter || 'all');
 }
 MessageListCard.prototype = {
+  /**
+   * How many milliseconds since our last progress update event before we put
+   * the progressbar in the indeterminate "candybar" state?
+   *
+   * This value is currently arbitrarily chosen by asuth to try and avoid us
+   * flipping back and forth from non-candybar state to candybar state
+   * frequently.  This should be updated with UX or VD feedback.
+   */
+  PROGRESS_CANDYBAR_TIMEOUT_MS: 2000,
+
   postInsert: function() {
     this._hideSearchBoxByScrolling();
 
@@ -407,7 +422,13 @@ MessageListCard.prototype = {
 
         this.progressNode.value = this.messagesSlice ?
                                   this.messagesSlice.syncProgress : 0;
+        this.progressNode.classList.remove('pack-activity');
         this.progressNode.classList.remove('hidden');
+        if (this.progressCandybarTimer)
+          window.clearTimeout(this.progressCandybarTimer);
+        this.progressCandybarTimer =
+          window.setTimeout(this._bound_onCandybarTimeout,
+                            this.PROGRESS_CANDYBAR_TIMEOUT_MS);
         break;
       case 'syncfailed':
         // If there was a problem talking to the server, notify the user and
@@ -420,8 +441,16 @@ MessageListCard.prototype = {
       case 'synced':
         this.syncingNode.classList.add('collapsed');
         this.progressNode.classList.add('hidden');
+        if (this.progressCandybarTimer) {
+          window.clearTimeout(this.progressCandybarTimer);
+          this.progressCandybarTimer = null;
+        }
         break;
     }
+  },
+
+  onCandybarTimeout: function() {
+    this.progressNode.classList.add('pack-activity');
   },
 
   showEmptyLayout: function() {
@@ -829,7 +858,7 @@ Cards.defineCard({
   constructor: MessageListCard
 });
 
-const CONTENT_TYPES_TO_CLASS_NAMES = [
+var CONTENT_TYPES_TO_CLASS_NAMES = [
     null,
     'msg-body-content',
     'msg-body-signature',
@@ -840,7 +869,7 @@ const CONTENT_TYPES_TO_CLASS_NAMES = [
     'msg-body-product',
     'msg-body-ads'
   ];
-const CONTENT_QUOTE_CLASS_NAMES = [
+var CONTENT_QUOTE_CLASS_NAMES = [
     'msg-body-q1',
     'msg-body-q2',
     'msg-body-q3',
@@ -851,7 +880,7 @@ const CONTENT_QUOTE_CLASS_NAMES = [
     'msg-body-q8',
     'msg-body-q9'
   ];
-const MAX_QUOTE_CLASS_NAME = 'msg-body-qmax';
+var MAX_QUOTE_CLASS_NAME = 'msg-body-qmax';
 
 function MessageReaderCard(domNode, mode, args) {
   this.domNode = domNode;
