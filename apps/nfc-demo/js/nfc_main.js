@@ -183,86 +183,92 @@ function launchBrowser(URL) {
       a.onerror = function() { alert('Failure going to URL:' + URL); };
 }
 
+function handleDiscovered(event) {
+  handleDiscoveredMessages(event.ndefMessages);
+}
+
+function handleDiscoveredMessages(messages) {
+  debug("Found tag!");
+  nfcUI.setConnectedState(true);
+  $("#taglist").css("display", "inline");
+
+  $("#actionlist").css("display", "inline");
+
+  var html ='<li data-role="list-divider" role="heading">NDEF Tag</li>';
+
+  for (var i = 0; i < messages.length; i++) {
+    var record = messages[i];
+    console.log("RECORD: " + JSON.stringify(record));
+
+    //Dump generic data
+    html+='<li data-theme="c">';
+    html+='tnf: ' + record.tnf + '<br/>';
+    html+='type: ' + record.type + '<br/>';
+    html+='id: ' + record.id + '<br/>';
+    html+='raw payload: ' + record.payload + '<br/>';
+    html+='</li>';
+
+    var action="";
+    if(record.tnf == nfc.tnf_well_known) {
+      var handle = handleWellKnownRecord(record);
+      action +='<li data-role="list-divider" role="heading">Action: ' + handle.action + '</li>';
+      action +='<li data-theme="c">';
+      if(record.type == nfc.rtd_smart_poster) {
+        for(var j = 0; j < handle.records.length; j++) {
+          var subRecord = handle.records[j];
+          var subHandle = handleWellKnownRecord(subRecord);
+          action += getRecordActionText(subRecord, subHandle);
+          if(j < handle.records.length - 1) {
+            action +='</li>';
+            action +='<li data-theme="c">';
+           }
+         }
+       } else {
+         action += getRecordActionText(record, handle);
+       }
+       action +='</li>';
+    } else if(record.tnf == nfc.tnf_absolute_uri) {
+      action +='<li data-role="list-divider" role="heading">Action: Open URI</li>';
+      action +='<li data-theme="c">';
+      handle = handleURIRecord(record);
+      action += handle;
+      action +='</li>';
+    } else if(record.tnf == nfc.tnf_mime_media) {
+      if(record.type == "text/x-vCard") {
+         action +='<li data-role="list-divider" role="heading">Action: Add to Contacts</li>';
+         action +='<li data-theme="c">';
+         action += getRecordActionText(record, handleVCardRecord(record));
+         action +='</li>';
+      }
+    }
+  }
+
+  $("#taglist").html(html);
+  $("#taglist").listview("refresh");
+
+  $("#actionlist").html(action);
+  $(".actionuri").each(function() {
+    $(this).bind('click', function() {
+      var URL = $(this).attr('href');
+      launchBrowser(URL);
+    });
+  });
+  $(".dialer").each(function() {
+    $(this).bind('click', function() {
+      var tel = $(this).attr('href');
+      launchDialer(tel);
+    });
+  });
+  $("#actionlist").listview("refresh");
+
+  nfcUI.writePendingMessage();
+}
+
 function addNdefConnectListener() {
   debug("Starting Tag Discovery...");
 
   // Ndef Discovery
-  navigator.mozNfc.onndefdiscovered = function(event) {
-    debug("Found tag!");
-    nfcUI.setConnectedState(true);
-    $("#taglist").css("display", "inline");
-
-    $("#actionlist").css("display", "inline");
-
-    var html ='<li data-role="list-divider" role="heading">NDEF Tag</li>';
-
-    for (var i = 0; i < event.ndefMessages.length; i++) {
-      var record = event.ndefMessages[i];
-      console.log("RECORD: " + JSON.stringify(record));
-
-      //Dump generic data
-      html+='<li data-theme="c">';
-      html+='tnf: ' + record.tnf + '<br/>';
-      html+='type: ' + record.type + '<br/>';
-      html+='id: ' + record.id + '<br/>';
-      html+='raw payload: ' + record.payload + '<br/>';
-      html+='</li>';
-
-      var action="";
-      if(record.tnf == nfc.tnf_well_known) {
-        var handle = handleWellKnownRecord(record);
-        action +='<li data-role="list-divider" role="heading">Action: ' + handle.action + '</li>';
-        action +='<li data-theme="c">';
-        if(record.type == nfc.rtd_smart_poster) {
-          for(var j = 0; j < handle.records.length; j++) {
-            var subRecord = handle.records[j];
-            var subHandle = handleWellKnownRecord(subRecord);
-            action += getRecordActionText(subRecord, subHandle);
-            if(j < handle.records.length - 1) {
-              action +='</li>';
-              action +='<li data-theme="c">';
-             }
-           }
-         } else {
-           action += getRecordActionText(record, handle);
-         }
-         action +='</li>';
-       } else if(record.tnf == nfc.tnf_absolute_uri) {
-         action +='<li data-role="list-divider" role="heading">Action: Open URI</li>';
-         action +='<li data-theme="c">';
-         handle = handleURIRecord(record);
-         action += handle;
-	 action +='</li>';
-       } else if(record.tnf == nfc.tnf_mime_media) {
-         if(record.type == "text/x-vCard") {
-           action +='<li data-role="list-divider" role="heading">Action: Add to Contacts</li>';
-           action +='<li data-theme="c">';
-           action += getRecordActionText(record, handleVCardRecord(record));
-           action +='</li>';
-         }
-       }
-    }
-
-    $("#taglist").html(html);
-    $("#taglist").listview("refresh");
-
-    $("#actionlist").html(action);
-    $(".actionuri").each(function() {
-      $(this).bind('click', function() {
-        var URL = $(this).attr('href');
-        launchBrowser(URL);
-      });
-    });
-    $(".dialer").each(function() {
-      $(this).bind('click', function() {
-        var tel = $(this).attr('href');
-        launchDialer(tel);
-      });
-    });
-    $("#actionlist").listview("refresh");
-
-    nfcUI.writePendingMessage();
-  };
+  navigator.mozNfc.onndefdiscovered = handleDiscovered;
 }
 
 function removeNdefConnectListener() {
@@ -303,6 +309,28 @@ function setListenState(boolState) {
   }
 }
 
+function NfcActivityHandler(activity) {
+  var activityName = activity.source.name;
+  var messages = activity.source.data;
+  switch (activityName) {
+  case 'nfc-ndefmessage':
+    debug("XX Received Activity: name: " + activityName);
+    debug("XX Received Activity: nfc-ndefmessage: " + JSON.stringify(messages));
+    handleDiscoveredMessages(messages);
+    break;
+  case 'nfc-write-request-status':
+    // Apps should use the callback.
+    debug("XX Received Activity: nfc-write-request-status: " + JSON.stringify(messages));
+    break;
+  case 'nfc-ndefdisconnected':
+    debug("XX Received Activity: ndefdisconnected: " + JSON.stringify(messages));
+    break;
+  case 'ndefpush-receive':
+    debug("XX Received Activity: ndefpush-receive: " + JSON.stringify(messages));
+    break;
+  }
+}
+
 // Main Document:
 $(document).bind("ready", function () {
   nfcUI.setMessageArea("#area");
@@ -313,6 +341,8 @@ $(document).bind("ready", function () {
       setListenState(false);
     }
   });
+
+  navigator.mozSetMessageHandler('activity', NfcActivityHandler);
 
   // Attach event handlers to each ui action button:
   $("#button_nfc_empty_id").click(function(event) {

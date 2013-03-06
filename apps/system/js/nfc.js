@@ -1,69 +1,106 @@
-/* -*- Mode: js; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- /
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil -*- */
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
 'use strict';
 
-// The modal dialog listen to mozbrowsershowmodalprompt event.
-// Blocking the current app and then show cutom modal dialog
-// (alert/confirm/prompt)
+(function() {
+  /**
+   * Constants
+   */
+  var DEBUG = true;
 
-var NfcEventManager = {
-
-  init: function nfc_init() {
-    // Add listeners for named events
-    window.addEventListener('nfc-ndef-discovered', this, true);
-    window.addEventListener('nfc-ndef-disconnected', this, true);
-    window.addEventListener('nfc-ndef-write', this, true);
-    window.addEventListener('nfc-request-status', this, true);
-    window.addEventListener('nfc-ndef-push', this, true);
-    window.addEventListener('nfc-secure-element-activated', this, true);
-    window.addEventListener('nfc-secure-element-transaction', this, true);
-    window.addEventListener('nfc-secure-element-deactivated', this, true);
-
-    // Set message handlers for each named event
-    window.navigator.mozSetMessageHandler('nfc-ndef-discovered',
-      function handleDiscoveredCommand(command) {
-        console.log("Ndef Tag Discovered Command: ["+JSON.stringify(command)+"]");
+  /**
+   * Debug method
+   */
+  function debug(msg, optObject) {
+    if (DEBUG) {
+      var output = '[DEBUG] SYSTEM NFC: ' + msg;
+      if (optObject) {
+        output += JSON.stringify(optObject);
       }
-    );
-    window.navigator.mozSetMessageHandler('nfc-ndef-disconnected',
-      function handleDisconnectedCommand(command) {
-         console.log("Ndef Disconnected Command: ["+JSON.stringify(command)+"]");
-      }
-    );
-    window.navigator.mozSetMessageHandler('nfc-ndef-write',
-      function handleWriteCommand(command) {
-        console.log("Ndef Tag Write Command: ["+JSON.stringify(command)+"]");
-      }
-    );
-    window.navigator.mozSetMessageHandler('nfc-request-status',
-      function handleRequestStatus(command) {
-        console.log("Ndef Tag Status: ["+JSON.stringify(command)+"]");
-      }
-    );
-    window.navigator.mozSetMessageHandler('nfc-ndef-push',
-      function handleNdefPush(command) {
-        console.log("Ndef Push Command: ["+JSON.stringify(command)+"]");
-      }
-    );
-    window.navigator.mozSetMessageHandler('nfc-secure-element-activated',
-      function handleSecureElementActivated(command) {
-        console.log("Secure Element Activated: ["+JSON.stringify(command)+"]");
-      }
-    );
-    window.navigator.mozSetMessageHandler('nfc-secure-element-transaction',
-      function handleSecureElementTransaction(command) {
-        console.log("Secure Element Transaction: ["+JSON.stringify(command)+"]");
-      }
-    );
-    window.navigator.mozSetMessageHandler('nfc-secure-element-deactivated',
-      function handleSecureElementDeactivated(command) {
-        console.log("Secure Element Deactivated: ["+JSON.stringify(command)+"]");
-      }
-    );
+      console.log(output);
+    }
   }
 
-};
+  debug(" Initializing NFC Message %%%%%%%%%%%%%%%%%%%%%%");
+  // Register to receive Nfc commands
+  window.navigator.mozSetMessageHandler('nfc-ndef-discovered', handleNdefDiscoveredCommand);
+  window.navigator.mozSetMessageHandler('nfc-ndef-disconnected', handleNdefDisconnected);
+  window.navigator.mozSetMessageHandler('nfc-request-status', handleWriteRequestStatus);
+  window.navigator.mozSetMessageHandler('secureelement-activated', null);
+  window.navigator.mozSetMessageHandler('secureelement-deactivated', null);
+  window.navigator.mozSetMessageHandler('secureelement-transaction', null);
 
-NfcEventManager.init();
+  /**
+   * Local functions
+   */
+  function launchBrowser(url) {
+    var a = new MozActivity({
+      name: 'view',
+      data: {
+        type: 'url',
+        url: 'http://www.nytimes.com'
+      }
+    });
+  }
 
+  function launchDialer(info) {
+    var a = new MozActivity({
+      name: 'dial',
+      data: {
+        type: 'webtelephony/number',
+        number: '4085551234'
+      }
+    });
+  }
+
+  function handleWellKnownTypes(tag) {
+    var url = 'http://www.nytimes.com';
+    // Launch NFC demo
+    var a = new MozActivity({
+      name: 'nfc-ndefmessage',
+      data: {
+        type: 'url',
+        //blobs: [tag]
+        url: url
+      }
+    });
+    //launchBrowser(url);
+    launchDialer(url);
+    return true;
+  }
+
+  function handleNdefDiscoveredCommand(command) {
+    debug("NdefDiscovered command playload: " + JSON.stringify(command));
+    // Send activity to listeners:
+    if(handleWellKnownTypes(command)) {
+      return;
+    } else {
+      debug("Unimplemented. Handle Unknown type.");
+    }
+
+  }
+
+  function handleWriteRequestStatus(command) {
+    var a = new MozActivity({
+      name: 'nfc-write-request-status',
+      data: {
+        type: 'info',
+        message: ''
+      }
+    });
+  }
+
+  function handleNdefDisconnected(command) {
+    var a = new MozActivity({
+      name: 'nfc-ndefdisconnected',
+      data: {
+        type: 'info',
+        message: ''
+      }
+    });
+  }
+
+
+
+})();
