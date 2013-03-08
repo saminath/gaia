@@ -20,12 +20,12 @@
         "type": "url"
       }
     },
-    "nfc-write-request-status": {
+    "nfc-write-request-status-a": {
       "filters": {
         "type": "info"
       }
     },
-    "nfc-ndefdisconnected": {
+    "nfc-ndefdisconnected-a": {
       "filters": {
         "type": "info"
       }

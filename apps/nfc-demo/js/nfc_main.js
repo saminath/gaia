@@ -268,7 +268,9 @@ function addNdefConnectListener() {
   debug("Starting Tag Discovery...");
 
   // Ndef Discovery
-  navigator.mozNfc.onndefdiscovered = handleDiscovered;
+  navigator.mozNfc.onndefdiscovered = function main_handleDiscoveredMessages(event) {
+    handleDiscovered(event);
+  };
 }
 
 function removeNdefConnectListener() {

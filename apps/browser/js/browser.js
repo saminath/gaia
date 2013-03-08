@@ -1688,15 +1688,33 @@ var Browser = {
   },
 
   handleActivity: function browser_handleActivity(activity) {
-    // Activities can send multiple names, right now we only handle
-    // one so we only filter on types
-    switch (activity.source.data.type) {
-      case 'url':
-        var url = this.getUrlFromInput(activity.source.data.url);
-        if (this.currentTab)
-          this.hideCurrentTab();
-        this.selectTab(this.createTab(url));
-        this.showPageScreen();
+    // Activities can send multiple names, and for each name, multiple types.
+    console.log("Made it to BROWSER handleActivity");
+    switch (activity.source.name) {
+      case 'view':
+        switch (activity.source.data.type) {
+          case 'url':
+            var url = this.getUrlFromInput(activity.source.data.url);
+            if (this.currentTab)
+              this.hideCurrentTab();
+            this.selectTab(this.createTab(url));
+            this.showPageScreen();
+            break;
+        }
+        break;
+      case 'ndef-discovered':
+        console.log("Made it to BROWSER handleActivity, discovered");
+        switch (activity.source.data.type) {
+          case 'uri':
+            console.log("Made it to BROWSER handleActivity, discovered, uri");
+            var url = this.getUrlFromInput(activity.source.data.uri);
+            // Handle ndef discovery uri message the same way as the view case:
+            if (this.currentTab)
+              this.hideCurrentTab();
+            this.selectTab(this.createTab(url));
+            this.showPageScreen();
+            break;
+        }
         break;
     }
   }
