@@ -1,7 +1,5 @@
-requireApp('calendar/test/unit/helper.js', function() {
-  requireLib('timespan.js');
-  requireLib('event_mutations.js');
-});
+requireLib('timespan.js');
+requireLib('event_mutations.js');
 
 suite('event_mutations', function() {
   var subject;
@@ -43,7 +41,10 @@ suite('event_mutations', function() {
        'alarms',
        'icalComponents'
       ],
-      done
+      function() {
+        db.close();
+        done();
+      }
     );
   });
 
