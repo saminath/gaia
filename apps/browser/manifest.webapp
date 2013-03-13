@@ -44,6 +44,12 @@
         "type": "url",
         "url": { "required":true, "regexp":"/^https?:/" }
       }
+    },
+    "ndef-discovered": {
+      "filters": {
+        "type": "uri",
+        "uri": { "required":true, "regexp":"/^https?:/" }
+      }
     }
   }
 }

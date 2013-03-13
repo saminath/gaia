@@ -13,5 +13,23 @@
   "icons": {
     "120": "/style/icons/Nfc.png"
   },
-  "default_locale": "en"
+  "default_locale": "en",
+  "activities": {
+    "nfc-ndefmessage": {
+      "filters": {
+        "type": "url"
+      }
+    },
+    "nfc-write-request-status-a": {
+      "filters": {
+        "type": "info"
+      }
+    },
+    "nfc-ndefdisconnected-a": {
+      "filters": {
+        "type": "info"
+      }
+    }
+  }
 }
+

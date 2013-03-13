@@ -111,12 +111,14 @@ contactFormToNdefRecord: function(elementRef) {
   var fullname = $(elementRef + " > .nfc_contact_payload_name_fullname").val();
   var telephone = $(elementRef + " > .nfc_contact_payload_telephone").val();
   var mobile = $(elementRef + " > .nfc_contact_payload_mobile").val();
+  var email = $(elementRef + " > .nfc_contact_payload_email").val();
+
 
   console.log("Form processing Results: " +
               "FirstName: " + fname + " LastName: " + lname +
               " MiddleName1: " + mname1 + " MiddleName2: " + mname2 +
               " FullName: " + fullname + " Telephone: " + telephone +
-              " Mobile: " + mobile);
+              " Mobile: " + mobile + " Email: " + email);
 
   // payload:
   var payload = "BEGIN:VCARD\n";
@@ -124,14 +126,18 @@ contactFormToNdefRecord: function(elementRef) {
   payload += "N:"+lname+";"+fname+";"+mname1+";"+mname2+";\n";
   payload += "FN:"+fullname+"\n";
 
+  if (email) {
+    payload += "EMAIL:"+email+"\n";
+  }
+
   if (telephone) {
-    payload += "TEL:"+telephone+";";
+    payload += "TEL:"+telephone+"\n";
   } else {
     payload += "TEL;";
   }
 
   if (mobile) {
-    payload += "CELL:"+mobile+"\n";
+    payload += "TEL;TYPE:cell:"+mobile+"\n";
   } else {
     payload += "CELL\n";
   }
