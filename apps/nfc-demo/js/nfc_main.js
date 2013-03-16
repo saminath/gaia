@@ -315,7 +315,7 @@ function NfcActivityHandler(activity) {
   var activityName = activity.source.name;
   var messages = activity.source.data;
   switch (activityName) {
-  case 'nfc-ndefmessage':
+  case 'ndef-discovered':
     debug("XX Received Activity: name: " + activityName);
     debug("XX Received Activity: nfc-ndefmessage: " + JSON.stringify(messages));
     handleDiscoveredMessages(messages);
@@ -353,7 +353,7 @@ $(document).bind("ready", function () {
   $("#button_nfc_text_id").click(function(event) {
     nfcWriter.postTextFormtoNdef('#nfc_text_form_id');
   });
-  $("#button_nfc_smartposter_url_id").click(function(event) { 
+  $("#button_nfc_smartposter_url_id").click(function(event) {
     nfcWriter.postSmartPosterUriFormtoNdef('#nfc_smartposter_url_form_id');
   });
   $("#button_nfc_uri_id").click(function(event) {
@@ -376,6 +376,6 @@ $(document).bind("ready", function () {
   $("#button_nfc_contact_id").click(function(event) {
     nfcWriter.postContactFormToNdef('#nfc_contact_form_id');
   });
-  
+
 });
 

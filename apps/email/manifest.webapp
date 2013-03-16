@@ -64,6 +64,12 @@
         "type": "url",
         "url": { "required":true, "regexp":"/^mailto:/" }
       }
+    },
+    "ndef-discovered": {
+      "filters": {
+        "type": "uri",
+        "uri": { "required":true, "regexp":"/^mailto:/" }
+      }
     }
   },
   "orientation": "portrait-primary"

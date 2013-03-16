@@ -15,19 +15,38 @@
   },
   "default_locale": "en",
   "activities": {
-    "nfc-ndefmessage": {
-      "filters": {
-        "type": "url"
-      }
-    },
-    "nfc-write-request-status-a": {
+    "nfc-write-request-status-disabled": {
       "filters": {
         "type": "info"
       }
     },
-    "nfc-ndefdisconnected-a": {
+    "nfc-ndefdisconnected-disabled": {
       "filters": {
         "type": "info"
+      }
+    },
+    "ndef-discovered": {
+      "filters": {
+        "type": "empty"
+      }
+    },
+    "ndef-discovered": {
+      "filters": {
+        "type": "webtelephony/number"
+      },
+      "href": "/dialer/index.html#keyboard-view",
+      "disposition": "window"
+    },
+    "ndef-discovered": {
+      "filters": {
+        "type": "text/x-vCard"
+      },
+      "disposition": "inline",
+      "href": "/contacts/index.html?new"
+    },
+    "ndef-discovered": {
+      "filters": {
+        "type": "uri"
       }
     }
   }
