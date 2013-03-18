@@ -341,6 +341,7 @@ input[type="image"] {
   background-color: transparent;
   background: none;
   text-overflow: ellipsis;
+  padding: 0 0;
   width: calc(100% - 3.2rem);
 }
 
@@ -1012,3 +1013,4 @@ li[role="listitem"] small {
 
 #save-image-status.visible {
   display: block;
+}

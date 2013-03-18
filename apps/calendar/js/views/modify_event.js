@@ -15,6 +15,7 @@ Calendar.ns('Views').ModifyEvent = (function() {
 
     selectors: {
       element: '#modify-event-view',
+      alarmList: '#modify-event-view .alarms',
       form: '#modify-event-view form',
       status: '#modify-event-view section[role="status"]',
       errors: '#modify-event-view .errors',
@@ -40,12 +41,14 @@ Calendar.ns('Views').ModifyEvent = (function() {
 
       var allday = this.getEl('allday');
       allday.addEventListener('change', this._toggleAllDay);
+
+      this.alarmList.addEventListener('change', this._changeAlarm.bind(this));
     },
 
     /**
      * Fired when the allday checkbox changes.
      */
-    _toggleAllDay: function() {
+    _toggleAllDay: function(e) {
       var allday = this.getEl('allday').checked;
 
       if (allday) {
@@ -55,6 +58,45 @@ Calendar.ns('Views').ModifyEvent = (function() {
         // disable case
         this.element.classList.remove(this.ALLDAY);
       }
+
+      // because of race conditions it is theoretically possible
+      // for the user to check/uncheck this value
+      // when we don't actually have a model loaded.
+      if (this.event) {
+        this.event.isAllDay = !!allday;
+      }
+
+      // Reset alarms if we come from a user event
+      if (e) {
+        this.event.alarms = [];
+        this.updateAlarms(allday);
+      }
+    },
+
+    /**
+     * Called when any alarm is changed
+     */
+    _changeAlarm: function(e) {
+      var template = Calendar.Templates.Alarm;
+      if (e.target.value == 'none') {
+        var parent = e.target.parentNode;
+        parent.parentNode.removeChild(parent);
+        return;
+      }
+
+      // Append a new alarm select only if we don't have an empty one
+      var allAlarms = this.element.querySelectorAll('[name="alarm[]"]');
+      for (var i = 0, alarmEl; alarmEl = allAlarms[i]; i++) {
+        if (alarmEl.value == 'none') {
+          return;
+        }
+      }
+
+      var newAlarm = document.createElement('div');
+      newAlarm.innerHTML = template.picker.render({
+        layout: this.event.isAllDay ? 'allday' : 'standard'
+      });
+      this.alarmList.appendChild(newAlarm);
     },
 
     /**
@@ -187,6 +229,10 @@ Calendar.ns('Views').ModifyEvent = (function() {
       for (; i < len; i++) {
         fields[i].readOnly = boolean;
       }
+    },
+
+    get alarmList() {
+      return this._findElement('alarmList');
     },
 
     get form() {
@@ -410,6 +456,18 @@ Calendar.ns('Views').ModifyEvent = (function() {
         );
       }
 
+      var alarms = this.element.querySelectorAll('[name="alarm[]"]');
+      fields.alarms = [];
+      for (var i = 0, alarm; alarm = alarms[i]; i++) {
+        if (alarm.value == 'none') { continue; }
+
+        fields.alarms.push({
+          action: 'DISPLAY',
+          trigger: parseInt(alarm.value, 10)
+        });
+
+      }
+
       return fields;
     },
 
@@ -483,6 +541,53 @@ Calendar.ns('Views').ModifyEvent = (function() {
 
         currentCalendar.readOnly = true;
       }
+
+      this.updateAlarms(model.isAllDay);
+    },
+
+    /**
+     * Called on render or when toggling an all-day event
+     */
+    updateAlarms: function(isAllDay, callback) {
+
+      var template = Calendar.Templates.Alarm;
+      var alarms = [];
+
+      // Used to make sure we don't duplicate alarms
+      var alarmMap = {};
+
+      if (this.event.alarms) {
+        for (var i = 0, alarm; alarm = this.event.alarms[i]; i++) {
+          alarmMap[alarm.trigger] = true;
+          alarm.layout = isAllDay ? 'allday' : 'standard';
+          alarms.push(alarm);
+        }
+      }
+
+      var settings = this.app.store('Setting');
+      var layout = isAllDay ? 'allday' : 'standard';
+      settings.getValue(layout + 'AlarmDefault', next.bind(this));
+
+      function next(err, value) {
+        if (!alarmMap[value] && !this.event.alarms.length) {
+          alarms.push({
+            layout: layout,
+            trigger: value
+          });
+        }
+
+        if (value !== 'none') {
+          alarms.push({
+            layout: layout
+          });
+        }
+
+        this.alarmList.innerHTML = template.picker.renderEach(alarms).join('');
+
+        if (callback) {
+          callback();
+        }
+      }
     },
 
     reset: function() {
@@ -504,6 +609,8 @@ Calendar.ns('Views').ModifyEvent = (function() {
       this.provider = null;
       this.event = null;
       this.busytime = null;
+
+      this.alarmList.innerHTML = '';
 
       this.form.reset();
     },
