@@ -48,7 +48,7 @@
     "ndef-discovered": {
       "filters": {
         "type": "uri",
-        "uri": { "required":true, "regexp":"/^https?:/" }
+        "uri": { "required":true, "regexp":"/^https?:.{1,16384}$/" }
       }
     }
   }
