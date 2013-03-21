@@ -4,11 +4,12 @@
 'use strict';
 
 (function() {
+  var DEBUG = true;
+  var screenEnabled = false;
+
   /**
    * Constants
    */
-  var DEBUG = true;
-
   var nfc = {
     flags_tnf: 0x07,
     flags_ss: 0x10,
@@ -120,11 +121,22 @@
   window.navigator.mozSetMessageHandler('secureelement-deactivated', null);
   window.navigator.mozSetMessageHandler('secureelement-transaction', null);
 
+  // Events:
+  function handleEvent(evt) {
+    switch (evt.type) {
+      case 'screenchange':
+        screenEnabled = evt.detail.screenEnabled;
+        break;
+    }
+  };
+  window.addEventListener('screenchange', handleEvent);
+
   nfc.init();
 
   /**
    * Local functions
    */
+
   function launchBrowser(url) {
     var a = new MozActivity({
       name: 'view',
@@ -238,6 +250,11 @@
    * Tags, and fallback tag handling.
    */
   function handleNdefDiscovered(command) {
+    if (!screenEnabled) {
+      debug("Ignoring NFC NDEF tag message. Screen state is disabled.");
+      return;
+    }
+
     var action = handleNdefMessages(command.content.records);
 
     if(action.length <=0) {
@@ -253,6 +270,11 @@
   }
 
   function handleTechnologyDiscovered(command) {
+    if (!screenEnabled) {
+      debug("Ignoring NFC technology tag message. Screen state is disabled.");
+      return;
+    }
+
     var technologyTag = command.content.tag;
     var a = new MozActivity({
       name: 'technology-discovered',
@@ -264,6 +286,11 @@
   }
 
   function handleTagDiscovered(command) {
+    if (!screenEnabled) {
+      debug("Ignoring NFC Tag discovered message. Screen state is disabled.");
+      return;
+    }
+
     var nfctag = command.content.tag;
     var a = new MozActivity({
       name: 'tag-discovered',
