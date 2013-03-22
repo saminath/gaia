@@ -6,6 +6,7 @@
 (function() {
   var DEBUG = true;
   var screenEnabled = false;
+  var screenLocked = false;
 
   /**
    * Constants
@@ -127,9 +128,17 @@
       case 'screenchange':
         screenEnabled = evt.detail.screenEnabled;
         break;
+      case 'lock':
+        screenLocked = true;
+        break;
+      case 'unlock':
+        screenLocked = false;
+        break;
     }
   };
   window.addEventListener('screenchange', handleEvent);
+  window.addEventListener('lock', handleEvent);
+  window.addEventListener('unlock', handleEvent);
 
   nfc.init();
 
@@ -249,8 +258,18 @@
   /**
    * Tags, and fallback tag handling.
    */
+
+  function acceptNfcEvents() {
+    // Policy:
+    if (screenEnabled && !screenLocked) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
   function handleNdefDiscovered(command) {
-    if (!screenEnabled) {
+    if (!acceptNfcEvents()) {
       debug("Ignoring NFC NDEF tag message. Screen state is disabled.");
       return;
     }
@@ -270,7 +289,7 @@
   }
 
   function handleTechnologyDiscovered(command) {
-    if (!screenEnabled) {
+    if (!acceptNfcEvents()) {
       debug("Ignoring NFC technology tag message. Screen state is disabled.");
       return;
     }
@@ -286,7 +305,7 @@
   }
 
   function handleTagDiscovered(command) {
-    if (!screenEnabled) {
+    if (!acceptNfcEvents()) {
       debug("Ignoring NFC Tag discovered message. Screen state is disabled.");
       return;
     }
