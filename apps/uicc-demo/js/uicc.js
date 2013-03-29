@@ -103,7 +103,9 @@ function appendTextAndScroll(htmlElementRef, message) {
 
 // UICC applet commands
 function iccOpenChannel(aidhexstr) {
-  var req = navigator.mozTelephony.iccOpenChannel(aidhexstr);
+  var icc = window.navigator.mozMobileConnection.icc;
+  var req = icc.iccOpenChannel(aidhexstr);
+  //appendTextAndScroll("#output", "iccOpenChannel returned.");
   req.onsuccess = function() {
     appendTextAndScroll("#output", "INFO: Open returns success. Channel: (" + JSON.stringify(this.result) + ")");
     if (!isValidChannel(this.result)) {
@@ -118,7 +120,9 @@ function iccOpenChannel(aidhexstr) {
 }
 
 function iccExchangeAPDU(channel, apdu) {
-  var req = window.navigator.mozTelephony.iccExchangeAPDU(channel, apdu);
+  var icc = window.navigator.mozMobileConnection.icc;
+  var req = icc.iccExchangeAPDU(channel, apdu);
+  //appendTextAndScroll("#output", "iccExchangeAPDU returned");
   req.onsuccess = function() {
     appendTextAndScroll("#output", "INFO: APDU Exchange Success! Return data: (" + JSON.stringify(this.result) + ")");
     transmitResult = hexStringToString(this.result[2]);
@@ -130,7 +134,9 @@ function iccExchangeAPDU(channel, apdu) {
 }
 
 function iccCloseChannel(channel) {
-  var req = window.navigator.mozTelephony.iccCloseChannel(channel);
+  var icc = window.navigator.mozMobileConnection.icc;
+  var req = icc.iccCloseChannel(channel);
+  //appendTextAndScroll("#output", "iccCloseChannel returned.");
   channelId = 0;
   req.onsuccess = function() {
     appendTextAndScroll("#output", "INFO: Close Success! Return data: (" + JSON.stringify(this.result) + ")");
