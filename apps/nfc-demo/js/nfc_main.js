@@ -313,22 +313,22 @@ function setListenState(boolState) {
 
 function NfcActivityHandler(activity) {
   var activityName = activity.source.name;
-  var messages = activity.source.data;
+  var data = activity.source.data;
   switch (activityName) {
   case 'ndef-discovered':
     debug("XX Received Activity: name: " + activityName);
-    debug("XX Received Activity: nfc-ndefmessage: " + JSON.stringify(messages));
-    handleDiscoveredMessages(messages);
+    debug("XX Received Activity: nfc-ndefmessage(s): " + JSON.stringify(data.record));
+    handleDiscoveredMessages(data.record);
     break;
   case 'nfc-write-request-status':
     // Apps should use the callback.
-    debug("XX Received Activity: nfc-write-request-status: " + JSON.stringify(messages));
+    debug("XX Received Activity: nfc-write-request-status: " + JSON.stringify(data));
     break;
   case 'nfc-ndefdisconnected':
-    debug("XX Received Activity: ndefdisconnected: " + JSON.stringify(messages));
+    debug("XX Received Activity: ndefdisconnected: " + JSON.stringify(data));
     break;
   case 'ndefpush-receive':
-    debug("XX Received Activity: ndefpush-receive: " + JSON.stringify(messages));
+    debug("XX Received Activity: ndefpush-receive: " + JSON.stringify(data));
     break;
   }
 }
