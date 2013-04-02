@@ -206,39 +206,18 @@
       switch(+record.tnf) {
         case nfc.tnf_empty:
           handle = handleEmpty(record);
-          if (handle) {
-            action.push(handle);
-          }
+          break;
         case nfc.tnf_well_known:
           handle = handleWellKnownRecord(record);
-          if (record.type == nfc.rtd_smart_poster) {
-            for(var j = 0; j < handle.records.length; j++) {
-              var subRecord = handle.records[j];
-              var subHandle = handleWellKnownRecord(subRecord);
-              action.push(subHandle);
-              debug("Subrecord: " + action[action.length-1]);
-            }
-          } else {
-            action.push(handle);
-            if (handle) {
-              action.push(handle);
-            }
-            debug("Record activity: " + action[action.length-1]);
-          }
           break;
-
         case nfc.tnf_absolute_uri:
           handle = handleURIRecord(record);
-          action.push(handle);
           break;
-
         case nfc.tnf_mime_media:
           handle = handleMimeMedia(record);
-          action.push(handle);
           break;
         case nfc.tnf_external_type:
           handle = handleExternalType(record);
-          action.push(handle);
           break;
         case nfc.tnf_unknown:
         case nfc.tnf_unchanged:
@@ -246,6 +225,9 @@
         default:
           debug("Unknown or unimplemented tnf or rtd subtype.");
           break;
+      }
+      if (handle) {
+        action.push(handle);
       }
     }
     if (action.length <= 0) {
