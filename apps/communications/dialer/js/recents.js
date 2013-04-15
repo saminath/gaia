@@ -259,9 +259,20 @@ var Recents = {
         var selectedCallsLength = selectedCalls.length;
         if (selectedCallsLength == 0) {
           this.headerEditModeText.textContent = this._('edit');
+          this.recentsIconDelete.classList.add('disabled');
+          this.deselectAllThreads.setAttribute('disabled', 'disabled');
+          this.selectAllThreads.textContent = this._('selectAll');
+          this.selectAllThreads.removeAttribute('disabled');
         } else {
           this.headerEditModeText.textContent = this._('edit-selected',
                                                   {n: selectedCallsLength});
+          this.recentsIconDelete.classList.remove('disabled');
+          this.deselectAllThreads.removeAttribute('disabled');
+          if (visibleCalls.length === selectedCallsLength) {
+            this.selectAllThreads.setAttribute('disabled', 'disabled');
+          } else {
+            this.selectAllThreads.removeAttribute('disabled');
+          }
         }
       }
       if (this._allViewGroupingPending) {
@@ -293,9 +304,20 @@ var Recents = {
           var selectedCallsLength = selectedCalls.length;
           if (selectedCallsLength == 0) {
             this.headerEditModeText.textContent = this._('edit');
+            this.recentsIconDelete.classList.add('disabled');
+            this.deselectAllThreads.setAttribute('disabled', 'disabled');
+            this.selectAllThreads.textContent = this._('selectAll');
+            this.selectAllThreads.removeAttribute('disabled');
           } else {
             this.headerEditModeText.textContent = this._('edit-selected',
                                                     {n: selectedCallsLength});
+            this.recentsIconDelete.classList.remove('disabled');
+            this.deselectAllThreads.removeAttribute('disabled');
+            if (visibleCalls.length === selectedCallsLength) {
+              this.selectAllThreads.setAttribute('disabled', 'disabled');
+            } else {
+              this.selectAllThreads.removeAttribute('disabled');
+            }
           }
         }
       }
@@ -555,7 +577,7 @@ var Recents = {
       '    <aside class="icon call-type-icon ' + classes + '"></aside>' +
       '    <p class="primary-info">' +
       '      <span class="primary-info-main">' +
-               (recent.number || this._('unknown')) +
+               (recent.number || this._('withheld-number')) +
       '      </span>' + '<span class="many-contacts">' +
       '      </span>' + '<span class="entry-count">' +
       '      </span>' +
@@ -670,7 +692,7 @@ var Recents = {
         primaryInfoMainNode.textContent = primaryInfo;
       } else {
         LazyL10n.get(function gotL10n(_) {
-          primaryInfoMainNode.textContent = _('unknown');
+          primaryInfoMainNode.textContent = _('withheld-number');
         });
       }
       manyContactsNode.innerHTML = contactsWithSameNumber ?

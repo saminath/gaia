@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 var contacts = window.contacts || {};
 
@@ -35,13 +35,34 @@ contacts.Search = (function() {
       imgLoader,
       searchEnabled = false;
 
+  var onLoad = function onLoad() {
+    searchView = document.getElementById('search-view');
+    searchList = document.getElementById('search-list');
+  };
+
+  onLoad();
+
   var init = function load(_conctactsListView, _groupFavorites, _clickHandler,
                            defaultEnabled) {
     conctactsListView = _conctactsListView;
-
-    searchView = document.getElementById('search-view');
-
     favoriteGroup = _groupFavorites;
+
+    if (typeof _clickHandler === 'function') {
+      searchList.addEventListener('click', _clickHandler);
+    }
+
+    if (defaultEnabled)
+      searchEnabled = true;
+  };
+
+  var initialized = false;
+
+  var doInit = function doInit() {
+    if (initialized) {
+      return;
+    }
+
+    initialized = true;
     searchBox = document.getElementById('search-contact');
     var resetButton = searchBox.nextElementSibling;
     resetButton.addEventListener('mousedown', function() {
@@ -51,10 +72,6 @@ contacts.Search = (function() {
       window.setTimeout(fillInitialSearchPage, 0);
     });
 
-    searchList = document.getElementById('search-list');
-    if (typeof _clickHandler === 'function') {
-      searchList.addEventListener('click', _clickHandler);
-    }
     searchList.parentNode.addEventListener('touchstart', function() {
       blurList = true;
     });
@@ -70,9 +87,7 @@ contacts.Search = (function() {
     });
 
     imgLoader = new ImageLoader('#groups-list-search', 'li');
-
-    if (defaultEnabled)
-      searchEnabled = true;
+    imgLoader.setResolver(fb.resolver);
   };
 
   //Search mode instructions
@@ -86,7 +101,6 @@ contacts.Search = (function() {
       searchBox.value = '';
       // Resetting state
       contactNodes = null;
-      searchList.innerHTML = '';
       searchTextCache = {};
       resetState();
 
@@ -104,7 +118,7 @@ contacts.Search = (function() {
     currentSet = {};
     // We don't know if the user will launch a new search later
     theClones = {};
-    searchList.innerHTML = '';
+    utils.dom.removeChildNodes(searchList);
     emptySearch = true;
     remainingPending = true;
   }
@@ -209,6 +223,7 @@ contacts.Search = (function() {
     if (!inSearchMode) {
       window.addEventListener('input', onInput);
       searchView.classList.add('insearchmode');
+      doInit();
       fillInitialSearchPage();
       inSearchMode = true;
       emptySearch = true;
@@ -296,9 +311,14 @@ contacts.Search = (function() {
     if (searchEnabled) {
       return;
     }
+
     searchEnabled = true;
-    invalidateCache();
-    search();
+    // We perform the search when all the info have been loaded and the
+    // user wrote something in the entry field
+    if (searchBox.value.trim()) {
+      invalidateCache();
+      search();
+    }
   };
 
   var search = function performSearch(searchDoneCb) {
@@ -367,7 +387,7 @@ contacts.Search = (function() {
         prevText.length > 0 && newText.indexOf(prevText) === 0) {
       out = searchableNodes || getContactsDom();
     } else {
-      searchList.innerHTML = '';
+      utils.dom.removeChildNodes(searchList);
       currentSet = {};
       out = getContactsDom();
       canReuseSearchables = false;
@@ -416,6 +436,8 @@ contacts.Search = (function() {
     'enterSearchMode': enterSearchMode,
     'exitSearchMode': exitSearchMode,
     'isInSearchMode': isInSearchMode,
-    'enableSearch': enableSearch
+    'enableSearch': enableSearch,
+    // The purpose of this method is only for unit tests
+    'load': onLoad
   };
 })();

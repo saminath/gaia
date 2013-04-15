@@ -11,6 +11,8 @@ contacts.Settings = (function() {
   var orderCheckBox,
       orderByLastName,
       simImportLink,
+      importLiveButton,
+      importGmailButton,
       fbImportOption,
       fbImportCheck,
       fbUpdateButton,
@@ -24,17 +26,20 @@ contacts.Settings = (function() {
 
   // Initialise the settings screen (components, listeners ...)
   var init = function initialize() {
-    initContainers();
+    // To listen to card state changes is needed for enabling import from SIM
+    var mobileConn = navigator.mozMobileConnection;
+    mobileConn.oncardstatechange = Contacts.cardStateChanged;
+    fb.init(function onFbInit() {
+      initContainers();
+    });
   };
 
   // Get the different values that we will show in the app
   var getData = function getData() {
-    // Ordering
-    asyncStorage.getItem(ORDER_KEY, (function orderValue(value) {
-      orderByLastName = value || false;
-      newOrderByLastName = null;
-      updateOrderingUI();
-    }).bind(this));
+    var order = document.cookie ? JSON.parse(document.cookie).order : false;
+    orderByLastName = order;
+    newOrderByLastName = null;
+    updateOrderingUI();
 
     if (fb.isEnabled) {
       fb.utils.getImportChecked(checkFbImported);
@@ -53,12 +58,19 @@ contacts.Settings = (function() {
     orderCheckBox = orderItem.querySelector('[name="order.lastname"]');
     orderItem.addEventListener('click', onOrderingChange.bind(this));
 
-    simImportLink = document.querySelector('[data-l10n-id="importSim"]');
+    simImportLink = document.querySelector('[data-l10n-id="importSim2"]');
     simImportLink.addEventListener('click', function onSimImportHandler() {
       window.setTimeout(onSimImport, 0);
     });
 
     noSimMsg = document.querySelector('#no-sim');
+
+    // Gmail & Hotmail import
+    importLiveButton = document.querySelector('[data-l10n-id="importLive"]');
+    importGmailButton = document.querySelector('[data-l10n-id="importGmail"]');
+
+    importLiveButton.onclick = Contacts.extServices.importLive;
+    importGmailButton.onclick = Contacts.extServices.importGmail;
 
     if (fb.isEnabled) {
       fbImportOption = document.querySelector('#settingsFb');
@@ -68,7 +80,7 @@ contacts.Settings = (function() {
 
       fbUpdateButton = document.querySelector('#import-fb');
       fbOfflineMsg = document.querySelector('#no-connection');
-      fbUpdateButton.onclick = Contacts.extFb.importFB;
+      fbUpdateButton.onclick = Contacts.extServices.importFB;
       fbTotalsMsg = document.querySelector('#fb-totals');
       fbPwdRenewMsg = document.querySelector('#renew-pwd-msg');
 
@@ -192,15 +204,20 @@ contacts.Settings = (function() {
       var position = totalsMsgContent.indexOf('(');
       if (position != -1) {
         msgPart1 = totalsMsgContent.substring(0, position - 1);
-        msgPart2 = '<span>' + totalsMsgContent.substring(position) + '</span>';
+        msgPart2 = totalsMsgContent.substring(position);
       }
     }
-
-    fbTotalsMsg.innerHTML = msgPart1 + (msgPart2 || '');
+    fbTotalsMsg.innerHTML = '';
+    fbTotalsMsg.appendChild(document.createTextNode(msgPart1));
+    if (msgPart2) {
+      var span = document.createElement('span');
+      span.textContent = msgPart2;
+      fbTotalsMsg.appendChild(span);
+    }
   };
 
   var onFbImport = function onFbImportClick(evt) {
-    Contacts.extFb.importFB();
+    Contacts.extServices.importFB();
   };
 
   var onFbEnable = function onFbEnable(evt) {
@@ -318,8 +335,8 @@ contacts.Settings = (function() {
   // Listens for any change in the ordering preferences
   var onOrderingChange = function onOrderingChange(evt) {
     newOrderByLastName = !orderCheckBox.checked;
+    document.cookie = JSON.stringify({order: newOrderByLastName});
     updateOrderingUI();
-    asyncStorage.setItem(ORDER_KEY, newOrderByLastName);
   };
 
   // Import contacts from SIM card and updates ui
@@ -391,6 +408,7 @@ contacts.Settings = (function() {
   };
 
   var checkOnline = function() {
+    // Facebook settings
     if (fb.isEnabled) {
       if (navigator.onLine === true) {
         fbImportOption.querySelector('li').removeAttribute('aria-disabled');
@@ -402,6 +420,16 @@ contacts.Settings = (function() {
         fbUpdateButton.classList.add('hide');
         fbOfflineMsg.classList.remove('hide');
       }
+    }
+
+    // Other import services settings
+    if (navigator.onLine === false) {
+      importGmailButton.setAttribute('disabled', 'disabled');
+      importLiveButton.setAttribute('disabled', 'disabled');
+    }
+    else {
+      importGmailButton.removeAttribute('disabled');
+      importLiveButton.removeAttribute('disabled');
     }
   };
 

@@ -22,6 +22,8 @@
   <link rel="stylesheet" type="text/css" href="/ftu/css/style.css">
   <link rel="stylesheet" type="text/css" href="/ftu/css/fb_extensions.css">
   <link rel="stylesheet" type="text/css" href="/facebook/style/curtain_frame.css">
+  <!-- HIDPI support -->
+  <link rel="stylesheet" type="text/css" href="/shared/style/responsive.css" >
 
   <title>Welcome to Browser OS</title>
 
@@ -105,6 +107,15 @@
           <input id="confirm-newpin-input" name="confirm-newpin" type="password" size="8" maxlength="8" />
           <input id="fake-confirm-newpin-input" class="fake-input" name="fake-confirm-newpin" type="number" size="8" maxlength="8" />
           <div id="confirm-newpin-error" class="hidden error"></div>
+        </section>
+      </section>
+
+      <section id="xckcode-screen" role="region">
+        <label id="xck-label" data-l10n-id="type_nck">Type your NCK code</label>
+        <section class="input-wrapper">
+          <input id="xck-input" name="simxck" type="password" size="16" maxlength="16" />
+          <input id="fake-xck-input" class="fake-input" name="fake-simxck" type="number" size="16" maxlength="16" />
+          <div id="xck-error" class="hidden error"></div>
         </section>
       </section>
     </article>
@@ -375,7 +386,6 @@
         </p>
         <section id="newsletter-form">
           <input type="email" data-l10n-id="emailAddress" placeholder="Email address" id="newsletter-input"></input>
-          <button class="recommend" data-l10n-id="done" id="newsletter-button">Done</butto>
         </section>
         <section id="newsletter-success-screen">
           <p data-l10n-id="email-successfully-added">

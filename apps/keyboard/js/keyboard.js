@@ -159,7 +159,10 @@ var touchEventsPresent = false;
 var touchedKeys = {};
 var touchCount = 0;
 var currentInputType = null;
+var currentInputMode = null;
 var menuLockedArea = null;
+var candidatePanelEnabled = false;
+const CANDIDATE_PANEL_SWITCH_TIMEOUT = 100;
 
 // Show accent char menu (if there is one) after ACCENT_CHAR_MENU_TIMEOUT
 const ACCENT_CHAR_MENU_TIMEOUT = 700;
@@ -231,6 +234,7 @@ const specialCodes = [
 // These values are initialized with user settings
 var userLanguage;
 var suggestionsEnabled;
+var correctionsEnabled;
 var clickEnabled;
 var vibrationEnabled;
 var enabledKeyboardGroups;
@@ -278,11 +282,12 @@ window.addEventListener('load', getKeyboardSettings);
 
 function getKeyboardSettings() {
   // Before we can initialize the keyboard we need to know the current
-  // value of all keyboard-related settings. These are two of the settings
-  // we want to query, with the default value we'll use
+  // value of all keyboard-related settings. These are the settings
+  // we want to query, with the default values we'll use if the query fails
   var settingsQuery = {
     'language.current': 'en-US',
     'keyboard.wordsuggestion': true,
+    'keyboard.autocorrect': true,
     'keyboard.vibration': false,
     'keyboard.clicksound': false,
     'ring.enabled': true
@@ -298,6 +303,7 @@ function getKeyboardSettings() {
     // Copy settings values to the corresponding global variables.
     userLanguage = values['language.current'];
     suggestionsEnabled = values['keyboard.wordsuggestion'];
+    correctionsEnabled = values['keyboard.autocorrect'];
     vibrationEnabled = values['keyboard.vibration'];
     clickEnabled = values['keyboard.clicksound'];
     isSoundEnabled = values['ring.enabled'];
@@ -334,6 +340,13 @@ function initKeyboard() {
     // don't need to tell the keyboard about the new value right away.
     // We pass the value to the input method when the keyboard is displayed
     suggestionsEnabled = e.settingValue;
+  });
+
+  navigator.mozSettings.addObserver('keyboard.autocorrect', function(e) {
+    // The keyboard won't be displayed when this setting changes, so we
+    // don't need to tell the keyboard about the new value right away.
+    // We pass the value to the input method when the keyboard is displayed
+    correctionsEnabled = e.settingValue;
   });
 
   navigator.mozSettings.addObserver('keyboard.vibration', function(e) {
@@ -433,9 +446,6 @@ function setKeyboardName(name) {
   if (!inputMethod)
     inputMethod = defaultInputMethod;
 
-  // Tell the renderer what input method we're using. This will set a CSS
-  // classname that can be used to style the keyboards differently
-  IMERender.setInputMethodName(keyboard.imEngine || 'default');
 }
 
 // Support function for render
@@ -496,8 +506,6 @@ function mapInputType(type) {
     return 'number';
     break;
   }
-
-  return null;
 }
 
 //
@@ -523,8 +531,11 @@ function modifyLayout(keyboardName) {
   }
 
   var altLayoutName;
-  if (currentInputType === 'number' || currentInputType === 'tel')
+  if (currentInputType === 'tel')
     altLayoutName = currentInputType + 'Layout';
+  else if (currentInputType === 'number')
+    altLayoutName =
+      currentInputMode === 'digits' ? 'pinLayout' : 'numberLayout';
   else if (layoutPage === LAYOUT_PAGE_SYMBOLS_I)
     altLayoutName = 'alternateLayout';
   else if (layoutPage === LAYOUT_PAGE_SYMBOLS_II)
@@ -702,21 +713,43 @@ function renderKeyboard(keyboardName) {
   // update settings with keyboard layout, e.me uses this to improve searches
   updateSettings('current', keyboardName);
 
-  // And draw the layout
-  IMERender.draw(currentLayout, {
-    uppercase: isUpperCase,
-    inputType: currentInputType,
-    showCandidatePanel: Keyboards[keyboardName].needsCandidatePanel
-  });
 
-  IMERender.setUpperCaseLock(isUpperCaseLocked ? 'locked' : isUpperCase);
+  function drawKeyboard() {
+    // Tell the renderer what input method we're using. This will set a CSS
+    // classname that can be used to style the keyboards differently
+    var keyboard = Keyboards[keyboardName];
+    IMERender.setInputMethodName(keyboard.imEngine || 'default');
 
-  // If needed, empty the candidate panel
-  if (inputMethod.empty)
-    inputMethod.empty();
+    // And draw the layout
+    IMERender.draw(currentLayout, {
+      uppercase: isUpperCase,
+      inputType: currentInputType,
+      showCandidatePanel: Keyboards[keyboardName].needsCandidatePanel
+    });
 
-  // Tell the input method about the new keyboard layout
-  updateLayoutParams();
+    IMERender.setUpperCaseLock(isUpperCaseLocked ? 'locked' : isUpperCase);
+
+    // If needed, empty the candidate panel
+    if (inputMethod.empty)
+      inputMethod.empty();
+
+    // Tell the input method about the new keyboard layout
+    updateLayoutParams();
+  }
+
+  // XXX: if we are going to hide the candidatePanel, notify keyboard manager
+  // first to update the app window size
+  if (!Keyboards[keyboardName].needsCandidatePanel && candidatePanelEnabled) {
+    var candidatePanel = document.getElementById('keyboard-candidate-panel');
+    document.location.hash = 'show=' +
+      (IMERender.ime.scrollHeight - candidatePanel.scrollHeight);
+
+    window.setTimeout(drawKeyboard, CANDIDATE_PANEL_SWITCH_TIMEOUT);
+  } else {
+    drawKeyboard();
+  }
+
+  candidatePanelEnabled = Keyboards[keyboardName].needsCandidatePanel;
 }
 
 function setUpperCase(upperCase, upperCaseLocked) {
@@ -785,10 +818,6 @@ function updateTargetWindowHeight(hide) {
   }
 }
 
-function notifyShowKeyboard(show) {
-  updateTargetWindowHeight(!show);
-}
-
 // Sends a delete code to remove last character
 // The argument specifies whether this is an auto repeat or not.
 // We call triggerFeedback() for the initial press, but we
@@ -797,8 +826,7 @@ function sendDelete(isRepeat) {
   // Pass the isRepeat argument to the input method. It may not want
   // to compute suggestions, for example, if this is just one in a series
   // of repeating events.
-  inputMethod.click(KeyboardEvent.DOM_VK_BACK_SPACE,
-                    undefined, undefined, isRepeat);
+  inputMethod.click(KeyboardEvent.DOM_VK_BACK_SPACE, isRepeat);
 }
 
 // Return the upper value for a key object
@@ -808,8 +836,7 @@ function getUpperCaseValue(key) {
     return key.value;
 
   var upperCase = currentLayout.upperCase || {};
-  var v = upperCase[key.value] || key.value.toUpperCase();
-  return v;
+  return upperCase[key.value] || key.value.toUpperCase();
 }
 
 function setMenuTimeout(target, coords, touchId) {
@@ -1058,8 +1085,8 @@ function startPress(target, coords, touchId) {
     return;
 
   // Feedback
-  IMERender.highlightKey(target);
   triggerFeedback();
+  IMERender.highlightKey(target);
 
   setMenuTimeout(target, coords, touchId);
 
@@ -1327,8 +1354,7 @@ function endPress(target, coords, touchId) {
 
     // Normal key
   default:
-    var offset = getOffset(target, coords);
-    inputMethod.click(keyCode, offset.x, getKeyCoordinateY(offset.y));
+    inputMethod.click(keyCode);
     break;
   }
 }
@@ -1341,22 +1367,6 @@ function getKeyCoordinateY(y) {
     yBias = candidatePanel.clientHeight;
 
   return y - yBias;
-}
-
-function getOffset(el, coords) {
-  var x = 0;
-  var y = 0;
-
-  while (el) {
-    x += el.offsetLeft - el.scrollLeft;
-    y += el.offsetTop - el.scrollTop;
-    el = el.offsetParent;
-  }
-
-  x = coords.clientX - x;
-  y = coords.clientY - y;
-
-  return { x: x, y: y };
 }
 
 // Turn to default values
@@ -1400,11 +1410,19 @@ function showKeyboard(state) {
 
   IMERender.showIME();
 
+  currentInputMode = state.inputmode;
   currentInputType = mapInputType(state.type);
+
+  // reset the flag for candidate show/hide workaround
+  candidatePanelEnabled = false;
+
   resetKeyboard();
 
   if (inputMethod.activate) {
-    inputMethod.activate(userLanguage, suggestionsEnabled, state);
+    inputMethod.activate(userLanguage, state, {
+      suggest: suggestionsEnabled,
+      correct: correctionsEnabled
+    });
   }
 
   if (!inputMethod.displaysCandidates ||

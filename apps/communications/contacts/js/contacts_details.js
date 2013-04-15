@@ -156,7 +156,7 @@ contacts.Details = (function() {
     contactDetails.classList.remove('no-photo');
     contactDetails.classList.remove('fb-contact');
     contactDetails.classList.remove('up');
-    listContainer.innerHTML = '';
+    utils.dom.removeChildNodes(listContainer);
 
     renderFavorite(contact);
     renderOrg(contact);
@@ -309,7 +309,7 @@ contacts.Details = (function() {
       linkButton.classList.add('hide');
     }
 
-    Contacts.extFb.initEventHandlers(social, contact, linked);
+    Contacts.extServices.initEventHandlers(social, contact, linked);
 
     listContainer.appendChild(social);
   };
@@ -355,7 +355,8 @@ contacts.Details = (function() {
       var escapedType = utils.text.escapeHTML(currentTel.type, true);
       var telField = {
         value: utils.text.escapeHTML(currentTel.value, true) || '',
-        type: escapedType || TAG_OPTIONS['phone-type'][0].value,
+        type: _(escapedType) || escapedType ||
+                                        TAG_OPTIONS['phone-type'][0].value,
         carrier: utils.text.escapeHTML(currentTel.carrier || '', true) || '',
         i: tel
       };
@@ -394,7 +395,8 @@ contacts.Details = (function() {
       var escapedType = utils.text.escapeHTML(currentEmail['type'], true);
       var emailField = {
         value: utils.text.escapeHTML(currentEmail['value'], true) || '',
-        type: escapedType || TAG_OPTIONS['email-type'][0].value,
+        type: _(escapedType) || escapedType ||
+                                          TAG_OPTIONS['email-type'][0].value,
         i: email
       };
       var template = utils.templates.render(emailsTemplate, emailField);
@@ -441,7 +443,8 @@ contacts.Details = (function() {
         postalCode: escapedPostalCode,
         locality: escapedLocality || '',
         countryName: escapedCountry,
-        type: escapedType || TAG_OPTIONS['address-type'][0].value,
+        type: _(escapedType) || escapedType ||
+                                        TAG_OPTIONS['address-type'][0].value,
         i: i
       };
       var template = utils.templates.render(addressesTemplate, addressField);

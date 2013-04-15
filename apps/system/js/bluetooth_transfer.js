@@ -358,7 +358,7 @@ var BluetoothTransfer = {
 
   showBanner: function bt_showBanner(isComplete) {
     var _ = navigator.mozL10n.get;
-    var status = (isComplete) ? 'complete' : 'failed';
+    var status = (isComplete) ? _('complete') : _('failed');
     this.banner.addEventListener('animationend', function animationend() {
       this.banner.removeEventListener('animationend', animationend);
       this.banner.classList.remove('visible');
@@ -483,7 +483,7 @@ var BluetoothTransfer = {
           }
         } else {
           // Parse Filename Extension to find out MIMETYPE
-          self.getMimetype(fileNameExtension);
+          fileType = self.getMimetype(fileNameExtension);
         }
       }
 

@@ -69,6 +69,19 @@ const Keyboards = {
       '0' : '-'
     }
   },
+  pinLayout: {
+    width: 9,
+    keys: [
+      [{ value: '1', ratio: 3},{ value: '2', ratio: 3},{ value: '3', ratio: 3}],
+      [{ value: '4', ratio: 3},{ value: '5', ratio: 3},{ value: '6', ratio: 3}],
+      [{ value: '7', ratio: 3},{ value: '8', ratio: 3},{ value: '9', ratio: 3}],
+      [
+        { value: '', ratio: 3},
+        { value: '0', ratio: 3},
+        { value: '⌫', ratio: 3, keyCode: KeyEvent.DOM_VK_BACK_SPACE }
+      ]
+    ]
+  },
   telLayout: {
     width: 9,
     keys: [
@@ -1013,6 +1026,7 @@ const Keyboards = {
     label: 'Polish',
     imEngine: 'latin',
     menuLabel: 'polski',
+    needsCandidatePanel: true,
     alt: {
       a: 'ąáàâäåãāæ',
       c: 'ćčç',
