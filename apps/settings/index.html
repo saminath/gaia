@@ -256,9 +256,8 @@
       <div>
         <ul>
           <li>
-            <a data-l10n-id="macAddress"> MAC address
-              <span data-name="deviceinfo.mac"></span>
-            </a>
+            <small data-name="deviceinfo.mac"></small>
+            <a data-l10n-id="macAddress"> MAC address </a>
           </li>
         </ul>
 
@@ -1513,6 +1512,13 @@
           </li>
           <li>
             <label>
+              <input type="checkbox" name="keyboard.layouts.serbian-latin"/>
+              <span></span>
+            </label>
+            <a data-l10n-id="serbian-latin">Serbian (Latin)</a>
+          </li>
+          <li>
+            <label>
               <input type="checkbox" name="keyboard.layouts.arabic"/>
               <span></span>
             </label>
@@ -1657,6 +1663,10 @@
           <div id="errorMsg" class="error" hidden>
             <div id="messageHeader">The PIN was incorrect.</div>
             <span id="messageBody">3 tries left.</span>
+          </div>
+
+          <div id="inputCodeRetriesLeft" data-l10-id="inputCodeRetriesLeft">
+            3 tries left
           </div>
 
           <div id="pinArea" class="sim-code-area">
