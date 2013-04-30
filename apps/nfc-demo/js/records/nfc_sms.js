@@ -10,7 +10,7 @@ createSmsNdefRecord: function(sms) {
   var prefix = 0x00; // No Prefix.
   var payload = String.fromCharCode(prefix) + "sms:"+sms.phoneNumber+"?body="+sms.message;
 
-  var record = new MozNdefRecord(
+  var record = new NdefRecord(
     tnf,
     type,
     id,

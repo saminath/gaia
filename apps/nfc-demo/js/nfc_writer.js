@@ -144,7 +144,7 @@ contactFormToNdefRecord: function(elementRef) {
 
   payload += "END:VCARD";
 
-  var record = new MozNdefRecord(
+  var record = new NdefRecord(
     tnf,
     type,
     id,
@@ -249,7 +249,7 @@ postContactFormToNdef: function(elementRef) {
 
 // Empty Tag:
 postEmptyTag: function() {
-  var records = [new MozNdefRecord(nfc.tnf_empty, nfc.rtd_text, null, null)];
+  var records = [new NdefRecord(nfc.tnf_empty, nfc.rtd_text, null, null)];
   nfcUI.postPendingMessage(records);
 }
 

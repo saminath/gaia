@@ -9,7 +9,7 @@ createTextNdefRecord_Utf8: function(text, lang) {
   var prefix = 0x02;
   var payload = String.fromCharCode(prefix) + lang + text;
 
-  var record = new MozNdefRecord(
+  var record = new NdefRecord(
     tnf,
     type,
     id,

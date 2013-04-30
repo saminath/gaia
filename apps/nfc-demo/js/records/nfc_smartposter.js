@@ -27,7 +27,7 @@ createEmailNdefRecord: function(aEmail, aTitle, aAction) {
 
   payload = uriRec + actionRec + titleRec;
 
-  var main = new MozNdefRecord(
+  var main = new NdefRecord(
     tnf,
     type,
     id,
@@ -52,7 +52,7 @@ createUriNdefRecord: function (aUri, aTitle, aAction) {
 
   payload = uriRec + actionRec + titleRec;
 
-  var main = new MozNdefRecord(
+  var main = new NdefRecord(
     tnf,
     type,
     id,
