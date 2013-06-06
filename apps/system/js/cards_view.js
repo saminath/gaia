@@ -179,6 +179,10 @@ var CardsView = (function() {
       runningApps[displayedApp].frame.blur();
 
     placeCards();
+    // At the beginning only the current card can listen to tap events
+    currentCardStyle.pointerEvents = 'auto';
+
+    window.addEventListener('tap', CardsView);
 
     function addCard(origin, app, displayedAppCallback) {
       // Display card switcher background first to make user focus on the
@@ -196,6 +200,10 @@ var CardsView = (function() {
       var card = document.createElement('li');
       card.classList.add('card');
       card.dataset.origin = origin;
+
+      var screenshotView = document.createElement('div');
+      screenshotView.classList.add('screenshotView');
+      card.appendChild(screenshotView);
 
       //display app icon on the tab
       if (DISPLAY_APP_ICON) {
@@ -257,16 +265,34 @@ var CardsView = (function() {
 
       card.addEventListener('onviewport', function onviewport() {
         card.style.display = 'block';
-
-        if (card.style.backgroundImage) {
+        if (screenshotView.style.backgroundImage) {
           return;
+        }
+
+        // Handling cards in different orientations
+        var orientation = app.frame.dataset.orientation;
+        var isLandscape = false;
+        if (orientation == 'landscape-primary' ||
+            orientation == 'landscape-secondary') {
+          isLandscape = true;
+        }
+        // Rotate screenshotView if needed
+        screenshotView.classList.add(orientation);
+        if (isLandscape) {
+          // We must exchange width and height if it's landscape mode
+          var width = card.clientHeight;
+          var height = card.clientWidth;
+          screenshotView.style.width = width + 'px';
+          screenshotView.style.height = height + 'px';
+          screenshotView.style.left = ((height - width) / 2) + 'px';
+          screenshotView.style.top = ((width - height) / 2) + 'px';
         }
 
         // If we have a cached screenshot, use that first
         // We then 'res-in' the correctly sized version
         var cachedLayer = WindowManager.screenshots[origin];
         if (cachedLayer) {
-          card.style.backgroundImage = 'url(' + cachedLayer + ')';
+          screenshotView.style.backgroundImage = 'url(' + cachedLayer + ')';
         }
 
         // And then switch it with screenshots when one will be ready
@@ -277,13 +303,15 @@ var CardsView = (function() {
           origin === displayedApp)) {
           // rect is the final size (considering CSS transform) of the card.
           var rect = card.getBoundingClientRect();
-          frameForScreenshot.getScreenshot(rect.width, rect.height).onsuccess =
+          var width = isLandscape ? rect.height : rect.width;
+          var height = isLandscape ? rect.width : rect.height;
+          frameForScreenshot.getScreenshot(width, height).onsuccess =
             function gotScreenshot(screenshot) {
               if (screenshot.target.result) {
                 var objectURL = URL.createObjectURL(screenshot.target.result);
 
                 // Overwrite the cached image to prevent flickering
-                card.style.backgroundImage =
+                screenshotView.style.backgroundImage =
                   'url(' + objectURL + '), url(' + cachedLayer + ')';
 
                 // setTimeout is needed to ensure that the image is fully drawn
@@ -299,10 +327,6 @@ var CardsView = (function() {
             };
         }
       });
-
-      // Set up event handling
-      // A click elsewhere in the card switches to that task
-      card.addEventListener('tap', runApp);
     }
   }
 
@@ -312,11 +336,9 @@ var CardsView = (function() {
       var element = e.target.parentNode;
       cardsList.removeChild(element);
       closeApp(element, true);
-      return;
+    } else if ('origin' in e.target.dataset) {
+      WindowManager.launch(e.target.dataset.origin);
     }
-
-    var origin = this.dataset.origin;
-    WindowManager.launch(origin);
   }
 
   function closeApp(element, removeImmediately) {
@@ -381,6 +403,7 @@ var CardsView = (function() {
 
     // events to handle
     window.removeEventListener('lock', CardsView);
+    window.removeEventListener('tap', CardsView);
 
     if (removeImmediately) {
       cardsView.classList.add('no-transition');
@@ -492,7 +515,6 @@ var CardsView = (function() {
     // Current card sets the z-index to level 2 and opacity to 1
     currentCardStyle.zIndex = 2;
     currentCardStyle.opacity = 1;
-    currentCardStyle.pointerEvents = 'auto';
 
     // Previous and next cards set the z-indez to level 1 and opacity to 0.4
     prevCardStyle.zIndex = nextCardStyle.zIndex = 1;
@@ -516,6 +538,7 @@ var CardsView = (function() {
       currentCard.removeEventListener('transitionend', transitionend);
       prevCardStyle.MozTransition = currentCardStyle.MozTransition =
       nextCardStyle.MozTransition = '';
+      currentCardStyle.pointerEvents = 'auto';
     });
   }
 
@@ -715,11 +738,6 @@ var CardsView = (function() {
           );
         }
 
-        // Without removing the listener before closing card
-        // sometimes the 'click' event fires, even if 'mouseup'
-        // uses stopPropagation()
-        element.removeEventListener('tap', runApp);
-
         // Remove the icon from the task list
         cardsList.removeChild(element);
 
@@ -815,6 +833,10 @@ var CardsView = (function() {
 
       case 'contextmenu':
         manualOrderStart(evt);
+        break;
+
+      case 'tap':
+        runApp(evt);
         break;
 
       case 'home':

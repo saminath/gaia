@@ -25,7 +25,7 @@
  *
  * If you want to preserve a layer but changing the other, use the empty string
  * as the id of the layer you want to preserve.
- * For intance, you want to only close the overlay layer but not affecting the
+ * For instance, you want to only close the overlay layer but not affecting the
  * tab layer:
  * #
  *
@@ -39,22 +39,27 @@ var CostControlApp = (function() {
 
   'use strict';
 
-  // XXX: This is the point of entry, check common.js for more info
-  waitForDOMAndMessageHandler(window, onReady);
-
   var costcontrol, initialized = false;
   function onReady() {
     var mobileConnection = window.navigator.mozMobileConnection;
     var cardState = checkCardState();
+    var iccid = mobileConnection.iccInfo.iccid;
 
     // SIM not ready
     if (cardState !== 'ready') {
       debug('SIM not ready:', cardState);
       mobileConnection.oncardstatechange = onReady;
 
-    // SIM is ready
+    // SIM is ready, but ICC info is not ready yet
+    } else if (!Common.isValidICCID(iccid)) {
+      debug('ICC info not ready yet');
+      mobileConnection.oniccinfochange = onReady;
+
+    // All ready
     } else {
+      debug('SIM ready. ICCID:', iccid);
       mobileConnection.oncardstatechange = undefined;
+      mobileConnection.oniccinfochange = undefined;
       startApp();
     }
   }
@@ -84,10 +89,21 @@ var CostControlApp = (function() {
   }
 
   function showSimErrorDialog(status) {
-    var header = _('widget-' + status + '-heading');
-    var msg = _('widget-' + status + '-meta');
-    alert(header + '\n' + msg);
-    window.close();
+    function realShowSimError(status) {
+      var header = _('widget-' + status + '-heading');
+      var msg = _('widget-' + status + '-meta');
+      Common.modalAlert(header + '\n' + msg);
+      Common.closeApplication();
+    }
+
+    if (isApplicationLocalized) {
+      realShowSimError(status);
+    } else {
+      window.addEventListener('localized', function _onlocalized() {
+        window.removeEventListener('localized', _onlocalized);
+        realShowSimError(status);
+      });
+    }
   }
 
   // XXX: See the module documentation for details about URL schema
@@ -150,19 +166,27 @@ var CostControlApp = (function() {
   }
 
   function startApp() {
-    checkSIMChange(function _onSIMChecked() {
+    function _onNoICCID() {
+      console.error('checkSIMChange() failed. Impossible to ensure consistent' +
+                    'data. Aborting start up.');
+      showSimErrorDialog('no-sim2');
+    }
+
+    Common.checkSIMChange(function _onSIMChecked() {
       CostControl.getInstance(function _onCostControlReady(instance) {
         if (ConfigManager.option('fte')) {
-          window.location = '/fte.html';
+          startFTE();
           return;
         }
         costcontrol = instance;
         setupApp();
       });
-    });
+    }, _onNoICCID);
   }
 
+  var isApplicationLocalized = false;
   window.addEventListener('localized', function _onLocalize() {
+    isApplicationLocalized = true;
     if (initialized) {
       updateUI();
     }
@@ -259,7 +283,7 @@ var CostControlApp = (function() {
   var currentMode;
   function updateUI() {
     ConfigManager.requestSettings(function _onSettings(settings) {
-      var mode = costcontrol.getApplicationMode(settings);
+      var mode = ConfigManager.getApplicationMode();
       debug('App UI mode: ', mode);
 
       // Layout
@@ -320,7 +344,25 @@ var CostControlApp = (function() {
     return window.location.hash.split('#')[1] === 'datausage-tab';
   }
 
+  function startFTE() {
+    var mode = ConfigManager.getApplicationMode();
+    Common.startFTE(mode);
+  }
+
   return {
+    init: function() {
+      Common.waitForDOMAndMessageHandler(window, onReady);
+    },
+    reset: function() {
+      costcontrol = null;
+      initialized = false;
+      vmanager = null;
+      tabmanager = null;
+      settingsVManager = null;
+      currentMode = null;
+      isApplicationLocalized = false;
+      window.location.hash = '';
+    },
     showBalanceTab: function _showBalanceTab() {
       window.location.hash = '#balance-tab';
     },

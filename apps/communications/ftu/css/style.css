@@ -5,7 +5,6 @@ html, body {
   padding: 0;
   overflow: hidden !important;
   font-size: 10px;
-  font-family: "MozTT","Moz",sans-serif;
   font-weight: 400;
   user-select: none;
 }
@@ -141,7 +140,7 @@ html, body {
 .step-state:before {
   content: "";
   height: 0.3rem;
-  width: calc(100% / 7);
+  width: calc(100% / 8);
   position: absolute;
   top: 50%;
   left: 0;
@@ -181,6 +180,10 @@ html, body {
 
 .step-7.step-state:before {
   transform: translateX(600%);
+}
+
+.step-8.step-state:before {
+  transform: translateX(700%);
 }
 
 /*
@@ -251,13 +254,7 @@ html, body {
   padding-left: 1.5rem;
 }
 
-#unlock-sim-screen .fake-input {
-  margin-top: -4rem;
-  opacity: 0;
-
-}
-
-#unlock-sim-screen input[type="number"] {
+#unlock-sim-screen input[type="password"] {
     -moz-box-sizing: border-box;
     display: block;
     overflow: hidden;
@@ -266,10 +263,6 @@ html, body {
     resize: none;
     padding: 0 0.8rem;
     pointer-events: auto;
-}
-
-#unlock-sim-screen input[type="password"] {
-  pointer-events: none;
 }
 
 /*
@@ -284,8 +277,8 @@ html, body {
 
 #languages [data-type="list"] {
   position: relative;
-  top: 12.5rem;
-  height: 24rem;
+  top: 15.5rem;
+  height: calc(100% - 15.5rem);
   overflow-y: scroll;
   overflow-x: hidden;
   padding-top: 0;
@@ -648,7 +641,7 @@ aside.connecting {
   background-color: #008aaa !important;
 }
 
-#no-sim, #no-network, #fb_after_import2 p {
+#no-sim, #no-sd, #no-network, #fb_after_import2 p {
   color: #5B5B5B;
   font-size: 1.5rem;
   line-height: 2rem;
@@ -670,9 +663,12 @@ aside.connecting {
 #import_contacts [data-type="list"] li button.icon-sim:before {
   background-image: url('/contacts/style/images/import_SIM.png');
 }
+#import_contacts [data-type="list"] li button.icon-sd:before {
+  background-image: url('/contacts/style/images/import_sd.png');
+}
 
 #import_contacts [data-type="list"] li button.icon-wlive:before {
-  background-image: url('/contacts/style/images/hotmail_icon.png');
+  background-image: url('/contacts/style/images/outlook_icon.png');
 }
 
 #import_contacts [data-type="list"] li button.icon-gmail:before {
@@ -1038,6 +1034,30 @@ i.hack-first-child {
 }
 
 #data_3g .content p {
+  font-size: 1.4rem;
+}
+
+[data-type="list"] aside {
+  margin: 0 0.5rem 0 0 !important;
+}
+
+/*
+  geolocation
+*/
+
+#geolocation [data-type="list"] li {
+  padding: 0 1.5rem;
+}
+
+#geolocation label:not([for]) {
+  width: 6rem;
+}
+
+#geolocation .content {
+  padding: 0 3rem 1rem 3rem;
+}
+
+#geolocation .content p {
   font-size: 1.4rem;
 }
 

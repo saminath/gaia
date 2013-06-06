@@ -55,11 +55,11 @@ var Filmstrip = (function() {
     shareButton.parentNode.removeChild(shareButton);
 
   function isShown() {
-    return !filmstrip.classList.contains('hidden');
+    return !document.body.classList.contains('filmstriphidden');
   }
 
   function hide() {
-    filmstrip.classList.add('hidden');
+    document.body.classList.add('filmstriphidden');
     if (hideTimer) {
       clearTimeout(hideTimer);
       hideTimer = null;
@@ -76,7 +76,7 @@ var Filmstrip = (function() {
    * And it is also shown for 5 seconds after leaving preview mode.
    */
   function show(time) {
-    filmstrip.classList.remove('hidden');
+    document.body.classList.remove('filmstriphidden');
     if (hideTimer) {
       clearTimeout(hideTimer);
       hideTimer = null;
@@ -99,6 +99,8 @@ var Filmstrip = (function() {
   };
 
   function previewItem(index) {
+    Camera.resetReturnToCamera();
+    Camera.screenTimeout();
     // Don't redisplay the item if it is already displayed
     if (currentItemIndex === index)
       return;
@@ -128,6 +130,8 @@ var Filmstrip = (function() {
   }
 
   function returnToCameraMode() {
+    Camera.setReturnToCamera();
+    Camera.screenWakeLock();
     Camera.viewfinder.play();        // Restart the viewfinder
     show(Camera.FILMSTRIP_DURATION); // Fade the filmstrip after a delay
     preview.classList.add('offscreen');
@@ -646,6 +650,9 @@ var Filmstrip = (function() {
     // And we have to resize the frame (and its video player)
     frame.resize();
     frame.video.setPlayerSize();
+
+    // And inform the video player of new orientation
+    frame.video.setPlayerOrientation(orientation);
   }
 
   return {

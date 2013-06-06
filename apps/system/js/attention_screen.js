@@ -40,7 +40,8 @@ var AttentionScreen = {
 
     window.addEventListener('home', this.hide.bind(this));
     window.addEventListener('holdhome', this.hide.bind(this));
-    window.addEventListener('appwillopen', this.hide.bind(this));
+    window.addEventListener('appwillopen', this.appOpenHandler.bind(this));
+    window.addEventListener('emergencyalert', this.hide.bind(this));
 
     window.addEventListener('will-unlock', this.screenUnlocked.bind(this));
   },
@@ -50,13 +51,22 @@ var AttentionScreen = {
       if (!this.isFullyVisible())
         return;
 
+      var keyboardHeight = KeyboardManager.getHeight();
       this.attentionScreen.style.height =
-        window.innerHeight - evt.detail.height + 'px';
+        window.innerHeight - keyboardHeight + 'px';
     } else if (evt.type == 'keyboardhide') {
       // We still need to reset the height property even when the attention
       // screen is not fully visible, or it will overrides the height
       // we defined with #attention-screen.status-mode
       this.attentionScreen.style.height = '';
+    }
+  },
+
+  appOpenHandler: function as_appHandler(evt) {
+    // If the user presses the home button we will still hide the attention
+    // screen. But in the case of an app crash we'll keep it fully open
+    if (!evt.detail.isHomescreen) {
+      this.hide();
     }
   },
 

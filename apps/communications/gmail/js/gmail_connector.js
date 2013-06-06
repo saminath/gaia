@@ -194,9 +194,7 @@ var GmailConnector = (function GmailConnector() {
 
     output.uid = contact.uid;
 
-    if (contact.givenName) {
-      output.givenName = contact.givenName;
-    }
+    output.givenName = contact.givenName || contact.org || null;
 
     if (contact.familyName) {
       output.familyName = contact.familyName;
@@ -433,6 +431,10 @@ var GmailConnector = (function GmailConnector() {
     return 'gmail';
   })();
 
+  var getAutomaticLogout = (function getAutomaticLogout() {
+    return true;
+  })();
+
   return {
     'listAllContacts': listAllContacts,
     'listDeviceContacts': listDeviceContacts,
@@ -444,6 +446,7 @@ var GmailConnector = (function GmailConnector() {
     'downloadContactPicture': downloadContactPicture,
     'startSync': startSync,
     'name': getServiceName,
+    'automaticLogout': getAutomaticLogout,
     'gContactToJson': gContactToJson
   };
 

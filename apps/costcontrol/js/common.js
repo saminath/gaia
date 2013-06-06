@@ -1,57 +1,11 @@
 
 'use strict';
 
-// Checks for a SIM change
-function checkSIMChange(callback) {
-  asyncStorage.getItem('lastSIM', function _compareWithCurrent(lastSIM) {
-    var currentSIM = window.navigator.mozMobileConnection.iccInfo.iccid;
-    if (lastSIM !== currentSIM) {
-      debug('SIM change!');
-      MindGap.updateTagList(currentSIM);
-    }
-    ConfigManager.requestSettings(function _onSettings(settings) {
-      if (settings.nextReset) {
-        setNextReset(settings.nextReset, callback);
-        return;
-      }
-
-      if (callback) {
-        callback();
-      }
-    });
-  });
-}
-
 function checkDataUsageNotification(settings, usage, callback) {
   var proxy = document.getElementById('message-handler').contentWindow;
   var f = proxy ? proxy.checkDataUsageNotification :
                   window.checkDataUsageNotification;
   return f(settings, usage, callback);
-}
-
-// Waits for DOMContentLoaded and messagehandlerready, then call the callback
-function waitForDOMAndMessageHandler(window, callback) {
-  var docState = document.readyState;
-  var DOMAlreadyLoaded = docState === 'complete' || docState === 'interactive';
-  var remainingSteps = DOMAlreadyLoaded ? 1 : 2;
-  debug('DOMAlreadyLoaded:', DOMAlreadyLoaded);
-  debug('Waiting for', remainingSteps, 'events to start!');
-
-  function checkReady(evt) {
-    debug(evt.type, 'event received!');
-    remainingSteps--;
-
-    // Once all events are received, execute the callback
-    if (!remainingSteps) {
-      window.removeEventListener('DOMContentLoaded', checkReady);
-      window.removeEventListener('messagehandlerready', checkReady);
-      debug('DOMContentLoaded and messagehandlerready received. Starting');
-      callback();
-    }
-  }
-
-  window.addEventListener('DOMContentLoaded', checkReady);
-  window.addEventListener('messagehandlerready', checkReady);
 }
 
 function addAlarmTimeout(type, delay) {
@@ -250,3 +204,85 @@ function localizeWeekdaySelector(selector) {
     list.insertBefore(monday, sunday.nextSibling); // monday is the second
   }
 }
+
+var Common = {
+
+  isValidICCID: function(iccid) {
+    return typeof iccid === 'string' && iccid.length;
+  },
+
+  // Waits for DOMContentLoaded and messagehandlerready, then call the callback
+  waitForDOMAndMessageHandler: function(window, callback) {
+    var docState = document.readyState;
+    var DOMAlreadyLoaded = docState === 'complete' ||
+                           docState === 'interactive';
+    var remainingSteps = DOMAlreadyLoaded ? 1 : 2;
+    debug('DOMAlreadyLoaded:', DOMAlreadyLoaded);
+    debug('Waiting for', remainingSteps, 'events to start!');
+
+    function checkReady(evt) {
+      debug(evt.type, 'event received!');
+      remainingSteps--;
+
+      // Once all events are received, execute the callback
+      if (!remainingSteps) {
+        window.removeEventListener('DOMContentLoaded', checkReady);
+        window.removeEventListener('messagehandlerready', checkReady);
+        debug('DOMContentLoaded and messagehandlerready received. Starting');
+        callback();
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', checkReady);
+    window.addEventListener('messagehandlerready', checkReady);
+  },
+
+  // Checks for a SIM change
+  checkSIMChange: function(callback, onerror) {
+    asyncStorage.getItem('lastSIM', function _compareWithCurrent(lastSIM) {
+      var currentSIM = window.navigator.mozMobileConnection.iccInfo.iccid;
+      if (currentSIM === null) {
+        console.error('Impossible: or we don\'t have SIM (so this method ' +
+                      'should not be called) or the RIL is returning null ' +
+                      'from time to time when checking ICCID.');
+
+        if (typeof onerror === 'function') {
+          onerror();
+        }
+        return;
+      }
+
+      if (lastSIM !== currentSIM) {
+        debug('SIM change!');
+        MindGap.updateTagList(currentSIM);
+      }
+      ConfigManager.requestSettings(function _onSettings(settings) {
+        if (settings.nextReset) {
+          setNextReset(settings.nextReset, callback);
+          return;
+        }
+
+        if (callback) {
+          callback();
+        }
+      });
+    });
+  },
+
+  startFTE: function(mode) {
+    window.location = '/fte.html' + '#' + mode;
+  },
+
+  startApp: function() {
+    window.location = '/index.html';
+  },
+
+  closeApplication: function() {
+    window.close();
+  },
+
+  modalAlert: function(message) {
+    alert(message);
+  }
+};
+

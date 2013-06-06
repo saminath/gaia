@@ -11,13 +11,11 @@ Evme.Brain = new function Evme_Brain() {
         QUERIES_TO_NOT_CACHE = "",
         DEFAULT_NUMBER_OF_APPS_TO_LOAD = 16,
         NUMBER_OF_APPS_TO_LOAD_IN_FOLDER = 16,
-        NUMBER_OF_APPS_TO_LOAD = DEFAULT_NUMBER_OF_APPS_TO_LOAD,
+        NUMBER_OF_APPS_TO_LOAD = "FROM CONFIG",
         TIME_BEFORE_INVOKING_HASH_CHANGE = 200,
-        TIMEOUT_BEFORE_ALLOWING_DIALOG_REMOVE = "FROM CONFIG",
         MINIMUM_LETTERS_TO_SEARCH = 2,
         SEARCH_SOURCES = {},
         PAGEVIEW_SOURCES = {},
-        TIPS = {},
         ICON_SIZE = null,
 
         TIMEOUT_BEFORE_REQUESTING_APPS_AGAIN = 500,
@@ -69,9 +67,8 @@ Evme.Brain = new function Evme_Brain() {
 
         _config = options;
 
-        // Tips
-        TIPS = _config.tips;
-        TIMEOUT_BEFORE_ALLOWING_DIALOG_REMOVE = _config.timeBeforeAllowingDialogsRemoval;
+        NUMBER_OF_APPS_TO_LOAD = _config.numberOfAppsToLoad || DEFAULT_NUMBER_OF_APPS_TO_LOAD;
+        NUMBER_OF_APPS_TO_LOAD_IN_FOLDER = _config.numberOfAppsToLoad || NUMBER_OF_APPS_TO_LOAD_IN_FOLDER;
 
         SEARCH_SOURCES = _config.searchSources;
         PAGEVIEW_SOURCES = _config.pageViewSources;
@@ -141,7 +138,6 @@ Evme.Brain = new function Evme_Brain() {
     this.Searchbar = new function Searchbar() {
         var self = this,
             timeoutBlur = null,
-            tipKeyboard = null,
             TIMEOUT_BEFORE_RUNNING_BLUR = 50;
 
         // Searchbar focused. Keyboard shows
@@ -155,10 +151,6 @@ Evme.Brain = new function Evme_Brain() {
             } else {
                 Brain.Helper.showDefault();
             }
-
-            if (!tipKeyboard) {
-                tipKeyboard = new Evme.Tip(TIPS.SEARCHBAR_FOCUS).show();
-            }
         };
 
         // Searchbar blurred. Keyboard hides.
@@ -168,9 +160,6 @@ Evme.Brain = new function Evme_Brain() {
                 data.e.stopPropagation();
             }
 
-            if (Brain.Dialog.isActive()) {
-                return;
-            }
 
             var didClickApp = false,
                 elClicked = data && data.e && data.e.explicitOriginalTarget;
@@ -182,8 +171,6 @@ Evme.Brain = new function Evme_Brain() {
                     }
                 }
             }
-
-            window.setTimeout(self.hideKeyboardTip, 500);
 
             Evme.Utils.setKeyboardVisibility(false);
             self.setEmptyClass();
@@ -229,11 +216,6 @@ Evme.Brain = new function Evme_Brain() {
 
         // Keyboard action key ("search") pressed
         this.returnPressed = function returnPressed(data) {
-            if (Brain.Dialog.isActive()) {
-                data && data.e && data.e.preventDefault();
-                return;
-            }
-
             var query = Evme.Searchbar.getValue();
             Searcher.searchExactFromOutside(query, SEARCH_SOURCES.RETURN_KEY);
             Evme.Searchbar.blur();
@@ -263,8 +245,6 @@ Evme.Brain = new function Evme_Brain() {
 
         // searchbar value changed
         this.valueChanged = function valueChanged(data) {
-            self.hideKeyboardTip();
-
             if (data.value) {
                 Searcher.searchAsYouType(data.value, SEARCH_SOURCES.TYPING);
             }
@@ -291,14 +271,6 @@ Evme.Brain = new function Evme_Brain() {
 
             if (typedQuery === suggestionsQuery) {
                 Searcher.searchExactAsYouType(firstSuggestion, typedQuery);
-            }
-        };
-
-        // hide keyboard tip
-        this.hideKeyboardTip = function hideKeyboardTip() {
-            if (tipKeyboard) {
-                tipKeyboard.hide();
-                tipKeyboard = null;
             }
         };
     };
@@ -498,7 +470,7 @@ Evme.Brain = new function Evme_Brain() {
         this.success = function success(data) {
             elContainer.classList.remove(CLASS_REQUESTING);
             
-            var coords = data && data.position && data.position.coordinates,
+            var coords = data && data.position && data.position.coords,
                 lat = coords && coords.latitude,
                 lon = coords && coords.longitude;
             
@@ -605,7 +577,7 @@ Evme.Brain = new function Evme_Brain() {
         this.hold = function hold(data) {
             var isAppInstalled = Evme.Utils.sendToOS(
                 Evme.Utils.OSMessages.IS_APP_INSTALLED,
-                { 'url': data.data.appUrl }
+                { 'url': data.app.getFavLink() }
             );
 
             if (isAppInstalled) {
@@ -818,11 +790,14 @@ Evme.Brain = new function Evme_Brain() {
                 Evme.BackgroundImage.cancelFullScreenFade();
                 elContainer.classList.remove("loading-app");
 
-                if (Evme.Storage.get(STORAGE_KEY_CLOSE_WHEN_RETURNING)) {
-                    Searcher.searchAgain(null, Evme.Searchbar.getValue());
-                }
-                Evme.Storage.remove(STORAGE_KEY_CLOSE_WHEN_RETURNING);
+                Evme.Storage.get(STORAGE_KEY_CLOSE_WHEN_RETURNING, function storageGot(value) {
+                    if (value) {
+                        Searcher.searchAgain(null, Evme.Searchbar.getValue());
+                    }
 
+                    Evme.Storage.remove(STORAGE_KEY_CLOSE_WHEN_RETURNING);
+                });
+                
                 Evme.EventHandler.trigger("Core", "returnedFromApp");
             }
         }
@@ -990,6 +965,8 @@ Evme.Brain = new function Evme_Brain() {
                         "iconsFormat": iconsFormat,
                         "offset": currentFolder.appsPaging.offset
                     });
+                    
+                    updateShortcutIcons(experienceId || query, apps);
 
                     requestSmartFolderApps = null;
                     
@@ -1048,6 +1025,30 @@ Evme.Brain = new function Evme_Brain() {
 
                 requestSmartFolderApps = null;
             });
+        };
+        
+        function updateShortcutIcons(key, apps) {
+          var shortcutsToUpdate = {},
+              icons = {},
+              numberOfIconsInShortcut = (Evme.Utils.getIconGroup() || []).length;
+              
+          for (var i=0,app; i<numberOfIconsInShortcut; i++) {
+            app = apps[i];
+            icons[app.id] = app.icon;
+          }
+          shortcutsToUpdate[key] = Object.keys(icons);
+          
+          Evme.DoATAPI.Shortcuts.update({
+            "shortcuts": shortcutsToUpdate,
+            "icons": icons
+          }, function onShortcutsUpdated() {
+            for (var key in shortcutsToUpdate) {
+              var shortcut = Evme.Shortcuts.getShortcutByKey(key);
+              if (shortcut) {
+                shortcut.setImage(shortcutsToUpdate[key]);
+              }
+            }
+          });
         }
     };
 
@@ -1066,12 +1067,6 @@ Evme.Brain = new function Evme_Brain() {
 
         // show
         this.show = function show() {
-            new Evme.Tip(TIPS.APP_EXPLAIN, function onShow(tip) {
-                elContainer.addEventListener("touchstart", tip.hide);
-            }).show();
-
-            Brain.Searchbar.hideKeyboardTip();
-
             self.loadFromAPI();
         };
 
@@ -1239,28 +1234,34 @@ Evme.Brain = new function Evme_Brain() {
                     requestSuggest = Evme.DoATAPI.Shortcuts.suggest({
                         "existing": arrCurrentShortcuts
                     }, function onSuccess(data) {
-                    	if(!isRequesting) {
-                    		return;
-                    	}
-                    	
-                        var suggestedShortcuts = data.response.shortcuts,
-                            icons = data.response.icons;
-    
-                        for (var id in icons) {
-                            currentIcons[id] = icons[id];
+                        var suggestedShortcuts = data.response.shortcuts || [],
+                            icons = data.response.icons || {};
+
+                        if(!isRequesting) {
+                          return;
                         }
-    
-                        Evme.ShortcutsCustomize.load({
-                            "shortcuts": suggestedShortcuts,
-                            "icons": currentIcons
-                        });
-    
+
                         isFirstShow = false;
                         isRequesting = false;
-                        Evme.ShortcutsCustomize.show();
-                        // setting timeout to give the select box enough time to show
-                        // otherwise there's visible flickering
-                        window.setTimeout(Evme.ShortcutsCustomize.Loading.hide, 300);
+
+                        if (suggestedShortcuts.length === 0) {
+                          window.alert(Evme.Utils.l10n(L10N_SYSTEM_ALERT, 'no-more-shortcuts'));
+                          Evme.ShortcutsCustomize.Loading.hide();
+                        } else {
+                          for (var id in icons) {
+                              currentIcons[id] = icons[id];
+                          }
+      
+                          Evme.ShortcutsCustomize.load({
+                              "shortcuts": suggestedShortcuts,
+                              "icons": currentIcons
+                          });
+      
+                          Evme.ShortcutsCustomize.show();
+                          // setting timeout to give the select box enough time to show
+                          // otherwise there's visible flickering
+                          window.setTimeout(Evme.ShortcutsCustomize.Loading.hide, 300);
+                        }
                     });
                 });
             });
@@ -1288,93 +1289,6 @@ Evme.Brain = new function Evme_Brain() {
             elCustomize.addEventListener("click", self.showUI);
 
             el.appendChild(elCustomize);
-        };
-    };
-
-    // modules/Dialog/
-    this.Dialog = new function Dialog() {
-        var active = null;
-
-        // show
-        this.show = function show(data) {
-            active = data.obj;
-        };
-
-        // hide
-        this.remove = function remove(data) {
-            active = null;
-        };
-
-        // background modal clicked
-        this.blackoutClick = function blackoutClick() {
-            if (Evme.Utils.isKeyboardVisible) {
-                Evme.Searchbar.focus();
-                self.Evme.Searchbar.cancelBlur();
-            }
-        };
-
-        this.getActive = function getActive() {
-            return active;
-        };
-
-        this.isActive = function isActive() {
-            return (active !== null && !Brain.Tips.isVisible());
-        };
-    };
-
-    // modules/Tip/
-    this.Tips = new function Tips() {
-        var self = this,
-            activeTip = null,
-            timeoutShowTip = null;
-
-        // show
-        this.show = function show(tip, options) {
-            !options && (options = {});
-
-            if (activeTip) {
-                return null;
-            }
-
-            var onHelper = false;
-
-            if (options.query) {
-                for (var tipId in TIPS.HELPER) {
-                    if (tipId == options.query.toUpperCase()) {
-                        var helperTip = TIPS.HELPER[tipId];
-
-                        helperTip.timesShown = self.timesShown(helperTip);
-
-                        if (self.timesShown(helperTip) < helperTip.timesToShow) {
-                            showHelperTip(helperTip, options);
-                            onHelper = true;
-                        }
-
-                        break;
-                    }
-                }
-            }
-
-            return onHelper;
-        };
-
-        function showHelperTip(tip, options) {
-            Evme.Helper.hideTitle();
-            Evme.Helper.flash();
-            self.markAsShown(tip);
-        }
-
-        this.markAsShown = function markAsShown(tip) {
-            tip.timesShown++;
-            Evme.Storage.set(tip.id, tip.timesShown);
-        };
-
-        this.timesShown = function timesShown(tip) {
-            return Evme.Storage.get(tip.id) || 0;
-        };
-
-        this.isVisible = function isVisible() {
-            return activeTip;
         };
     };
 
@@ -1445,7 +1359,6 @@ Evme.Brain = new function Evme_Brain() {
             hasMoreApps = false,
             iconsCachedFromLastRequest = [],
             autocompleteCache = {},
-            timeoutShowExactTip = null,
 
             requestSearch = null,
             requestImage = null,
@@ -1573,7 +1486,6 @@ Evme.Brain = new function Evme_Brain() {
                         
                         getAppsComplete(data, options, installedApps);
                         requestSearch = null;
-                        NUMBER_OF_APPS_TO_LOAD = DEFAULT_NUMBER_OF_APPS_TO_LOAD;
                         
                         // only try to refresh location of it's a "real" search- with keyboard down
                         if (exact && appsCurrentOffset === 0 && !Evme.Utils.isKeyboardVisible) {
@@ -1659,8 +1571,6 @@ Evme.Brain = new function Evme_Brain() {
                 isMore = (appsCurrentOffset > 0),
                 bSameQuery = (lastSearch.query === query);
             
-            var tipShownOnHelper = false;
-            
             // searching after a timeout while user it typing
             if (onlyDidYouMean || options.automaticSearch) {
                 // show only spelling or disambiguation, and only if the query is the same as what the user typed
@@ -1673,20 +1583,10 @@ Evme.Brain = new function Evme_Brain() {
                 if (!isMore && !reloadingIcons) {
                     Evme.Helper.load(_query, query, suggestions, spelling, disambig);
 
-                    if (isExactMatch && !onlyDidYouMean && !Brain.App.isLoadingApp()) {
-                        tipShownOnHelper = Brain.Tips.show(TIPS.FIRST_EXACT, {
-                            "query": query
-                        });
-                    }
-
                     if (isExactMatch) {
                         if (spelling.length > 0 || disambig.length > 1) {
                             Evme.Helper.hideTitle();
                             Evme.Helper.showSpelling();
-                        } else {
-                            if (!tipShownOnHelper) {
-                                Evme.Helper.showTitle();
-                            }
                         }
                     } else {
                         Evme.Helper.showSuggestions(_query);
@@ -1741,19 +1641,6 @@ Evme.Brain = new function Evme_Brain() {
                 }
             }
 
-            if (isExactMatch) {
-                var tip = TIPS.EXACT_RESULTS;
-                if (data.response.queryType == QUERY_TYPES.EXPERIENCE && TIPS.EXACT_RESULTS_SHORTCUT) {
-                    tip = TIPS.EXACT_RESULTS_SHORTCUT;
-                }
-                
-                tip._data = {
-                    "query": lastSearch.query
-                };
-                
-                new Evme.Tip(tip).show();
-            }
-
             Evme.Searchbar.endRequest();
 
             return true;
@@ -1780,8 +1667,8 @@ Evme.Brain = new function Evme_Brain() {
                 "feature": source,
                 "exact": exact,
                 "prevQuery": lastQueryForImage,
-                "width": Evme.__config.bgImageSize[0] || screen.width,
-                "height": Evme.__config.bgImageSize[1] || screen.height
+                "width": Evme.__config.bgImageSize[0] * Evme.Utils.devicePixelRatio,
+                "height": Evme.__config.bgImageSize[1] * Evme.Utils.devicePixelRatio
             }, getBackgroundImageComplete);
         };
 

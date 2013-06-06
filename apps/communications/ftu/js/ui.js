@@ -21,7 +21,6 @@ var UIManager = {
     'pin-label',
     'pin-retries-left',
     'pin-input',
-    'fake-pin-input',
     'pin-error',
     'skip-pin-button',
     'unlock-sim-button',
@@ -30,25 +29,23 @@ var UIManager = {
     'puk-label',
     'puk-retries-left',
     'puk-input',
-    'fake-puk-input',
     'puk-info',
     'puk-error',
     'newpin-input',
-    'fake-newpin-input',
     'newpin-error',
     'confirm-newpin-input',
-    'fake-confirm-newpin-input',
     'confirm-newpin-error',
     // XCK Screen
     'xckcode-screen',
     'xck-label',
     'xck-retries-left',
     'xck-input',
-    'fake-xck-input',
     'xck-error',
     // Import contacts
     'sim-import-button',
     'no-sim',
+    'sd-import-button',
+    'no-sd',
     // Wifi
     'networks',
     'wifi-refresh-button',
@@ -61,6 +58,8 @@ var UIManager = {
     'time-form',
     // 3G
     'data-connection-switch',
+    // Geolocation
+    'geolocation-switch',
     // Tutorial
     'tutorial-screen',
     'tutorial-progress',
@@ -89,19 +88,10 @@ var UIManager = {
     this.timeConfigurationLabel.innerHTML = f.localeFormat(currentDate, format);
     this.dateConfigurationLabel.innerHTML = currentDate.
       toLocaleFormat('%Y-%m-%d');
-    // Add events to DOM
-    this.fakePinInput.addEventListener('keypress',
-                                       this.fakeInputValues.bind(this));
-    this.fakePukInput.addEventListener('keypress',
-                                       this.fakeInputValues.bind(this));
-    this.fakeNewpinInput.addEventListener('keypress',
-                                          this.fakeInputValues.bind(this));
-    this.fakeConfirmNewpinInput.addEventListener('keypress',
-                                              this.fakeInputValues.bind(this));
-    this.fakeXckInput.addEventListener('keypress',
-                                       this.fakeInputValues.bind(this));
 
+    // Add events to DOM
     this.simImportButton.addEventListener('click', this);
+    this.sdImportButton.addEventListener('click', this);
     this.skipPinButton.addEventListener('click', this);
     this.unlockSimButton.addEventListener('click', this);
 
@@ -114,6 +104,8 @@ var UIManager = {
     this.timeConfiguration.addEventListener('input', this);
     this.dateConfiguration.addEventListener('input', this);
     this.initTZ();
+
+    this.geolocationSwitch.addEventListener('click', this);
 
     // Prevent form submit in case something tries to send it
     this.timeForm.addEventListener('submit', function(event) {
@@ -241,23 +233,6 @@ var UIManager = {
     tzSelect(tzRegion, tzCity, this.setTimeZone, this.setTimeZone);
   },
 
-  fakeInputValues: function ui_fakeInputValues(event) {
-    var fakeInput = event.target;
-    var code = event.charCode;
-    if (code === 0 || (code >= 0x30 && code <= 0x39)) {
-      var displayInput =
-              document.getElementById(fakeInput.id.substr(5, fakeInput.length));
-      var content = displayInput.value;
-      if (code === 0) { // backspace
-        content = content.substr(0, content.length - 1);
-      } else {
-        content += String.fromCharCode(code);
-      }
-      displayInput.value = content;
-    }
-    fakeInput.value = '';
-  },
-
   handleEvent: function ui_handleEvent(event) {
     switch (event.target.id) {
       // SIM
@@ -272,6 +247,11 @@ var UIManager = {
         // Needed to give the browser the opportunity to properly refresh the UI
         // Particularly the button toggling cycle (from inactive to active)
         window.setTimeout(SimManager.importContacts, 0);
+        break;
+      case 'sd-import-button':
+        // Needed to give the browser the opportunity to properly refresh the UI
+        // Particularly the button toggling cycle (from inactive to active)
+        window.setTimeout(SdManager.importContacts, 0);
         break;
       // 3G
       case 'data-connection-switch':
@@ -292,9 +272,13 @@ var UIManager = {
       case 'date-configuration':
         this.setDate();
         break;
+      // Geolocation
+      case 'geolocation-switch':
+        this.updateSetting(event.target.name, event.target.checked);
+        break;
       // Privacy
       case 'share-performance':
-        this.updateSetting(event.target.name, event.target.value);
+        this.updateSetting(event.target.name, event.target.checked);
         break;
       default:
         // wifi selection

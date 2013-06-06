@@ -8,25 +8,35 @@ var lazyLoadFiles = [
   'shared/js/l10n_date.js',
   'shared/js/custom_dialog.js',
   'shared/js/notification_helper.js',
+  'shared/js/gesture_detector.js',
   'js/blacklist.js',
   'js/contacts.js',
+  'js/recipients.js',
+  'js/threads.js',
   'js/message_manager.js',
+  'js/attachment.js',
+  'js/attachment_menu.js',
   'js/thread_list_ui.js',
   'js/thread_ui.js',
+  'js/compose.js',
   'js/waiting_screen.js',
   'js/utils.js',
   'js/fixed_header.js',
   'js/activity_picker.js',
+  'js/smil.js',
   'js/link_helper.js',
   'js/action_menu.js',
   'js/link_action_handler.js',
+  'js/settings.js',
+  'js/activity_handler.js',
   'shared/style/input_areas.css',
   'shared/style/switches.css',
   'shared/style/confirm.css',
   'shared/style_unstable/progress_activity.css',
   'style/custom_dialog.css',
   'shared/style/action_menu.css',
-  'shared/style/responsive.css'
+  'shared/style/responsive.css',
+  'style/notification.css'
 ];
 
 window.addEventListener('localized', function showBody() {
@@ -37,18 +47,23 @@ window.addEventListener('localized', function showBody() {
 
 window.addEventListener('load', function() {
   function initUIApp() {
+    ActivityHandler.init();
     // Init UI Managers
     ThreadUI.init();
     ThreadListUI.init();
     // We render the threads
     MessageManager.getThreads(ThreadListUI.renderThreads);
-    // We add activity/system message handlers
-    LazyLoader.load(['js/activity_handler.js']);
+    // Fetch mmsSizeLimitation
+    Settings.getMmsSizeLimitation(function(size) {
+      if (size && !isNaN(size)) {
+        Settings.mmsSizeLimitation = size;
+      }
+    });
   }
 
   navigator.mozL10n.ready(function waitLocalizedForLoading() {
     LazyLoader.load(lazyLoadFiles, function() {
-      if (!navigator.mozSms) {
+      if (!navigator.mozMobileMessage) {
         LazyLoader.load(['js/sms_mock.js'], function() {
           MessageManager.init(initUIApp);
         });

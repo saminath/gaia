@@ -1,8 +1,5 @@
 'use strict';
 
-// We will use a wake lock later to prevent Music from sleeping
-var cpuLock = null;
-
 // We have three types of the playing sources
 // These are for player to know which source type is playing
 var TYPE_MIX = 'mix';
@@ -28,6 +25,14 @@ if (acm) {
     }
   });
 }
+
+window.addEventListener('mozvisibilitychange', function() {
+  if (document.mozHidden) {
+    PlayerView.audio.removeEventListener('timeupdate', PlayerView);
+  } else {
+    PlayerView.audio.addEventListener('timeupdate', PlayerView);
+  }
+});
 
 // View of Player
 var PlayerView = {
@@ -91,6 +96,7 @@ var PlayerView = {
     this.isPlaying = false;
     this.isSeeking = false;
     this.dataSource = [];
+    this.playingBlob = null;
     this.currentIndex = 0;
     this.backgroundIndex = 0;
     this.setSeekBar(0, 0, 0); // Set 0 to default seek position
@@ -122,6 +128,7 @@ var PlayerView = {
       musicdb.cancelEnumeration(playerHandle);
 
     this.dataSource = [];
+    this.playingBlob = null;
   },
 
   setSourceType: function pv_setSourceType(type) {
@@ -305,11 +312,6 @@ var PlayerView = {
   play: function pv_play(targetIndex, backgroundIndex) {
     this.isPlaying = true;
 
-    // Hold a wake lock to prevent from sleeping
-    if (!cpuLock)
-      cpuLock = navigator.requestWakeLock('cpu');
-
-
     this.showInfo();
 
     if (arguments.length > 0) {
@@ -347,6 +349,7 @@ var PlayerView = {
 
       musicdb.getFile(songData.name, function(file) {
         this.setAudioSrc(file, true);
+        this.playingBlob = file;
       }.bind(this));
     } else if (this.sourceType === TYPE_BLOB && !this.audio.src) {
       // if we reach here, that means we want to a blob
@@ -378,13 +381,6 @@ var PlayerView = {
 
   pause: function pv_pause() {
     this.isPlaying = false;
-
-    // We can go to sleep if music pauses
-    if (cpuLock) {
-      cpuLock.unlock();
-      cpuLock = null;
-    }
-
     this.audio.pause();
   },
 
@@ -498,22 +494,12 @@ var PlayerView = {
     if (seekTime !== undefined)
       this.audio.currentTime = seekTime;
 
-    // mp3 returns in microseconds
-    // ogg returns in seconds
-    // note this may be a bug cause mp3 shows wrong duration in
-    // gecko's native audio player
-    // A related Bug 740124 in Bugzilla
     var startTime = this.audio.startTime;
 
-    var originalEndTime =
+    var endTime =
       (this.audio.duration && this.audio.duration != 'Infinity') ?
       this.audio.duration :
       this.audio.buffered.end(this.audio.buffered.length - 1);
-
-    // now mp3 returns in seconds, but keep this checking to prevent bugs
-    var endTime = (originalEndTime > 1000000) ?
-      Math.floor(originalEndTime / 1000000) :
-      Math.floor(originalEndTime);
 
     var currentTime = this.audio.currentTime;
 
@@ -607,10 +593,14 @@ var PlayerView = {
           this.showInfo();
 
           var songData = this.dataSource[this.currentIndex];
-          songData.metadata.rated = parseInt(target.dataset.rating);
+          var targetRating = parseInt(target.dataset.rating);
+          var newRating = (targetRating === songData.metadata.rated) ?
+            targetRating - 1 : targetRating;
 
-          musicdb.updateMetadata(songData.name, songData.metadata,
-            this.setRatings.bind(this, parseInt(target.dataset.rating)));
+          songData.metadata.rated = newRating;
+
+          musicdb.updateMetadata(songData.name, songData.metadata);
+          this.setRatings(newRating);
         }
 
         break;

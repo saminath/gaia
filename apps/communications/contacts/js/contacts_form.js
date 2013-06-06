@@ -303,9 +303,19 @@ contacts.Form = (function() {
       var currentElem = fields[j];
       var def = (currentElem === 'type') ? default_type : '';
       var defObj = (typeof(obj) === 'string') ? obj : obj[currentElem];
-      var value = currField[currentElem] = defObj || def;
+      var value = '';
+
+      currField[currentElem] =
+      (typeof(defObj) === 'object') ? defObj.toString() : defObj;
+      value = currField[currentElem] || def;
       if (currentElem === 'type') {
-        value = _(value) || value;
+        currField['type_value'] = value;
+
+        // Do localizatiion for built-in types
+        if (isBuiltInType(value, tags)) {
+          currField['type_l10n_id'] = value;
+          value = _(value) || value;
+        }
       }
       currField[currentElem] = utils.text.escapeHTML(value, true);
       if (!infoFromFB && value && nonEditableValues[value]) {
@@ -330,7 +340,7 @@ contacts.Form = (function() {
     // Add event listeners
     var boxTitle = rendered.querySelector('legend.action');
     if (boxTitle) {
-      boxTitle.addEventListener(touchstart, onGoToSelectTag);
+      boxTitle.addEventListener('click', onGoToSelectTag);
     }
 
     container.appendChild(rendered);
@@ -535,6 +545,16 @@ contacts.Form = (function() {
     return out;
   }
 
+  function isBuiltInType(type, tagList) {
+    for (var j = 0; j < tagList.length; j++) {
+      if (tagList[j].type === type) {
+          return true;
+      }
+    }
+
+    return false;
+  }
+
   var getPhones = function getPhones(contact) {
     var selector = '#view-contact-form form div.phone-template:not(.removed)';
     var phones = dom.querySelectorAll(selector);
@@ -547,9 +567,7 @@ contacts.Form = (function() {
         continue;
 
       var selector = 'tel_type_' + arrayIndex;
-      var typeField = getNormalizedType(
-                                dom.getElementById(selector).textContent || '',
-                                TAG_OPTIONS['phone-type']);
+      var typeField = dom.getElementById(selector).dataset.value || '';
       var carrierSelector = 'carrier_' + arrayIndex;
       var carrierField = dom.getElementById(carrierSelector).value || '';
       contact['tel'] = contact['tel'] || [];
@@ -570,9 +588,7 @@ contacts.Form = (function() {
       var emailField = dom.getElementById('email_' + arrayIndex);
       var emailValue = emailField.value;
       var selector = 'email_type_' + arrayIndex;
-      var typeField = getNormalizedType(
-                                dom.getElementById(selector).textContent || '',
-                                TAG_OPTIONS['email-type']);
+      var typeField = dom.getElementById(selector).dataset.value || '';
       if (!emailValue)
         continue;
 
@@ -594,9 +610,8 @@ contacts.Form = (function() {
       var addressValue = addressField.value || '';
 
       var selector = 'address_type_' + arrayIndex;
-      var typeField = getNormalizedType(
-                                dom.getElementById(selector).textContent || '',
-                                TAG_OPTIONS['address-type']);
+      var typeField = dom.getElementById(selector).dataset.value || '';
+
       selector = 'locality_' + arrayIndex;
       var locality = dom.getElementById(selector).value || '';
       selector = 'postalCode_' + arrayIndex;
@@ -755,7 +770,8 @@ contacts.Form = (function() {
 
     activity.onsuccess = function success() {
       addRemoveIconToPhoto();
-      saveButton.removeAttribute('disabled');
+      if (!emptyForm())
+        saveButton.removeAttribute('disabled');
       // XXX
       // this.result.blob is valid now, but it won't stay valid
       // (see https://bugzilla.mozilla.org/show_bug.cgi?id=806503)

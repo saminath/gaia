@@ -85,9 +85,15 @@ var LockScreen = {
   triggeredTimeoutId: 0,
 
   /*
-  * Interval ID for elastic of curve and arrow
+  * Interval ID for elastic of curve and arrow (null means the animation is
+  * not running).
   */
-  elasticIntervalId: 0,
+  elasticIntervalId: null,
+
+  /*
+  * True if the animation should be running right now.
+  */
+  elasticEnabled: false,
 
   /*
   * elastic animation interval
@@ -104,10 +110,15 @@ var LockScreen = {
   */
   HANDLE_MAX: 70,
 
+  /**
+   * Object used for handling the clock UI element, wraps all related timers
+   */
+  clock: new Clock(),
+
   /* init */
   init: function ls_init() {
     if (this.ready) { // already initialized: just trigger a translation
-      this.updateTime();
+      this.refreshClock(new Date());
       this.updateConnState();
       return;
     }
@@ -121,11 +132,12 @@ var LockScreen = {
     /* Status changes */
     window.addEventListener('volumechange', this);
     window.addEventListener('screenchange', this);
+    document.addEventListener('visibilitychange', this);
 
     /* Gesture */
     this.area.addEventListener('mousedown', this);
-    this.areaCamera.addEventListener('click', this);
-    this.areaUnlock.addEventListener('click', this);
+    this.areaCamera.addEventListener('mousedown', this);
+    this.areaUnlock.addEventListener('mousedown', this);
     this.iconContainer.addEventListener('mousedown', this);
 
     /* Unlock & camera panel clean up */
@@ -151,24 +163,13 @@ var LockScreen = {
     }
 
     var self = this;
-    if (navigator && navigator.mozCellBroadcast) {
-      navigator.mozCellBroadcast.onreceived = function onReceived(event) {
-        var msg = event.message;
-        if (conn &&
-            conn.voice.network.mcc === MobileOperator.BRAZIL_MCC &&
-            msg.messageId === MobileOperator.BRAZIL_CELLBROADCAST_CHANNEL) {
-          self.cellbroadcastLabel = msg.body;
-          self.updateConnState();
-        }
-      };
-    }
 
     SettingsListener.observe('lockscreen.enabled', true, function(value) {
       self.setEnabled(value);
     });
 
-    SettingsListener.observe('ring.enabled', true, function(value) {
-      self.mute.hidden = value;
+    SettingsListener.observe('audio.volume.notification', 7, function(value) {
+      self.mute.hidden = (value != 0);
     });
 
     SettingsListener.observe('vibration.enabled', true, function(value) {
@@ -262,6 +263,8 @@ var LockScreen = {
           if (this.camera.firstElementChild)
             this.camera.removeChild(this.camera.firstElementChild);
 
+          // Stop refreshing the clock when the screen is turned off.
+          this.clock.stop();
         } else {
           var _screenOffInterval = new Date().getTime() - this._screenOffTime;
           if (_screenOffInterval > this.passCodeRequestTimeout * 1000) {
@@ -269,21 +272,29 @@ var LockScreen = {
           } else {
             this._passCodeTimeoutCheck = false;
           }
+
+          // Resume refreshing the clock when the screen is turned on.
+          this.clock.start(this.refreshClock.bind(this));
+
+          // Show the unlock keypad immediately
+          if (this.passCodeEnabled) {
+            this.switchPanel('passcode');
+          }
         }
 
         this.lockIfEnabled(true);
         break;
+
+      case 'visibilitychange':
+        this.visibilityChanged();
+        break;
+
       case 'voicechange':
       case 'cardstatechange':
       case 'iccinfochange':
         this.updateConnState();
 
       case 'click':
-        if (evt.target === this.areaUnlock || evt.target === this.areaCamera) {
-          this.handleIconClick(evt.target);
-          break;
-        }
-
         if (!evt.target.dataset.key)
           break;
 
@@ -293,6 +304,13 @@ var LockScreen = {
         break;
 
       case 'mousedown':
+        if (evt.target === this.areaUnlock ||
+           evt.target === this.areaCamera) {
+          evt.preventDefault();
+          this.handleIconClick(evt.target);
+          break;
+        }
+
         var leftTarget = this.areaCamera;
         var rightTarget = this.areaUnlock;
         var handle = this.areaHandle;
@@ -358,7 +376,11 @@ var LockScreen = {
 
       case 'home':
         if (this.locked) {
-          this.switchPanel();
+          if (this.passCodeEnabled) {
+            this.switchPanel('passcode');
+          } else {
+            this.switchPanel();
+          }
           evt.stopImmediatePropagation();
         }
         break;
@@ -522,7 +544,11 @@ var LockScreen = {
   },
 
   unlock: function ls_unlock(instant, detail) {
-    var currentApp = WindowManager.getDisplayedApp();
+    // This file is loaded before the Window Manager in order to intercept
+    // hardware buttons events. As a result WindowManager is not defined when
+    // the device is turned on and this file is loaded.
+    var currentApp =
+      'WindowManager' in window ? WindowManager.getDisplayedApp() : null;
 
     var currentFrame = null;
 
@@ -577,13 +603,15 @@ var LockScreen = {
     this.setElasticEnabled(false);
     this.mainScreen.focus();
     this.dispatchEvent('will-unlock');
+
+    // The lockscreen will be hidden, stop refreshing the clock.
+    this.clock.stop();
   },
 
   lock: function ls_lock(instant) {
     var wasAlreadyLocked = this.locked;
     this.locked = true;
 
-    navigator.mozL10n.ready(this.updateTime.bind(this));
     this.switchPanel();
 
     this.setElasticEnabled(ScreenManager.screenEnabled);
@@ -744,25 +772,19 @@ var LockScreen = {
     });
   },
 
-  updateTime: function ls_updateTime() {
+  refreshClock: function ls_refreshClock(now) {
     if (!this.locked)
       return;
 
-    var d = new Date();
     var f = new navigator.mozL10n.DateTimeFormat();
     var _ = navigator.mozL10n.get;
 
     var timeFormat = _('shortTimeFormat');
     var dateFormat = _('longDateFormat');
-    var time = f.localeFormat(d, timeFormat);
+    var time = f.localeFormat(now, timeFormat);
     this.clockNumbers.textContent = time.match(/([012]?\d).[0-5]\d/g);
     this.clockMeridiem.textContent = (time.match(/AM|PM/i) || []).join('');
-    this.date.textContent = f.localeFormat(d, dateFormat);
-
-    var self = this;
-    window.setTimeout(function ls_clockTimeout() {
-      self.updateTime();
-    }, (59 - d.getSeconds()) * 1000);
+    this.date.textContent = f.localeFormat(now, dateFormat);
   },
 
   updateConnState: function ls_updateConnState() {
@@ -941,7 +963,7 @@ var LockScreen = {
     // ID of elements to create references
     var elements = ['connstate', 'mute', 'clock-numbers', 'clock-meridiem',
         'date', 'area', 'area-unlock', 'area-camera', 'icon-container',
-        'area-handle', 'passcode-code',
+        'area-handle', 'passcode-code', 'alt-camera', 'alt-camera-button',
         'passcode-pad', 'camera', 'accessibility-camera',
         'accessibility-unlock', 'panel-emergency-call'];
 
@@ -980,12 +1002,37 @@ var LockScreen = {
     });
   },
 
-  setElasticEnabled: function ls_setElasticEnabled(value) {
-    clearInterval(this.elasticIntervalId);
-    if (value) {
-      this.elasticIntervalId =
-        setInterval(this.playElastic.bind(this), this.ELASTIC_INTERVAL);
+  stopElasticTimer: function ls_stopElasticTimer() {
+    // Stop the timer if its running.
+    if (this.elasticIntervalId != null) {
+      clearInterval(this.elasticIntervalId);
+      this.elasticIntervalId = null;
     }
+  },
+
+  startElasticTimer: function ls_startElasticTimer() {
+    this.elasticIntervalId =
+      setInterval(this.playElastic.bind(this), this.ELASTIC_INTERVAL);
+  },
+
+  setElasticEnabled: function ls_setElasticEnabled(value) {
+    // Remember the state we want to be in.
+    this.elasticEnabled = value;
+    // If the timer is already running, stop it.
+    this.stopElasticTimer();
+    // If the document is visible, go ahead and start the timer now.
+    if (value && !document.hidden) {
+      this.startElasticTimer();
+    }
+  },
+
+  visibilityChanged: function ls_visibilityChanged() {
+    // Stop the timer when we go invisible and
+    // re-start it when we become visible.
+    if (document.hidden)
+      this.stopElasticTimer();
+    else if (this.elasticEnabled)
+      this.startElasticTimer();
   },
 
   playElastic: function ls_playElastic() {
@@ -1000,6 +1047,13 @@ var LockScreen = {
       container.removeEventListener(e.type, animationend);
       overlay.classList.remove('elastic');
     });
+  },
+
+  // Used by CellBroadcastSystem to notify the lockscreen of
+  // any incoming CB messages that need to be displayed.
+  setCellbroadcastLabel: function ls_setCellbroadcastLabel(label) {
+    this.cellbroadcastLabel = label;
+    this.updateConnState();
   }
 };
 

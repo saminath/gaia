@@ -4,7 +4,7 @@
 'use strict';
 
 // handle carrier settings
-var Carrier = (function newCarrier(window, document, undefined) {
+navigator.mozL10n.ready(function carrierSettings() {
   var APN_FILE = '/shared/resources/apn.json';
   var _ = window.navigator.mozL10n.get;
 
@@ -67,20 +67,13 @@ var Carrier = (function newCarrier(window, document, undefined) {
     }
 
     // load and query APN database, then trigger callback on results
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', APN_FILE, true);
-    xhr.responseType = 'json';
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState == 4 && (xhr.status == 200 || xhr.status === 0)) {
-        var apn = xhr.response;
-        var mcc = mccMncCodes.mcc;
-        var mnc = mccMncCodes.mnc;
-        // get a list of matching APNs
-        gCompatibleAPN = apn[mcc] ? (apn[mcc][mnc] || []) : [];
-        callback(filter(gCompatibleAPN), usage);
-      }
-    };
-    xhr.send();
+    loadJSON(APN_FILE, function loadAPN(apn) {
+      var mcc = mccMncCodes.mcc;
+      var mnc = mccMncCodes.mnc;
+      // get a list of matching APNs
+      gCompatibleAPN = apn[mcc] ? (apn[mcc][mnc] || []) : [];
+      callback(filter(gCompatibleAPN), usage);
+    });
   }
 
   // helper
@@ -236,12 +229,14 @@ var Carrier = (function newCarrier(window, document, undefined) {
     var settings = Settings.mozSettings;
 
     /*
-     * settingKey        : The key of the setting
-     * dialogID          : The ID of the warning dialog
-     * explanationItemID : The ID of the explanation item
+     * settingKey              : The key of the setting
+     * dialogID                : The ID of the warning dialog
+     * explanationItemID       : The ID of the explanation item
+     * warningDisabledCallback : Callback when the warning is disabled
      */
     var initWarnings =
-      function initWarnings(settingKey, dialogID, explanationItemID) {
+      function initWarnings(settingKey, dialogID, explanationItemID,
+        warningDisabledCallback) {
         if (settings) {
           var warningDialogEnabledKey = settingKey + '.warningDialog.enabled';
           var explanationItem = document.getElementById(explanationItemID);
@@ -266,6 +261,8 @@ var Carrier = (function newCarrier(window, document, undefined) {
             window.asyncStorage.setItem(warningDialogEnabledKey, false);
             explanationItem.hidden = false;
             setState(true);
+            if (warningDisabledCallback)
+              warningDisabledCallback();
           };
 
           var onReset = function() {
@@ -304,6 +301,8 @@ var Carrier = (function newCarrier(window, document, undefined) {
               };
             } else {
               explanationItem.hidden = false;
+              if (warningDisabledCallback)
+                warningDisabledCallback();
             }
           });
         } else {
@@ -311,21 +310,23 @@ var Carrier = (function newCarrier(window, document, undefined) {
         }
       };
 
+    var onDCWarningDisabled = function() {
+      // Turn off data roaming automatically when users turn off data connection
+      if (settings) {
+        settings.addObserver('ril.data.enabled', function(event) {
+          if (!event.settingValue) {
+            var cset = {};
+            cset['ril.data.roaming_enabled'] = false;
+            settings.createLock().set(cset);
+          }
+        });
+      }
+    };
+
     initWarnings('ril.data.enabled', 'carrier-dc-warning',
-      'dataConnection-expl');
+      'dataConnection-expl', onDCWarningDisabled);
     initWarnings('ril.data.roaming_enabled', 'carrier-dr-warning',
       'dataRoaming-expl');
-
-    // Turn off data roaming automatically when users turn off data connection
-    if (settings) {
-      settings.addObserver('ril.data.enabled', function(event) {
-        if (!event.settingValue) {
-          var cset = {};
-          cset['ril.data.roaming_enabled'] = false;
-          settings.createLock().set(cset);
-        }
-      });
-    }
   }
 
   // network operator selection: auto/manual
@@ -335,11 +336,17 @@ var Carrier = (function newCarrier(window, document, undefined) {
 
   function updateSelectionMode(scan) {
     var mode = mobileConnection.networkSelectionMode;
-    opAutoSelectState.textContent = mode || '';
     // we're assuming the auto-selection is ON by default.
-    opAutoSelectInput.checked = !mode || (mode === 'automatic');
-    if (!opAutoSelectInput.checked && scan) {
-      gOperatorNetworkList.scan();
+    var auto = !mode || (mode === 'automatic');
+    opAutoSelectInput.checked = auto;
+    if (auto) {
+      localize(opAutoSelectState, 'operator-networkSelect-auto');
+    } else {
+      opAutoSelectState.dataset.l10nId = '';
+      opAutoSelectState.textContent = mode;
+      if (scan) {
+        gOperatorNetworkList.scan();
+      }
     }
   }
 
@@ -359,8 +366,8 @@ var Carrier = (function newCarrier(window, document, undefined) {
 
     // state
     var state = document.createElement('small');
-    // XXX do we need l10n here?
-    state.textContent = network.state;
+    state.textContent =
+      network.state ? _('state-' + network.state) : _('state-unknown');
 
     // create list item
     var li = document.createElement('li');
@@ -395,23 +402,20 @@ var Carrier = (function newCarrier(window, document, undefined) {
 
     // select operator
     function selectOperator(network, messageElement) {
-      var _ = window.navigator.mozL10n.get;
       var req = mobileConnection.selectNetwork(network);
       // update current network state as 'available' (the string display
       // on the network to connect)
       currentStateElement.textContent = messageElement.textContent;
       currentStateElement.dataset.l10nId = messageElement.dataset.l10nId;
       currentStateElement = messageElement;
-      messageElement.textContent = _('operator-status-connecting');
-      messageElement.dataset.l10nId = 'operator-status-connecting';
+      localize(messageElement, 'operator-status-connecting');
       req.onsuccess = function onsuccess() {
-        messageElement.textContent = _('operator-status-connected');
-        messageElement.dataset.l10nId = 'operator-status-connected';
+        localize(messageElement, 'operator-status-connected');
         updateSelectionMode(false);
       };
       req.onerror = function onsuccess() {
-        messageElement.textContent = _('operator-status-connectingfailed');
-        messageElement.dataset.l10nId = 'operator-status-connectingfailed';
+        localize(messageElement, 'operator-status-connectingfailed');
+        updateSelectionMode(false);
       };
     }
 
@@ -461,30 +465,16 @@ var Carrier = (function newCarrier(window, document, undefined) {
     }
   };
 
-  // public API
-  return {
-    // display matching APNs
-    fillAPNList: function carrier_fillAPNList(usage) {
-      queryAPN(updateAPNList, usage);
-    },
+  // startup
+  Connectivity.updateCarrier(); // see connectivity.js
+  updateSelectionMode(true);
+  initDataConnectionAndRoamingWarnings();
 
-    // startup
-    init: function carrier_init() {
-      Connectivity.updateCarrier(); // see connectivity.js
-      updateSelectionMode(true);
-      initDataConnectionAndRoamingWarnings();
-
-      getMccMncCodes(function() {
-        // XXX this should be done later -- not during init()
-        Carrier.fillAPNList('data');
-        // XXX commented this line because MMS Settings is hidden
-        // Carrier.fillAPNList('mms');
-        Carrier.fillAPNList('supl');
-      });
-    }
-  };
-})(this, document);
-
-// startup
-navigator.mozL10n.ready(Carrier.init.bind(Carrier));
+  // XXX this should be done later
+  getMccMncCodes(function() {
+    queryAPN(updateAPNList, 'data');
+    queryAPN(updateAPNList, 'mms');
+    queryAPN(updateAPNList, 'supl');
+  });
+});
 

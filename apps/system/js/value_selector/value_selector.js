@@ -9,6 +9,9 @@ var ValueSelector = {
   _popups: {},
   _buttons: {},
   _datePicker: null,
+  _currentPickerType: null,
+  _currentInputType: null,
+  _currentDatetimeValue: '',
 
   debug: function(msg) {
     var debugFlag = false;
@@ -18,7 +21,6 @@ var ValueSelector = {
   },
 
   init: function vs_init() {
-
     var self = this;
 
     window.navigator.mozKeyboard.onfocuschange = function onfocuschange(evt) {
@@ -32,8 +34,11 @@ var ValueSelector = {
         return;
 
       var currentValue = evt.detail.value;
+      var currentInputType = evt.detail.type;
+      self._currentDatetimeValue = currentValue;
+      self._currentInputType = currentInputType;
 
-      switch (evt.detail.type) {
+      switch (currentInputType) {
         case 'select-one':
         case 'select-multiple':
           self.debug('select triggered' + JSON.stringify(evt.detail));
@@ -53,8 +58,17 @@ var ValueSelector = {
 
         case 'datetime':
         case 'datetime-local':
-          // TODO
+          var min = evt.detail.min;
+          var max = evt.detail.max;
+          if (currentValue !== '') {
+            var date = new Date(currentValue);
+            var localDate = date.toLocaleFormat('%Y-%m-%d');
+            self.showDatePicker(localDate, min, max);
+          } else {
+            self.showDatePicker('', min, max);
+          }
           break;
+
         case 'blur':
           self.hide();
           break;
@@ -80,23 +94,26 @@ var ValueSelector = {
 
     this._buttons['time'] = document.getElementById('time-picker-buttons');
     this._buttons['time'].addEventListener('click', this);
-    this._buttons['date'] = document.getElementById('spin-date-picker-buttons');
 
+    this._buttons['date'] = document.getElementById('spin-date-picker-buttons');
     this._buttons['date'].addEventListener('click', this);
 
-    this._containers['time'] = document.getElementById('picker-bar');
+    this._context = document.getElementById('time-picker');
+
+    this._containers['time'] = this._context.querySelector('.picker-container');
     this._containers['date'] = document.getElementById('spin-date-picker');
 
     // Prevent focus being taken away by us for time picker.
     // The event listener on outer box will not be triggered cause
     // there is a evt.stopPropagation() in value_picker.js
-    var pickerElements = ['value-picker-hours', 'value-picker-minutes',
-                         'value-picker-hour24-state'];
 
-    pickerElements.forEach((function pickerElements_forEach(id) {
-      var element = document.getElementById(id);
-      element.addEventListener('mousedown', this);
-    }).bind(this));
+    var pickerElements = ['.value-picker-hours', '.value-picker-minutes',
+                         '.value-picker-hour24-state'];
+
+    pickerElements.forEach(function(className) {
+      var el = this._context.querySelector(className);
+      el.addEventListener('mousedown', this);
+    }, this);
 
     window.addEventListener('appopen', this);
     window.addEventListener('appwillclose', this);
@@ -223,19 +240,75 @@ var ValueSelector = {
   },
 
   confirm: function vs_confirm() {
+    var currentInputType = this._currentInputType;
 
-    if (this._currentPickerType === 'time') {
+    switch (currentInputType) {
+      case 'time':
+        var timeValue = TimePicker.getTimeValue();
+        this.debug('output value: ' + timeValue);
+        window.navigator.mozKeyboard.setValue(timeValue);
+        break;
 
-      var timeValue = TimePicker.getTimeValue();
-      this.debug('output value: ' + timeValue);
+      case 'date':
+        var dateValue = this._datePicker.value;
+        // The format should be 2012-09-19
+        dateValue = dateValue.toLocaleFormat('%Y-%m-%d');
+        this.debug('output value: ' + dateValue);
+        window.navigator.mozKeyboard.setValue(dateValue);
+        break;
 
-      window.navigator.mozKeyboard.setValue(timeValue);
-    } else if (this._currentPickerType === 'date') {
-      var dateValue = this._datePicker.value;
-      // The format should be 2012-09-19
-      dateValue = dateValue.toLocaleFormat('%Y-%m-%d');
-      this.debug('output value: ' + dateValue);
-      window.navigator.mozKeyboard.setValue(dateValue);
+      case 'datetime':
+      case 'datetime-local':
+        var currentDatetimeValue = this._currentDatetimeValue;
+        if (this._currentPickerType === 'date') {
+          this.hide();
+
+          if (currentDatetimeValue !== '') {
+            var date = new Date(this._currentDatetimeValue);
+            var localTime = date.toLocaleFormat('%H:%M');
+            this.showTimePicker(localTime);
+          } else {
+            this.showTimePicker();
+          }
+          return;
+        } else if (this._currentPickerType === 'time') {
+          var selectedDate = this._datePicker.value;
+          var hour = TimePicker.getHour();
+          var minute = TimePicker.timePicker.minute.getSelectedDisplayedText();
+          var second = '';
+          var millisecond = '';
+          var date = null;
+          // The second and millisecond values can't be selected by picker.
+          // So set these values as same as
+          // the current value of datetime/datetime-local input field
+          // when currentDatetimeValue is not equal to ''(space),
+          // or set the values as same as current time.
+          if (currentDatetimeValue !== '') {
+            date = new Date(this._currentDatetimeValue);
+          } else {
+            date = new Date();
+          }
+          second = date.getSeconds();
+          millisecond = date.getMilliseconds();
+
+          selectedDate.setHours(hour);
+          selectedDate.setMinutes(minute);
+          selectedDate.setSeconds(second);
+          selectedDate.setMilliseconds(millisecond);
+
+          var datetimeValue = '';
+          if (currentInputType === 'datetime') {
+            // The datetime format should be 1983-09-08T14:54:39.123Z
+            datetimeValue = selectedDate.toISOString();
+          } else { // if (currentInputType === 'datetime-local')
+            // The datetime-local format should be 1983-09-08T14:54:39.123
+            datetimeValue = selectedDate.toLocaleFormat('%Y-%m-%dT%H:%M:%S.') +
+                            selectedDate.getMilliseconds();
+          }
+          this.debug('output value: ' + datetimeValue);
+          window.navigator.mozKeyboard.setValue(datetimeValue);
+        }
+        break;
     }
 
     window.navigator.mozKeyboard.removeFocus();
@@ -405,19 +478,19 @@ var TimePicker = {
   get hourSelector() {
     delete this.hourSelector;
     return this.hourSelector =
-      document.getElementById('value-picker-hours');
+      ValueSelector._context.querySelector('.value-picker-hours');
   },
 
   get minuteSelector() {
     delete this.minuteSelector;
     return this.minuteSelector =
-      document.getElementById('value-picker-minutes');
+      ValueSelector._context.querySelector('.value-picker-minutes');
   },
 
   get hour24StateSelector() {
     delete this.hour24StateSelector;
     return this.hour24StateSelector =
-      document.getElementById('value-picker-hour24-state');
+      ValueSelector._context.querySelector('.value-picker-hour24-state');
   },
 
   initTimePicker: function tp_initTimePicker() {
@@ -463,11 +536,11 @@ var TimePicker = {
 
   setTimePickerStyle: function tp_setTimePickerStyle() {
     var style = (this.timePicker.is12hFormat) ? 'format12h' : 'format24h';
-    document.getElementById('picker-bar').classList.add(style);
+    var container = ValueSelector._context.querySelector('.picker-container');
+    container.classList.add(style);
   },
 
-  // return a string for the time value, format: "16:37"
-  getTimeValue: function tp_getTimeValue() {
+  getHour: function tp_getHours() {
     var hour = 0;
     if (this.timePicker.is12hFormat) {
       var hour24Offset = 12 * this.timePicker.hour24State.getSelectedIndex();
@@ -477,6 +550,12 @@ var TimePicker = {
     } else {
       hour = this.timePicker.hour.getSelectedIndex();
     }
+    return hour;
+  },
+
+  // return a string for the time value, format: "16:37"
+  getTimeValue: function tp_getTimeValue() {
+    var hour = this.getHour();
     var minute = this.timePicker.minute.getSelectedDisplayedText();
 
     return hour + ':' + minute;

@@ -82,15 +82,26 @@ navigator.mozL10n.ready(function bluetoothSettings() {
       }
 
       var nameEntered = window.prompt(_('change-phone-name'), myName);
-      if (!nameEntered || nameEntered === '' || nameEntered === myName)
-        return;
 
-      if (!bluetooth.enabled || !defaultAdapter)
-        return;
+      // Bug 847459: Default name of the bluetooth device is set by bluetoothd
+      // to the value of the Android ro.product.model property upon first
+      // start. In case the user gives an empty bluetooth device name, we want
+      // to revert to the original ro.product.model. Gecko exposes it under
+      // the deviceinfo.product_model setting.
+      var deviceInfo = settings.createLock().get('deviceinfo.product_model');
+      deviceInfo.onsuccess = function bt_getProductModel() {
+        var productModel = deviceInfo.result['deviceinfo.product_model'];
 
-      var req = defaultAdapter.setName(nameEntered);
-      req.onsuccess = function bt_renameSuccess() {
-        myName = visibleName.textContent = defaultAdapter.name;
+        nameEntered = nameEntered.replace(/^\s+|\s+$/g, '');
+
+        if (nameEntered === myName || !bluetooth.enabled || !defaultAdapter) {
+          return;
+        }
+
+        var req = defaultAdapter.setName(nameEntered || productModel);
+        req.onsuccess = function bt_renameSuccess() {
+          myName = visibleName.textContent = defaultAdapter.name;
+        };
       };
     };
 
@@ -238,8 +249,8 @@ navigator.mozL10n.ready(function bluetoothSettings() {
             this.connectOpt.style.display = 'block';
             this.disconnectOpt.style.display = 'none';
             this.connectOpt.onclick = function() {
-              setDeviceConnect(device);
               stopDiscovery();
+              setDeviceConnect(device);
             };
           }
         } else {
@@ -366,7 +377,13 @@ navigator.mozL10n.ready(function bluetoothSettings() {
         if (!value || !pairList.index[value])
           return;
         var device = pairList.index[value][0];
-        setDeviceConnect(device);
+        isDeviceConnected(device, function(connected) {
+          if (connected) {
+            showDeviceConnected(device.address, true);
+          } else {
+            setDeviceConnect(device);
+          }
+        });
       });
     }
 
@@ -418,6 +435,60 @@ navigator.mozL10n.ready(function bluetoothSettings() {
       };
     }
 
+    function isDeviceConnected(device, callback) {
+      if (!callback)
+        return;
+
+      if (defaultAdapter && device) {
+        var getConnectedDevices = function(profileID, gcdCallback) {
+          var req = defaultAdapter.getConnectedDevices(profileID);
+          req.onsuccess = function() {
+            if (gcdCallback) {
+              gcdCallback(req.result || []);
+            }
+          };
+          req.onerror = function() {
+            if (gcdCallback) {
+              gcdCallback(null);
+            }
+          };
+        };
+
+        var findDeviceByAddress = function(address, connectedDevices) {
+          if (!connectedDevices)
+            return false;
+
+          var found = false;
+          for (var i in connectedDevices) {
+            var connectedDevice = connectedDevices[i];
+            if (connectedDevice.address === address) {
+              found = true;
+              break;
+            }
+          }
+          return found;
+        };
+
+        // '0x111E' is a service id of HFP.
+        // '0x1108' is a service id of HSP.
+        getConnectedDevices(0x111E, function(hfpResult) {
+          if (findDeviceByAddress(device.address, hfpResult)) {
+            callback(true);
+          } else {
+            getConnectedDevices(0x1108, function(hspResult) {
+              if (findDeviceByAddress(device.address, hspResult)) {
+                callback(true);
+              } else {
+                callback(false);
+              }
+            });
+          }
+        });
+      } else {
+        callback(false);
+      }
+    }
+
     // callback function when an avaliable device found
     function onDeviceFound(evt) {
       var device = evt.device;
@@ -432,10 +503,11 @@ navigator.mozL10n.ready(function bluetoothSettings() {
         var small = aItem.querySelector('small');
         small.textContent = _('device-status-pairing');
         small.dataset.l10nId = 'device-status-pairing';
+        stopDiscovery();
+
         var req = defaultAdapter.pair(device);
         pairingMode = 'active';
         pairingAddress = device.address;
-        stopDiscovery();
         req.onerror = function bt_pairError(error) {
           showDevicePaired(false, req.error.name);
         };
@@ -469,8 +541,10 @@ navigator.mozL10n.ready(function bluetoothSettings() {
         }
       } else {
         // if the attention screen still open, close it
-        if (childWindow)
+        if (childWindow) {
+          childWindow.PairView.closeInput();
           childWindow.close();
+        }
         // display failure only when active request
         if (pairingMode === 'active' && !userCanceledPairing) {
           // show pair process fail.
@@ -513,8 +587,10 @@ navigator.mozL10n.ready(function bluetoothSettings() {
           device.address !== connectedAddress)
         return;
 
-      // '0x111E' is a service id to distigush connection type.
+      // '0x111E' is a service id of HFP.
       // https://www.bluetooth.org/Technical/AssignedNumbers/service_discovery.htm
+      // XXX: Bug 870689. The device maybe connected using HFP or HSP. Always
+      // pass 0x111E here until gecko separates these two profiles.
       var req = defaultAdapter.disconnect(0x111E);
       req.onerror = function() {
         showDeviceConnected(device.address, true);
@@ -535,10 +611,15 @@ navigator.mozL10n.ready(function bluetoothSettings() {
         setDeviceDisconnect(pairList.index[connectedAddress][0]);
       }
 
-      // '0x111E' is a service id to distigush connection type.
-      // https://www.bluetooth.org/Technical/AssignedNumbers/service_discovery.htm
-      var req = defaultAdapter.connect(device.address, 0x111E);
-      req.onerror = function() {
+      var connectToDevice =
+        function bt_connectToDevice(address, serviceID, onsuccess, onerror) {
+          var req = defaultAdapter.connect(address, serviceID);
+          req.onerror = onerror;
+          req.onsuccess = onsuccess;
+          return req;
+        };
+
+      var connectError = function bt_connectError() {
         // Connection state might be changed before DOM request response.
         if (connectingAddress) {
           showDeviceConnected(connectingAddress, false);
@@ -546,6 +627,21 @@ navigator.mozL10n.ready(function bluetoothSettings() {
           window.alert(_('error-connect-msg'));
         }
       };
+
+      // '0x111E' is a service id of HFP.
+      // '0x1108' is a service id of HSP.
+      // https://www.bluetooth.org/Technical/AssignedNumbers/service_discovery.htm
+      var req = connectToDevice(device.address, 0x111E, null, function() {
+        if (req.error.name === 'DeviceChannelRetrievalError') {
+          // Try to connect using HSP again.
+          connectToDevice(device.address, 0x1108, null, function() {
+            connectError();
+          });
+        } else {
+          connectError();
+        }
+      });
+
       connectingAddress = device.address;
       if (!pairList.index[connectingAddress]) {
         return;

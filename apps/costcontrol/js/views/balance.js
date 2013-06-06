@@ -46,6 +46,7 @@ var BalanceTab = (function() {
       document.addEventListener('mozvisibilitychange', updateWhenVisible);
       updateButton.addEventListener('click', lockAndUpdateUI);
       ConfigManager.observe('lowLimit', toogleLimits, true);
+      ConfigManager.observe('lowLimitThreshold', resetNotification, true);
       ConfigManager.observe('lastBalance', onBalance, true);
       ConfigManager.observe('errors', onBalanceTimeout, true);
 
@@ -77,6 +78,7 @@ var BalanceTab = (function() {
     document.removeEventListener('mozvisibilitychange', updateWhenVisible);
     updateButton.removeEventListener('click', lockAndUpdateUI);
     ConfigManager.removeObserver('lowLimit', toogleLimits);
+    ConfigManager.removeObserver('lowLimitThreshold', resetNotification);
     ConfigManager.removeObserver('lastBalance', onBalance);
     ConfigManager.removeObserver('errors', onBalanceTimeout);
 
@@ -111,6 +113,11 @@ var BalanceTab = (function() {
   function toogleLimits(isEnabled, old, key, settings) {
     updateBalance(settings.lastBalance,
                   isEnabled && settings.lowLimitThreshold);
+  }
+
+  // On changing the threshold for low limit
+  function resetNotification() {
+    ConfigManager.setOption({ 'lowLimitNotified': false });
   }
 
   // On balance update received
@@ -402,6 +409,11 @@ var BalanceTab = (function() {
 
   // Decide which error should be shown taking in count error priorities
   function setError(error) {
+    // Ignore showing message if the message is not registered
+    if (!ERRORS[error]) {
+      return;
+    }
+
     debug('Error mode:', error);
     var messageArea = document.getElementById('cost-control-message-area');
     var message = document.getElementById('error-message-placeholder');

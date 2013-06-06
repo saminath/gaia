@@ -94,6 +94,14 @@ var visibilityMonitor;
 
 var loader = LazyLoader;
 
+// This flag is set in MetadataParser.js if we encounter images larger
+// than 2 megapixels that do not have big enough embedded
+// previews. The flag is read in frames.js where it is used to prevent
+// the user from zooming in on images at the same time (to prevent OOM
+// crashes). And it is cleared below when the scanning process ends
+// XXX: When bug 854795 is fixed, we'll be able to remove this flag
+var scanningBigImages = false;
+
 // The localized event is the main entry point for the app.
 // We don't do anything until we receive it.
 window.addEventListener('localized', function showBody() {
@@ -199,7 +207,6 @@ function init() {
 // event handlers.
 function initDB() {
   photodb = new MediaDB('pictures', metadataParserWrapper, {
-    mimeTypes: ['image/jpeg', 'image/png'],
     version: 2,
     autoscan: false,     // We're going to call scan() explicitly
     batchHoldTime: 150,  // Batch files during scanning
@@ -232,6 +239,18 @@ function initDB() {
   // We don't need one of these handlers for the video db, since both
   // will get the same event at more or less the same time.
   photodb.onunavailable = function(event) {
+    // If storage becomes unavailble (e.g. the user starts a USB Mass Storage
+    // session during a pick activity, just abort the pick.
+    if (pendingPick) {
+      cancelPick();
+      return;
+    }
+
+    // Switch back to the thumbnail view. If we were viewing or editing an image
+    // it might not be there anymore when the MediaDB becomes available again.
+    setView(thumbnailListView);
+
+    // Lock the user out of the app, and tell them why
     var why = event.detail;
     if (why === MediaDB.NOCARD)
       showOverlay('nocard');
@@ -261,6 +280,25 @@ function initDB() {
     // Hide the scanning indicator
     $('progress').classList.add('hidden');
     $('throbber').classList.remove('throb');
+
+    // It is safe to zoom in now
+    scanningBigImages = false;
+  };
+
+  // On devices with internal and external device storage, this handler is
+  // triggered when the user removes the sdcard. MediaDB remains usable
+  // and we'll get a bunch of deleted events for the files that are no longer
+  // available. But we need to listen to this event so we can switch back
+  // to the list of thumbnails. We don't want to be left viewing or editing
+  // a photo that is no longer available.
+  photodb.oncardremoved = function oncardremoved() {
+    // If the user pulls the sdcard while trying to pick an image, give up
+    if (pendingPick) {
+      cancelPick();
+      return;
+    }
+
+    setView(thumbnailListView);
   };
 
   // One or more files was created (or was just discovered by a scan)
@@ -310,7 +348,7 @@ function initThumbnails() {
   // displayed. There is no need to re-enumerate them, so we just go
   // straight to scanning for new files
   if (visibilityMonitor) {
-    scan();
+    photodb.scan();
     return;
   }
 

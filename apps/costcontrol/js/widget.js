@@ -8,27 +8,31 @@
  * a balance update or timeout.
  */
 
-(function() {
+var Widget = (function() {
 
   'use strict';
-
-  // XXX: This is the point of entry, check common.js for more info
-  waitForDOMAndMessageHandler(window, onReady);
 
   var costcontrol;
   function onReady() {
     var mobileConnection = window.navigator.mozMobileConnection;
     var cardState = checkCardState();
+    var iccid = mobileConnection.iccInfo.iccid;
 
     // SIM not ready
     if (cardState !== 'ready') {
       debug('SIM not ready:', mobileConnection.cardState);
       mobileConnection.oncardstatechange = onReady;
 
-    // SIM is ready
+    // SIM is ready, but ICC info is not ready yet
+    } else if (!Common.isValidICCID(iccid)) {
+      debug('ICC info not ready yet');
+      mobileConnection.oniccinfochange = onReady;
+
+    // All ready
     } else {
-      debug('SIM ready. ICCID:', mobileConnection.iccInfo.iccid);
+      debug('SIM ready. ICCID:', iccid);
       mobileConnection.oncardstatechange = undefined;
+      mobileConnection.oniccinfochange = undefined;
       startWidget();
     }
   };
@@ -58,12 +62,18 @@
   }
 
   function startWidget() {
-    checkSIMChange(function _onSIMChecked() {
+    function _onNoICCID() {
+      console.error('checkSIMChange() failed. Impossible to ensure consistent' +
+                    'data. Aborting start up.');
+      showSimError('no-sim2');
+    }
+
+    Common.checkSIMChange(function _onSIMChecked() {
       CostControl.getInstance(function _onCostControlReady(instance) {
         costcontrol = instance;
         setupWidget();
       });
-    });
+    }, _onNoICCID);
   }
 
   window.addEventListener('localized', function _onLocalize() {
@@ -169,7 +179,7 @@
     rightPanel.setAttribute('aria-hidden', true);
 
     var className = 'widget-' + status;
-    document.getElementById('fte-icon').textContent = 'icon ' + className;
+    document.getElementById('fte-icon').classList.add(className);
     fte.querySelector('p:first-child').textContent = _(className + '-heading');
     fte.querySelector('p:last-child').textContent = _(className + '-meta');
   }
@@ -201,7 +211,7 @@
   var hashMark = 0;
   function updateUI(updateOnlyDataUsage) {
     ConfigManager.requestAll(function _onInfo(configuration, settings) {
-      var mode = costcontrol.getApplicationMode(settings);
+      var mode = ConfigManager.getApplicationMode();
       debug('Widget UI mode:', mode);
 
       var isPrepaid = (mode === 'PREPAID');
@@ -410,4 +420,12 @@
     }
   }
 
+  return {
+    init: function() {
+      Common.waitForDOMAndMessageHandler(window, onReady);
+    }
+  };
+
 }());
+
+Widget.init();

@@ -12,6 +12,7 @@ requireApp('homescreen/test/unit/mock_apps_mgmt.js');
 requireApp('homescreen/test/unit/mock_configurator.js');
 requireApp('homescreen/test/unit/mock_hidden_apps.js');
 requireApp('homescreen/test/unit/mock_manifest_helper.js');
+requireApp('homescreen/test/unit/mock_icon_retriever.js');
 
 requireApp('homescreen/js/grid.js');
 
@@ -21,6 +22,8 @@ var mocksHelperForGrid = new MocksHelper([
   'Page',
   'Dock',
   'Icon',
+  'IconRetriever',
+  'TemplateIcon',
   'PaginationBar',
   'Configurator',
   'HIDDEN_APPS',
@@ -54,6 +57,30 @@ suite('grid.js >', function() {
     window.navigator.mozApps = realMozApps;
 
     mocksHelper.suiteTeardown();
+  });
+
+  suite('Default icons have be initialized correctly >', function() {
+
+    test('App icon by default is defined', function() {
+      var appBlob = GridManager.getBlobByDefault(new MockApp());
+      assert.ok(appBlob);
+    });
+
+    test('Bookmark icon by default is defined', function() {
+      var bookmarkBlob = GridManager.getBlobByDefault(new MockApp({
+        iconable: true
+      }));
+      assert.ok(bookmarkBlob);
+    });
+
+    test('App and bookmark icons by default are different', function() {
+      var appBlob = GridManager.getBlobByDefault(new MockApp());
+      var bookmarkBlob = GridManager.getBlobByDefault(new MockApp({
+        iconable: true
+      }));
+      assert.isTrue(appBlob !== bookmarkBlob);
+    });
+
   });
 
   setup(function(done) {
@@ -95,10 +122,7 @@ suite('grid.js >', function() {
     suite('ensurePanning >', function() {
       var realRequestAnimationFrame;
 
-      setup(function() {
-        GridManager.ensurePanning();
-        MockPage.mTeardown();
-
+      suiteSetup(function() {
         realRequestAnimationFrame = window.mozRequestAnimationFrame;
         window.mozRequestAnimationFrame = function(func) {
           setTimeout(function() {
@@ -107,31 +131,60 @@ suite('grid.js >', function() {
         };
       });
 
-      teardown(function() {
+      setup(function() {
+        GridManager.ensurePanning();
+        MockPage.mTeardown();
+      });
+
+      suiteTeardown(function() {
         window.mozRequestAnimationFrame = realRequestAnimationFrame;
         realRequestAnimationFrame = null;
       });
 
-      test('should be able to pan', function(done) {
+      function sendTouchEvent(type, node, coords) {
+        var touch = document.createTouch(window, node, 1,
+          coords.x, coords.y, coords.x, coords.y);
+        var touchList = document.createTouchList(touch);
+
+        var evt = document.createEvent('TouchEvent');
+        evt.initTouchEvent(type, true, true, window,
+          0, false, false, false, false,
+          touchList, touchList, touchList);
+        node.dispatchEvent(evt);
+      }
+
+      function sendMouseEvent(type, node, coords) {
         var evt = document.createEvent('MouseEvent');
 
-        evt.initMouseEvent('mousedown', true, true, window,
-          0, 100, 100, 100, 100, false, false, false, false, 0, null);
+        evt.initMouseEvent(type, true, true, window,
+          0, coords.x, coords.y, coords.x, coords.y,
+          false, false, false, false, 0, null);
         containerNode.dispatchEvent(evt);
+      }
 
-        evt = document.createEvent('MouseEvent');
+      test('should be able to pan', function(done) {
+        var start = { x: 100, y: 100 };
+        var move = { x: 200, y: 100 };
 
-        evt.initMouseEvent('mousemove', true, true, window,
-          0, 200, 100, 200, 100, false, false, false, false, 0, null);
-        containerNode.dispatchEvent(evt);
+        // sending both events because depending on the context we may listen to
+        // one or the other
+        // the real code is listening only to one of those so we can safely send
+        // both (this might change but it's unlikely)
+
+        sendTouchEvent('touchstart', containerNode, start);
+        sendMouseEvent('mousedown', containerNode, start);
+
+        sendTouchEvent('touchmove', containerNode, move);
+        sendMouseEvent('mousemove', containerNode, move);
 
         assert.equal(document.body.dataset.transitioning, 'true');
 
         setTimeout(function() {
-          done(function() {
-            var currentPage = document.getElementById('landing-page');
-            assert.include(currentPage.style.MozTransform, 'translateX');
-          });
+          var currentPage = document.getElementById('landing-page');
+          assert.include(currentPage.style.MozTransform, 'translateX');
+          sendTouchEvent('touchend', containerNode, move);
+          sendMouseEvent('mouseup', containerNode, move);
+          done();
         }, TINY_TIMEOUT);
       });
     });

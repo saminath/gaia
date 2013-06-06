@@ -8,9 +8,11 @@
 // This file depends on JPEGMetadataParser.js and blobview.js
 //
 var metadataParser = (function() {
-  // If we generate our own thumbnails, aim for this size
-  var THUMBNAIL_WIDTH = 120;
-  var THUMBNAIL_HEIGHT = 120;
+  // If we generate our own thumbnails, aim for this size.
+  // Calculate needed size from longer side of the screen.
+  var THUMBNAIL_WIDTH = Math.round(
+                          Math.max(window.innerWidth, window.innerHeight) / 4);
+  var THUMBNAIL_HEIGHT = THUMBNAIL_WIDTH;
 
   // Don't try to decode image files of unknown type if bigger than this
   var MAX_UNKNOWN_IMAGE_FILE_SIZE = .5 * 1024 * 1024; // half a megabyte
@@ -127,20 +129,26 @@ var metadataParser = (function() {
     getImageSize(file, gotImageSize, gotImageSizeError);
 
     function gotImageSizeError(errmsg) {
-      // If the error message is anything other than unknown image type
-      // it means we've got a corrupt image file, or the image metdata parser
-      // can't handle the file for some reason. Log a warning but keep going
-      // in case the image is good and the metadata parser is buggy.
-      if (errmsg !== 'unknown image type') {
-        console.warn('getImageSize', errmsg, file.name);
-      }
-
       // The image is not a JPEG, PNG or GIF file. We may still be
       // able to decode and display it but we don't know the image
       // size, so we won't even try if the file is too big.
       if (file.size > MAX_UNKNOWN_IMAGE_FILE_SIZE) {
         metadataError('Ignoring large file ' + file.name);
         return;
+      }
+
+      // If the file is too small to be an image, ignore it
+      if (file.size < 32) {
+        metadataError('Ignoring small file ' + file.name);
+        return;
+      }
+
+      // If the error message is anything other than unknown image type
+      // it means we've got a corrupt image file, or the image metdata parser
+      // can't handle the file for some reason. Log a warning but keep going
+      // in case the image is good and the metadata parser is buggy.
+      if (errmsg !== 'unknown image type') {
+        console.warn('getImageSize', errmsg, file.name);
       }
 
       // If it is not too big create a preview and thumbnail.
@@ -234,6 +242,19 @@ var metadataParser = (function() {
       var iw = metadata.width = offscreenImage.width;
       var ih = metadata.height = offscreenImage.height;
 
+      // If this is a big image, then decoding it takes a lot of memory.
+      // We set this flag to prevent the user from zooming in on other
+      // images at the same time because that also takes a lot of memory
+      // and we don't want to crash with an OOM. If we find one big image
+      // we assume that there may be others, so the flag remains set until
+      // the current scan is complete.
+      //
+      // XXX: When bug 854795 is fixed, we'll be able to create previews
+      // for large images without using so much memory, and we can remove
+      // this flag then.
+      if (iw * ih > 2 * 1024 * 1024)
+        scanningBigImages = true;
+
       // If the image was already thumbnail size, it is its own thumbnail
       // and it does not need a preview
       if (metadata.width <= THUMBNAIL_WIDTH &&
@@ -283,8 +304,8 @@ var metadataParser = (function() {
         canvas.height = ph;
         var context = canvas.getContext('2d');
         context.drawImage(offscreenImage, 0, 0, iw, ih, 0, 0, pw, ph);
-        offscreenImage.src = '';
         canvas.toBlob(function(blob) {
+          offscreenImage.src = '';
           canvas.width = canvas.height = 0;
           savePreview(blob);
         }, 'image/jpeg');
@@ -301,35 +322,16 @@ var metadataParser = (function() {
             var savereq = storage.addNamed(previewblob, filename);
             savereq.onerror = function() {
               console.error('Could not save preview image', filename);
-              done();
             };
-            savereq.onsuccess = function() {
-              metadata.preview = {
-                filename: filename,
-                width: pw,
-                height: ph
-              };
-              done();
-            };
-          }
 
-          function done() {
-            //
-            // We just decoded a big image and gecko apparently needs time to
-            // release the memory. See Bug 792139, e.g.  So wait before
-            // calling the callback.  Sadly this is just idle time and
-            // makes scaning images without previews extra slow. But the
-            // alternative is crashing with an OOM.  And if we don't
-            // decode the image and generate the preview now then we
-            // might crash with the OOM later when we display the
-            // image. With ~5mp images, I need a > 3000ms timeout to
-            // avoid a crash.  With ~2mp images I found that 500ms worked.
-            //
-            var mp = iw * ih / (1024 * 1024);
-            var idletime = mp * mp * 150;
-            setTimeout(function() {
-              callback(metadata);
-            }, idletime);
+            // Don't actually wait for the save to complete. Go start
+            // scanning the next one.
+            metadata.preview = {
+              filename: filename,
+              width: pw,
+              height: ph
+            };
+            callback(metadata);
           }
         }
       }

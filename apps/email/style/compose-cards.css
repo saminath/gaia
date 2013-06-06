@@ -69,7 +69,7 @@ input.cmp-subject-text {
 .cmp-file-add {
   position: relative;
   left: 0.5rem;
-  background: url("images/add-contact.png") no-repeat scroll center transparent;
+  background: url("images/add-contact.png") no-repeat center / 1.8rem;
   width: 1.8rem;
   height: 1.8rem;
   border: 0.6rem solid transparent;
@@ -102,7 +102,8 @@ input.cmp-subject-text {
   display: block;
   overflow: hidden;
   padding: 0rem;
-  font: 1.7rem/1.9rem "MozTT", Sans-serif;
+  font-size: 1.7rem;
+  line-height: 1.9rem;
   font-weight: normal;
   border: none;
   box-shadow: none;

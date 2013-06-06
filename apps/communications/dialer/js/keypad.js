@@ -164,7 +164,7 @@ var KeypadManager = {
                                                 this.hangUpCallFromKeypad);
     }
 
-    TonePlayer.init();
+    TonePlayer.init(this._onCall ? 'telephony' : 'ringer');
 
     this.render();
     loader.load(['/shared/style/action_menu.css',
@@ -361,6 +361,11 @@ var KeypadManager = {
     // the "*#06#" MMI string. See bug 857944.
     if (key === '#' && this._phoneNumber === '*#06#') {
       this.makeCall(event);
+      return;
+    }
+
+    // If user input number more 50 digits, app shouldn't accept.
+    if (key != 'delete' && this._phoneNumber.length >= 50) {
       return;
     }
 

@@ -1175,20 +1175,20 @@ ActiveSyncFolderConn.prototype = {
         suid: null,
         guid: null,
         author: null,
+        to: null,
+        cc: null,
+        bcc: null,
+        replyTo: null,
         date: null,
         flags: [],
         hasAttachments: false,
         subject: null,
-        snippet: null,
+        snippet: null
       };
 
       body = {
         date: null,
         size: 0,
-        to: null,
-        cc: null,
-        bcc: null,
-        replyTo: null,
         attachments: [],
         relatedParts: [],
         references: null,
@@ -1339,7 +1339,8 @@ ActiveSyncFolderConn.prototype = {
               // Get the file's extension to look up a mimetype, but ignore it
               // if the filename is of the form '.bashrc'.
               dot = attachment.name.lastIndexOf('.');
-              ext = dot > 0 ? attachment.name.substring(dot + 1) : '';
+              ext = dot > 0 ? attachment.name.substring(dot + 1).toLowerCase() :
+                              '';
               attachment.type = $mimelib.contentTypes[ext] ||
                                 'application/octet-stream';
               break;
@@ -1386,6 +1387,10 @@ ActiveSyncFolderConn.prototype = {
 
   /**
    * Download the bodies for a set of headers.
+   *
+   * XXX This method is a slightly modified version of
+   * ImapFolderConn._lazyDownloadBodies; we should attempt to remove the
+   * duplication.
    */
   downloadBodies: function(headers, options, callback) {
     if (this._account.conn.currentVersion.lt('12.0'))
@@ -1393,6 +1398,7 @@ ActiveSyncFolderConn.prototype = {
 
     var anyErr,
         pending = 1,
+        downloadsNeeded = 0,
         folderConn = this;
 
     function next(err) {
@@ -1401,16 +1407,26 @@ ActiveSyncFolderConn.prototype = {
 
       if (!--pending) {
         folderConn._storage.runAfterDeferredCalls(function() {
-          callback(anyErr);
+          callback(anyErr, /* number downloaded */ downloadsNeeded - pending);
         });
       }
     }
 
     for (var i = 0; i < headers.length; i++) {
-      if (!headers[i] || headers[i].snippet)
+      // We obviously can't do anything with null header references.
+      // To avoid redundant work, we also don't want to do any fetching if we
+      // already have a snippet.  This could happen because of the extreme
+      // potential for a caller to spam multiple requests at us before we
+      // service any of them.  (Callers should only have one or two outstanding
+      // jobs of this and do their own suppression tracking, but bugs happen.)
+      if (!headers[i] || headers[i].snippet !== null) {
         continue;
+      }
 
       pending++;
+      // This isn't absolutely guaranteed to be 100% correct, but is good enough
+      // for indicating to the caller that we did some work.
+      downloadsNeeded++;
       this.downloadBodyReps(headers[i], options, next);
     }
 
@@ -1684,14 +1700,19 @@ ActiveSyncFolderConn.prototype = {
       if (!moreAvailable) {
         var messagesSeen = addedMessages + changedMessages + deletedMessages;
 
-        // Note: For the second argument here, we report the number of messages
-        // we saw that *changed*. This differs from IMAP, which reports the
-        // number of messages it *saw*.
-        folderConn._LOG.sync_end(addedMessages, changedMessages,
-                                 deletedMessages);
-        storage.markSyncRange($sync.OLDEST_SYNC_DATE, accuracyStamp, 'XXX',
-                              accuracyStamp);
-        doneCallback(null, null, messagesSeen);
+        // Do not report completion of sync until all of our operations have
+        // been persisted to our in-memory database.  (We do not wait for
+        // things to hit the disk.)
+        storage.runAfterDeferredCalls(function() {
+          // Note: For the second argument here, we report the number of
+          // messages we saw that *changed*. This differs from IMAP, which
+          // reports the number of messages it *saw*.
+          folderConn._LOG.sync_end(addedMessages, changedMessages,
+                                   deletedMessages);
+          storage.markSyncRange($sync.OLDEST_SYNC_DATE, accuracyStamp, 'XXX',
+                                accuracyStamp);
+          doneCallback(null, null, messagesSeen);
+        });
       }
     },
     progressCallback);
@@ -2450,12 +2471,16 @@ ActiveSyncJobDriver.prototype = {
 
   do_downloadBodies: $jobmixins.do_downloadBodies,
 
+  check_downloadBodies: $jobmixins.check_downloadBodies,
+
   //////////////////////////////////////////////////////////////////////////////
   // downloadBodyReps: Download the bodies from a single message
 
   local_do_downloadBodyReps: $jobmixins.local_do_downloadBodyReps,
 
   do_downloadBodyReps: $jobmixins.do_downloadBodyReps,
+
+  check_downloadBodyReps: $jobmixins.check_downloadBodyReps,
 
   //////////////////////////////////////////////////////////////////////////////
   // download: Download one or more attachments from a single message
@@ -2715,6 +2740,8 @@ ActiveSyncAccount.prototype = {
       name: this.accountDef.name,
       path: this.accountDef.name,
       type: this.accountDef.type,
+
+      defaultPriority: this.accountDef.defaultPriority,
 
       enabled: this.enabled,
       problems: this.problems,
@@ -3054,7 +3081,10 @@ ActiveSyncAccount.prototype = {
 
   /**
    * Recreate the folder storage for a particular folder; useful when we end up
-   * desyncing with the server and need to start fresh.
+   * desyncing with the server and need to start fresh.  No notification is
+   * generated, although slices are repopulated.
+   *
+   * FYI: There is a nearly identical method in IMAP's account implementation.
    *
    * @param {string} folderId the local ID of the folder
    * @param {function} callback a function to be called when the operation is
@@ -3373,6 +3403,8 @@ define('mailapi/activesync/configurator',
     '../accountcommon',
     '../a64',
     './account',
+    '../date',
+    'require',
     'exports'
   ],
   function(
@@ -3380,8 +3412,57 @@ define('mailapi/activesync/configurator',
     $accountcommon,
     $a64,
     $asacct,
+    $date,
+    require,
     exports
   ) {
+
+function checkServerCertificate(url, callback) {
+  var match = /^https:\/\/([^:/]+)(?::(\d+))?/.exec(url);
+  // probably unit test http case?
+  if (!match) {
+    callback(null);
+    return;
+  }
+  var port = match[2] ? parseInt(match[2], 10) : 443,
+      host = match[1];
+
+  console.log('checking', host, port, 'for security problem');
+
+  require(['tls'], function($tls) {
+    var sock = $tls.connect(port, host);
+    function reportAndClose(err) {
+      if (sock) {
+        var wasSock = sock;
+        sock = null;
+        try {
+          wasSock.end();
+        }
+        catch (ex) {
+        }
+        callback(err);
+      }
+    }
+    // this is a little dumb, but since we don't actually get an event right now
+    // that tells us when our secure connection is established, and connect always
+    // happens, we write data when we connect to help trigger an error or have us
+    // receive data to indicate we successfully connected.
+    // so, the deal is that connect is going to happen.
+    sock.on('connect', function() {
+      sock.write(new Buffer('GET /images/logo.png HTTP/1.1\n\n'));
+    });
+    sock.on('error', function(err) {
+      var reportErr = null;
+      if (err && typeof(err) === 'object' &&
+          /^Security/.test(err.name))
+        reportErr = 'bad-security';
+      reportAndClose(reportErr);
+    });
+    sock.on('data', function(data) {
+      reportAndClose(null);
+    });
+  });
+}
 
 exports.account = $asacct;
 exports.configurator = {
@@ -3423,9 +3504,20 @@ exports.configurator = {
             }
           }
           else {
-            // We didn't talk to the server, so let's call it an unresponsive
-            // server.
-            failureType = 'unresponsive-server';
+            // We didn't talk to the server, so it's either an unresponsive
+            // server or a server with a bad certificate.  (We require https
+            // outside of unit tests so there's no need to branch here.)
+            checkServerCertificate(
+              domainInfo.incoming.server,
+              function(securityError) {
+                var failureType;
+                if (securityError)
+                  failureType = 'bad-security';
+                else
+                  failureType = 'unresponsive-server';
+                callback(failureType, null, failureDetails);
+              });
+            return;
           }
           callback(failureType, null, failureDetails);
           return;
@@ -3435,6 +3527,7 @@ exports.configurator = {
         var accountDef = {
           id: accountId,
           name: userDetails.accountName || userDetails.emailAddress,
+          defaultPriority: $date.NOW(),
 
           type: 'activesync',
           syncRange: 'auto',
@@ -3515,4 +3608,5 @@ exports.configurator = {
   },
 };
 
-}); // end define;
+}); // end define
+;

@@ -7,6 +7,9 @@
       Usage
     </title>
 
+    <!-- multi-resolution support -->
+    <link rel="stylesheet" href="/shared/style/responsive.css">
+
     <!-- Building blocks Temporal -->
     <link rel="stylesheet" type="text/css" href="style/bb/input-areas/style.css">
 
@@ -16,7 +19,7 @@
     <link rel="stylesheet" type="text/css" href="shared/style/switches.css">
     <link rel="stylesheet" type="text/css" href="shared/style_unstable/lists.css">
     <link rel="stylesheet" type="text/css" href="shared/style_unstable/progress_activity.css">
-    <link rel="stylesheet" type="text/css" href="style/bb/filters/style.css">
+    <link rel="stylesheet" type="text/css" href="shared/style_unstable/tabs.css">
 
     <!-- App and Views -->
     <link rel="stylesheet" type="text/css" href="style/app.css">
@@ -24,9 +27,6 @@
     <link rel="stylesheet" type="text/css" href="style/views/topup.css">
     <link rel="stylesheet" type="text/css" href="style/views/balance.css">
     <link rel="stylesheet" type="text/css" href="style/views/telephony.css">
-
-    <!-- Multiresolution support -->
-    <link rel="stylesheet" type="text/css" href="shared/style/responsive.css">
 
     <!-- Localization -->
     <link rel="resource" type="application/l10n" href="locales/locales.ini">
@@ -36,22 +36,21 @@
     <script type="text/javascript" defer src="shared/js/l10n_date.js"></script>
     <script type="text/javascript" defer src="shared/js/async_storage.js"></script>
     <script type="text/javascript" defer src="shared/js/settings_listener.js"></script>
+    <script type="text/javascript" defer src="shared/js/lazy_loader.js"></script>
 
     <script type="text/javascript" defer src="js/utils/debug.js"></script>
     <script type="text/javascript" defer src="js/utils/toolkit.js"></script>
     <script type="text/javascript" defer src="js/utils/formatting.js"></script>
 
-    <script type="text/javascript" defer src="js/config_manager.js"></script>
+    <script type="text/javascript" defer src="js/config/config_manager.js"></script>
     <script type="text/javascript" defer src="js/mindgap.js"></script>
     <script type="text/javascript" defer src="js/common.js"></script>
     <script type="text/javascript" defer src="js/costcontrol.js"></script>
+    <script type="text/javascript" defer src="js/costcontrol_init.js"></script>
     <script type="text/javascript" defer src="js/view_manager.js"></script>
     <script type="text/javascript" defer src="js/app.js"></script>
 
-    <!-- Include shared resources
-    <link rel="resource" type="image/png" href="shared/resources/branding/splash_screen_generic.png"/>
-    -->
-
+    <script type="text/javascript" defer src="js/application_init.js"></script>
   </head>
   <body role="application">
 
@@ -66,19 +65,19 @@ the overlays) and we should distinguish between TABS and OVERLAY VIEWS -->
       </header>
 
       <!-- Bottom filters (Telephony / Cost Control and Data Usage) -->
-      <ul id="tabs" role="tablist" class="filter" data-items="2" data-position="bottom">
-        <li id="balance-tab-filter" aria-selected="true">
-          <a role="tab" data-l10n-id="balance" href="#balance-tab">
+      <ul id="tabs" role="tablist" data-type="filter" data-items="2">
+        <li id="balance-tab-filter" role="tab">
+          <a data-l10n-id="balance" href="#balance-tab">
             Balance
           </a>
         </li>
-        <li id="telephony-tab-filter" aria-hidden="true">
-          <a role="tab" data-l10n-id="phone" href="#telephony-tab">
+        <li id="telephony-tab-filter" role="tab" aria-hidden="true">
+          <a data-l10n-id="phone" href="#telephony-tab">
             Phone
           </a>
         </li>
-        <li id="datausage-tab-filter">
-          <a role="tab" data-l10n-id="internet" href="#datausage-tab">
+        <li id="datausage-tab-filter" role="tab">
+          <a data-l10n-id="internet" href="#datausage-tab">
             Internet
           </a>
         </li>

@@ -16,10 +16,8 @@ window.Evme = new function Evme_Core() {
         TIMEOUT_BEFORE_INIT_SESSION = data.timeoutBeforeSessionInit;
 
         Evme.Brain.init({
-            "numberOfAppsToLoad": data.numberOfAppsToLoad,
+            "numberOfAppsToLoad": data.numberOfAppsToLoad+(Evme.Utils.devicePixelRatio>1? data.apps.appsPerRow: 0),
             "minimumLettersForSearch": data.minimumLettersForSearch,
-            "timeBeforeAllowingDialogsRemoval": data.timeBeforeAllowingDialogsRemoval,
-            "tips": data.tips,
             "searchSources": data.searchSources,
             "pageViewSources": data.pageViewSources,
             "displayInstalledApps": data.apps.displayInstalledApps
@@ -118,6 +116,8 @@ window.Evme = new function Evme_Core() {
                 "landscape": 480
             }
         });
+
+        Evme.IconGroup.init({});
 
         Evme.BackgroundImage.init({
             "el": Evme.$("#search-overlay"),

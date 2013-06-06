@@ -5,13 +5,9 @@ html, body {
   height: 100%;
   overflow: hidden;
   color: #FFF;
-  font-family: 'MozTT', sans-serif;
   font-size: 10px;
 }
 
-body {
-  background: url("images/app-texture.png") repeat scroll 0 0 #272D32;
-}
 
 a {
   outline: 0 none;
@@ -31,6 +27,7 @@ a:active {
 #container {
   height: 100%;
   width: 100%;
+  background-color: #272d32;
 }
 
 #container > div {
@@ -103,15 +100,6 @@ a:active {
   content: "MHz";
   font-size: 1.5rem;
   padding-left: 0.3rem;
-}
-
-#frequency[data-seek-dir="up"] {
-  background: url("images/spinner-right.png") no-repeat center 8.5rem transparent;
-}
-
-
-#frequency[data-seek-dir="down"] {
-  background: url("images/spinner-left.png") no-repeat center 8.5rem transparent;
 }
 
 #bookmark-button {
@@ -343,7 +331,7 @@ div#fav-list-container div.fav-list-frequency::after {
 }
 
 #power-switch span {
-  background-image: url(images/spinner-FMRadio.png); 
+  background-image: url(images/spinner-FMRadio.png);
   background-size: 6.6rem;
   display: none;
   height: 6.6rem;
@@ -353,7 +341,8 @@ div#fav-list-container div.fav-list-frequency::after {
   width: 6.6rem;
 }
 
-#power-switch[data-enabling="true"] span {
+#power-switch[data-enabling="true"] span,
+#power-switch[data-seeking="true"] span {
   animation: 0.9s spinner-animation infinite steps(30);
   display: block;
 }
@@ -398,16 +387,42 @@ a#frequency-op-seekup:active {
 }
 /**** end ****/
 
-/***  styles for antenna warning box ****/
-#antenna-warning {
+/***  styles for  warning box ****/
+.warning {
   position: absolute;
   width: 100%;
   height: 100%;
   top: 0;
   left: 0;
-  z-index: 2;
   color: #FFF;
-  background: url(images/popup-texture.png) repeat 0 0 #272d32;
+  background-color: #272d32;
+}
+
+.warning .warning-header {
+  padding: 1rem 3rem 1rem 3rem;
+  font-weight: normal;
+  font-size: 1.9rem;
+  color: #fff;
+}
+
+.warning .warning-body {
+  font-weight: 300;
+  font-size: 2.5rem;
+  padding: .5rem;
+  border-top: .1rem solid #686868;
+  margin: 0 2.5rem;
+}
+
+/* Press (default & recommend) */
+.warning .menu button:active {
+  border-color: #008aaa;
+  color: #333;
+}
+/**** end ****/
+
+/***  styles for antenna warning box ****/
+#antenna-warning {
+  z-index: 2;
 }
 
 #antenna-warning > div:first-child {
@@ -415,26 +430,18 @@ a#frequency-op-seekup:active {
   background: url(images/headset.png) no-repeat center center / 18.4rem;
 }
 
-#antenna-warning-header {
-  padding: 1rem 3rem 1rem 3rem;
-  font-weight: normal;
-  font-size: 1.9rem;
-  color: #fff;
+#antenna-warning .warning-header {
   margin-top: -2.5rem;
-}
-
-#antenna-warning-body {
-  font-weight: 300;
-  font-size: 2.5rem;
-  padding: .5rem;
-  margin: 0 2.5rem;
-  border-top: .1rem solid #686868;
 }
 /******* end *******/
 
-/* localization */
-body.hidden *[data-l10n-id] {
-  visibility: hidden;
+/***  styles for airplane mode warning box ****/
+#airplane-mode-warning {
+  z-index: 3;
+}
+
+#airplane-mode-warning .warning-header {
+  margin-top: 50%;
 }
 /******* end *******/
 

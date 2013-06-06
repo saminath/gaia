@@ -2193,37 +2193,33 @@ var HTMLParser = (function(){
   //
   // The spec defines attributes by what they must not include, which is:
   // [\0\s"'>/=] plus also no control characters, or non-unicode characters.
-  // But we currently use the same regexp as we use for tags because that's what
-  // the code was using already.
+  //
+  // The (inherited) code used to have the regular expression effectively
+  // validate the attribute syntax by including their grammer in the regexp.
+  // The problem with this is that it can make the regexp fail to match tags
+  // that are clearly tags.  When we encountered (quoted) attributes without
+  // whitespace between them, we would escape the entire tag.  Attempted
+  // trivial fixes resulted in regex back-tracking, which begged the issue of
+  // why the regex would do this in the first place.  So we stopped doing that.
   //
   // CDATA *is not a thing* in the HTML namespace.  <![CDATA[ just gets treated
   // as a "bogus comment".  See:
   // http://www.whatwg.org/specs/web-apps/current-work/multipage/tokenization.html#markup-declaration-open-state
 
-  // NOTE: tag and attr regexps changed to ignore name spaces prefixes!  via
+  // NOTE: tag and attr regexps changed to ignore name spaces prefixes!
+  //
+  // CHANGE: "we" previously required there to be white-space between attributes.
+  // Unfortunately, the world does not agree with this, so we now require
+  // whitespace only after the tag name prior to the first attribute and make
+  // the whole attribute clause optional.
+  //
   // - Regular Expressions for parsing tags and attributes
   // ^<                     anchored tag open character
   // (?:[-A-Za-z0-9_]+:)?   eat the namespace
   // ([-A-Za-z0-9_]+)       the tag name
-  // (                      repeated attributes:
-  //  (?:
-  //   \s+                  Mandatory whitespace between attribute names
-  //   (?:[-A-Za-z0-9_]+:)? optional attribute prefix
-  //   [-A-Za-z0-9_]+       attribute name
-  //   (?:                  The attribute doesn't need a value
-  //    \s*=\s*             whitespace, = to indicate value, whitespace
-  //    (?:                 attribute values:
-  //     (?:"[^"]*")|       double-quoted
-  //     (?:'[^']*')|       single-quoted
-  //     [^>\s]+            unquoted
-  //    )
-  //   )?                   (the attribute does't need a value)
-  //  )*                    (there can be multiple attributes)
-  // )                      (capture the list of attributes)
-  // \s*                    optional whitespace before the tag closer
-  // (\/?)                  optional self-closing character
+  // ([^>]*)                capture attributes and/or closing '/' if present
   // >                      tag close character
-  var startTag = /^<(?:[-A-Za-z0-9_]+:)?([-A-Za-z0-9_]+)((?:\s+(?:[-A-Za-z0-9_]+:)?[-A-Za-z0-9_]+(?:\s*=\s*(?:(?:"[^"]*")|(?:'[^']*')|[^>\s]+))?)*)\s*(\/?)>/,
+  var startTag = /^<(?:[-A-Za-z0-9_]+:)?([-A-Za-z0-9_]+)([^>]*)>/,
   // ^<\/                   close tag lead-in
   // (?:[-A-Za-z0-9_]+:)?   optional tag prefix
   // ([-A-Za-z0-9_]+)       tag name
@@ -2379,7 +2375,7 @@ var HTMLParser = (function(){
     // Clean up any remaining tags
     parseEndTag();
 
-    function parseStartTag( tag, tagName, rest, unary ) {
+    function parseStartTag( tag, tagName, rest ) {
       tagName = tagName.toLowerCase();
       if ( block[ tagName ] ) {
         while ( stack.last() && inline[ stack.last() ] ) {
@@ -2391,7 +2387,13 @@ var HTMLParser = (function(){
         parseEndTag( "", tagName );
       }
 
-      unary = empty[ tagName ] || !!unary;
+      var unary = empty[ tagName ];
+      // to simplify the regexp, the 'rest capture group now absorbs the /, so
+      // we need to strip it off if it's there.
+      if (rest.length && rest[rest.length - 1] === '/') {
+        unary = true;
+        rest = rest.slice(0, -1);
+      }
 
       if ( !unary )
         stack.push( tagName );
@@ -2797,12 +2799,9 @@ function makeReverseEntities () {
 }
 
 function escapeHTMLEntities(text) {
-  text = text.replace(/&([a-z]+);/gi, "__IGNORE_ENTITIES_HACK__$1;");
-
-  text = text.replace(/[\u00A0-\u2666<>]|&(?![#a-zA-Z0-9]+;)/g, function(c) {
-    return '&' + entities[c.charCodeAt(0)] + ';';
+  return text.replace(/[<>"']|&(?![#a-zA-Z0-9]+;)/g, function(c) {
+    return '&#' + c.charCodeAt(0) + ';';
   });
-  return text.replace(/__IGNORE_ENTITIES_HACK__([a-z]+);/gi, "&$1;");
 }
 
 exports.unescapeHTMLEntities = function unescapeHTMLEntities(text) {
@@ -3745,6 +3744,17 @@ define('mailapi/imap/imapchew',
     exports
   ) {
 
+function parseRfc2231CharsetEncoding(s) {
+  // charset'lang'url-encoded-ish
+  var match = /^([^']*)'([^']*)'(.+)$/.exec(s);
+  if (match) {
+    // we can convert the dumb encoding into quoted printable.
+    return $mimelib.parseMimeWords(
+      '=?' + (match[1] || 'us-ascii') + '?Q?' +
+        match[3].replace(/%/g, '=') + '?=');
+  }
+  return null;
+}
 
 /**
  * Process the headers and bodystructure of a message to build preliminary state
@@ -3828,13 +3838,30 @@ function chewStructure(msg) {
         filename, disposition;
 
     // - Detect named parts; they could be attachments
-    if (partInfo.params && partInfo.params.name)
-      filename = partInfo.params.name;
+    // filename via content-type 'name' parameter
+    if (partInfo.params && partInfo.params.name) {
+      filename = $mimelib.parseMimeWords(partInfo.params.name);
+    }
+    // filename via content-type 'name' with charset/lang info
+    else if (partInfo.params && partInfo.params['name*']) {
+      filename = parseRfc2231CharsetEncoding(
+                   partInfo.params['name*']);
+    }
+    // rfc 2231 stuff:
+    // filename via content-disposition filename without charset/lang info
     else if (partInfo.disposition && partInfo.disposition.params &&
-             partInfo.disposition.params.filename)
-      filename = partInfo.disposition.params.filename;
-    else
+             partInfo.disposition.params.filename) {
+      filename = $mimelib.parseMimeWords(partInfo.disposition.params.filename);
+    }
+    // filename via content-disposition filename with charset/lang info
+    else if (partInfo.disposition && partInfo.disposition.params &&
+             partInfo.disposition.params['filename*']) {
+      filename = parseRfc2231CharsetEncoding(
+                   partInfo.disposition.params['filename*']);
+    }
+    else {
       filename = null;
+    }
 
     // - Start from explicit disposition, make attachment if non-displayable
     if (partInfo.disposition)
@@ -3873,8 +3900,7 @@ function chewStructure(msg) {
     function makePart(partInfo, filename) {
 
       return {
-        name: $mimelib.parseMimeWords(filename) ||
-              'unnamed-' + (++unnamedPartCounter),
+        name: filename || 'unnamed-' + (++unnamedPartCounter),
         contentId: partInfo.id ? stripArrows(partInfo.id) : null,
         type: (partInfo.type + '/' + partInfo.subtype).toLowerCase(),
         part: partInfo.partID,
@@ -3897,13 +3923,16 @@ function chewStructure(msg) {
         sizeEstimate: partInfo.size,
         amountDownloaded: 0,
         // its important to know that sizeEstimate and amountDownloaded
-        // do _not_ determine if the bodyRep is fully downloaded the
+        // do _not_ determine if the bodyRep is fully downloaded; the
         // estimated amount is not reliable
-        isDownloaded: false,
+        // Zero-byte bodies are assumed to be accurate and we treat the file
+        // as already downloaded.
+        isDownloaded: partInfo.size === 0,
         // full internal IMAP representation
         // it would also be entirely appropriate to move
         // the information on the bodyRep directly?
-        _partInfo: partInfo
+        _partInfo: partInfo.size ? partInfo : null,
+        content: ''
       };
     }
 
@@ -4043,7 +4072,7 @@ exports.chewHeaderAndBodyStructure =
     size: 0,
     attachments: parts.attachments,
     relatedParts: parts.relatedParts,
-    references: msg.msg.meta.references,
+    references: msg.msg.references,
     bodyReps: parts.bodyReps
   };
 
@@ -4058,7 +4087,7 @@ exports.chewHeaderAndBodyStructure =
  *    var header = ...;
  *    var content = (some fetched content)..
  *
- *    $imapchew.updateMessageWithBodyRep(
+ *    $imapchew.updateMessageWithFetch(
  *      header,
  *      bodyInfo,
  *      {
@@ -4090,7 +4119,7 @@ exports.updateMessageWithFetch = function(header, body, req, res, _LOG) {
     bodyRep.isDownloaded = true;
 
     // clear private space for maintaining parser state.
-    delete bodyRep._partInfo;
+    bodyRep._partInfo = null;
   }
 
   if (!bodyRep.isDownloaded && res.buffer) {

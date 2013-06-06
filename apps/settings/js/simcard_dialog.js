@@ -31,69 +31,25 @@ var SimPinDialog = {
   action: 'unlock',
   origin: null,
 
-  // Now we don't have a number-password type for input field
-  // mimic one by binding one number input and one text input
   getNumberPasswordInputField: function spl_wrapNumberInput(name) {
-    var valueEntered = '';
     var inputField = document.querySelector('input[name="' + name + '"]');
-    var displayField = document.querySelector('input[name="' + name + 'Vis"]');
     var self = this;
 
-    inputField.addEventListener('keypress', function(evt) {
+    inputField.addEventListener('input', function(evt) {
       if (evt.target !== inputField)
         return;
-      evt.preventDefault();
 
-      var code = evt.charCode;
-      if (code !== 0 && (code < 0x30 || code > 0x39))
-        return;
-
-      if (code === 0) { // backspace
-        valueEntered = valueEntered.substr(0, valueEntered.length - 1);
-      } else {
-        if (valueEntered.length >= 8)
-          return;
-        valueEntered += String.fromCharCode(code);
-      }
-      displayField.value = encryption(valueEntered);
-      if (displayField.value.length >= 4)
+      if (inputField.value.length >= 4)
         self.dialogDone.disabled = false;
       else
         self.dialogDone.disabled = true;
     });
 
-    function encryption(str) {
-      return (new Array(str.length + 1)).join('*');
-    }
-
-    function setValue(value) {
-      valueEntered = value;
-      inputField.value = value;
-      displayField.value = encryption(valueEntered);
-    }
-
-    function setFocus() {
-      inputField.focus();
-    }
-
-    return {
-      get value() { return valueEntered; },
-      set value(value) { setValue(value) },
-      focus: setFocus
-    };
+    return inputField;
   },
 
   handleCardState: function spl_handleCardState() {
     var _ = navigator.mozL10n.get;
-    var retryCount = this.mobileConnection.retryCount;
-
-    if (!retryCount) {
-      this.triesLeftMsg.hidden = true;
-    } else {
-      var l10nArgs = { n: triesLeft };
-      this.triesLeftMsg.textContent = _('inputCodeRetriesLeft', l10nArgs);
-      this.triesLeftMsg.hidden = false;
-    }
 
     var cardState = this.mobileConnection.cardState;
     switch (cardState) {
@@ -169,6 +125,8 @@ var SimPinDialog = {
       this.errorMsgHeader.textContent = _('newPinErrorMsg');
       this.errorMsgBody.textContent = '';
       this.errorMsg.hidden = false;
+      this.newPinInput.value = '';
+      this.confirmPinInput.value = '';
       return;
     }
     var options = {lockType: 'puk', puk: puk, newPin: newPin };
@@ -210,6 +168,8 @@ var SimPinDialog = {
       this.errorMsgHeader.textContent = _('newPinErrorMsg');
       this.errorMsgBody.textContent = '';
       this.errorMsg.hidden = false;
+      this.newPinInput.value = '';
+      this.confirmPinInput.value = '';
       return;
     }
     var options = {lockType: 'pin', pin: pin, newPin: newPin};
@@ -266,7 +226,7 @@ var SimPinDialog = {
   // the origin parameter records the dialog caller.
   // when the dialog is closed, we can relocate back to the caller's div.
   show: function spl_show(action, onsuccess, oncancel, origin) {
-    if ('#simpin-dialog' == document.location.hash)
+    if ('#simpin-dialog' == Settings.currentPanel)
       return;
 
     var _ = navigator.mozL10n.get;
@@ -288,13 +248,22 @@ var SimPinDialog = {
         break;
     }
 
+    var retryCount = this.mobileConnection.retryCount;
+    if (!retryCount) {
+      this.triesLeftMsg.hidden = true;
+    } else {
+      var l10nArgs = { n: retryCount };
+      this.triesLeftMsg.textContent = _('inputCodeRetriesLeft', l10nArgs);
+      this.triesLeftMsg.hidden = false;
+    }
+
     if (onsuccess && typeof onsuccess === 'function')
       this.onsuccess = onsuccess;
     if (oncancel && typeof oncancel === 'function')
       this.oncancel = oncancel;
 
     this.origin = origin;
-    document.location.hash = '#simpin-dialog';
+    Settings.currentPanel = '#simpin-dialog';
 
     if (action === 'unlock' && this.lockType === 'puk')
       this.pukInput.focus();
@@ -306,7 +275,7 @@ var SimPinDialog = {
   close: function spl_close() {
     this.clear();
     if (this.origin)
-      document.location.hash = this.origin;
+      Settings.currentPanel = this.origin;
   },
 
   skip: function spl_skip() {
