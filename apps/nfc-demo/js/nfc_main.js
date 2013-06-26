@@ -184,9 +184,10 @@ function launchBrowser(URL) {
 }
 
 function handleDiscovered(event) {
-  handleDiscoveredMessages(event.ndefMessages);
+  handleDiscoveredMessages(event.message);
 }
 
+// NDEF only:
 function handleDiscoveredMessages(messages) {
   debug("Found tag!");
   nfcUI.setConnectedState(true);
@@ -317,7 +318,7 @@ function NfcActivityHandler(activity) {
   switch (activityName) {
   case 'ndef-discovered':
     debug("XX Received Activity: name: " + activityName);
-    debug("XX Received Activity: nfc-ndefmessage(s): " + JSON.stringify(data.record));
+    debug("XX Received Activity: nfc-message(s): " + JSON.stringify(data.record));
     handleDiscoveredMessages(data.record);
     break;
   case 'nfc-write-request-status':

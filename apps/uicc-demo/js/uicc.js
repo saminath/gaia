@@ -161,7 +161,7 @@ function removeSecureElementListeners() {
 
 function addSecureElementActivatedListener() {
   navigator.mozNfc.onsecureelementactivated = function(event) {
-    var messageType = event.ndefMessages.type;
+    var messageType = event.message.type;
     if (messageType == "secureElementActivated") {
       var message = "Secure Element Activated.";
       appendTextAndScroll("#output", message+"\n");
@@ -171,7 +171,7 @@ function addSecureElementActivatedListener() {
 
 function addSecureElementDeactivatedListener() {
   navigator.mozNfc.onsecureelementdeactivated = function(event) {
-    var messageType = event.ndefMessages.type;
+    var messageType = event.message.type;
     if (messageType == "secureElementDeactivated") {
       var message = "Secure Element Deactivated.";
       appendTextAndScroll("#output",  message+"\n");
@@ -181,8 +181,8 @@ function addSecureElementDeactivatedListener() {
 
 function addSecureElementTransactionListener() {
   navigator.mozNfc.onsecureelementtransaction = function(event) {
-    var messageType = event.ndefMessages.type;
-    var content = event.ndefMessages.content;
+    var messageType = event.message.type;
+    var content = event.message.content;
     if (messageType == "secureElementTransaction") {
       var message = "Secure Element Transaction complete. AID: " + content.aid + ", DATA: " + content.data;
       appendTextAndScroll("#output", message+"\n");
