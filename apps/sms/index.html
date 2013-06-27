@@ -33,7 +33,6 @@
     <!--
     <script defer src="shared/js/l10n_date.js"></script>
     <script defer src="shared/js/async_storage.js"></script>
-    <script defer src="shared/js/custom_dialog.js"></script>
     <script defer src="shared/js/notification_helper.js"></script>
     <script defer src="shared/js/gesture_detector.js"></script>
     -->
@@ -104,15 +103,15 @@
           <h1 id="messages-header-text" aria-hidden="true"></h1>
         </header>
         <div id="messages-subheader" class="subheader">
-          <menu type="toolbar">
-            <a id="messages-contact-pick-button">
-              <span class="icon icon-user"></span>
-            </a>
-          </menu>
           <section id="messages-to-field">
             <section data-l10n-id="to" id="to-label">
               To:
             </section>
+            <menu type="toolbar">
+              <a id="messages-contact-pick-button">
+                <span class="icon icon-user"></span>
+              </a>
+            </menu>
             <section id="messages-recipients-list" class="singleline">
             </section>
           </section>
@@ -132,6 +131,11 @@
                     role="notification"
                     class="hide">
               <p></p>
+            </section>
+            <section id="messages-resize-notice"
+                    role="notification"
+                    class="hide">
+              <p data-l10n-id="resize-image">Resizing the attached image</p>
             </section>
           </div>
         </div>
@@ -196,7 +200,7 @@
     <div id="messages-contact-tmpl" class="hide">
       <!--
       <a class="suggestion"
-        data-number="${number}" data-source="contacts" data-name="${name}">
+        data-number="${number}" data-source="contacts" data-name="${name}" data-display="${type}${separator}${carrier}${number}">
         <p class="name">${nameHTML}</p>
         <p>
           ${type}${separator}${carrier}${numberHTML}
@@ -256,7 +260,7 @@
         <p>
           <time>${formattedDate}</time>
           <span class="mms-icon">MMS</span>
-          <span class="body-text">${body}</span>
+          <span class="body-text">${bodyHTML}</span>
         </p>
       </a>
       -->
@@ -266,7 +270,7 @@
       <!--
       <span class="recipient" x-inputmode="verbatim"
         contenteditable="${editable}"
-        data-number="${number}" data-source="${source}" data-name="${name}">
+        data-number="${number}" data-source="${source}" data-name="${name}" data-display="${display}">
         ${name}
       </span>
       -->
@@ -280,9 +284,20 @@
         <link rel="stylesheet" type="text/css" href="style/attachment.css">
       </head>
       <body class="attachment ${draftClass}">
-        <div style="${inlineStyle}" class="placeholder ${type}-placeholder"></div>
+        <div style="${inlineStyle}" class="placeholder ${type}-placeholder">
+          <div class="${errorClass}"></div>
+        </div>
         <div class="size-indicator">${size}</div>
       </body>
+      -->
+    </div>
+
+    <div id="height-rule-tmpl" class="hide">
+      <!--
+      #messages-recipients-list.multiline {
+        overflow-y: scroll;
+        height: ${height}px;
+      }
       -->
     </div>
   </body>

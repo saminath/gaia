@@ -45,6 +45,7 @@ var ThreadUI = global.ThreadUI = {
   CHUNK_SIZE: 10,
   // duration of the notification that message type was converted
   CONVERTED_MESSAGE_DURATION: 3000,
+  IMAGE_RESIZE_DURATION: 3000,
   recipients: null,
   // Set to |true| when in edit mode
   inEditMode: false,
@@ -66,7 +67,7 @@ var ThreadUI = global.ThreadUI = {
       'contact-pick-button', 'back-button', 'send-button', 'attach-button',
       'delete-button', 'cancel-button',
       'edit-icon', 'edit-mode', 'edit-form', 'tel-form',
-      'max-length-notice', 'convert-notice'
+      'max-length-notice', 'convert-notice', 'resize-notice'
     ].forEach(function(id) {
       this[Utils.camelCase(id)] = document.getElementById('messages-' + id);
     }, this);
@@ -179,13 +180,19 @@ var ThreadUI = global.ThreadUI = {
     //  Currently, there are 3 Assimilations.
     //
 
+    var assimilate = this.assimilateRecipients.bind(this);
+
     // Assimilation 1
     this.input.addEventListener(
-      'focus', this.assimilateRecipients.bind(this)
+      'focus', assimilate
+    );
+    // Assimilation 1
+    this.input.addEventListener(
+      'click', assimilate
     );
     // Assimilation 2
     this.attachButton.addEventListener(
-      'click', this.assimilateRecipients.bind(this)
+      'click', assimilate
     );
 
     this.container.addEventListener(
@@ -238,6 +245,8 @@ var ThreadUI = global.ThreadUI = {
       subheaderMutationHandler);
 
     ThreadUI.setInputMaxHeight();
+
+    generateHeightRule();
   },
 
   // Initialize Recipients list and Recipients.View (DOM)
@@ -325,6 +334,31 @@ var ThreadUI = global.ThreadUI = {
   messageComposerInputHandler: function thui_messageInputHandler(event) {
     this.updateInputHeight();
     this.enableSend();
+
+    if (Compose.type === 'sms') {
+      return;
+    }
+
+    if (Compose.isResizing) {
+      this.resizeNotice.classList.remove('hide');
+
+      if (this._resizeNoticeTimeout) {
+        clearTimeout(this._resizeNoticeTimeout);
+        this._resizeNoticeTimeout = null;
+      }
+    } else {
+      // Update counter after image resize complete
+      this.updateCounterForMms();
+      if (this.resizeNotice.classList.contains('hide') ||
+          this._resizeNoticeTimeout) {
+        return;
+      }
+
+      this._resizeNoticeTimeout = setTimeout(function hideResizeNotice() {
+        this.resizeNotice.classList.add('hide');
+        this._resizeNoticeTimeout = null;
+      }.bind(this), this.IMAGE_RESIZE_DURATION);
+    }
   },
 
   assimilateRecipients: function thui_assimilateRecipients() {
@@ -341,6 +375,18 @@ var ThreadUI = global.ThreadUI = {
     do {
       if (node.isPlaceholder) {
         typed = node.textContent.trim();
+
+        // Clicking on the compose input will trigger
+        // an assimilation. If the recipient input
+        // is a lone semi-colon:
+        //
+        //  1. Clear the contents of the editable placeholder
+        //  2. Do not assimilate the value.
+        //
+        if (typed === ';') {
+          node.textContent = '';
+          break;
+        }
 
         // If the user actually typed something,
         // assume it's a manually entered recipient.
@@ -393,6 +439,9 @@ var ThreadUI = global.ThreadUI = {
   resizeHandler: function thui_resizeHandler() {
     this.setInputMaxHeight();
     this.updateInputHeight();
+
+    generateHeightRule();
+
     // Scroll to bottom
     this.scrollViewToBottom();
     // Make sure the caret in the "Compose" area is visible
@@ -414,13 +463,12 @@ var ThreadUI = global.ThreadUI = {
     });
 
     activity.onsuccess = (function() {
-      var details = Utils.getContactDetails('', activity.result);
-
-      this.recipients.add({
-        name: details.title || details.number || activity.result.name[0],
-        number: details.number || activity.result.number,
-        source: 'contacts'
-      });
+      Utils.getContactDisplayInfo(Contacts.findByPhoneNumber.bind(Contacts),
+        activity.result.number,
+        (function onData(data) {
+        data.source = 'contacts';
+        this.recipients.add(data);
+      }).bind(this));
     }).bind(this);
 
     activity.onerror = (function(e) {
@@ -517,7 +565,7 @@ var ThreadUI = global.ThreadUI = {
     this.initSentAudio();
 
     // should disable if we have no message input
-    var disableSendMessage = Compose.isEmpty();
+    var disableSendMessage = Compose.isEmpty() || Compose.isResizing;
     var messageNotLong = this.updateCounter();
     var hasRecipients = this.recipients &&
       (this.recipients.length || !!this.recipients.inputValue);
@@ -588,6 +636,10 @@ var ThreadUI = global.ThreadUI = {
   updateCounterForMms: function thui_updateCounterForMms() {
     // always turn on the counter for mms, it just displays "MMS"
     this.sendButton.classList.add('has-counter');
+    // Counter should be updated when image resizing complete
+    if (Compose.isResizing) {
+      return false;
+    }
 
     if (Settings.mmsSizeLimitation) {
       if (Compose.size > Settings.mmsSizeLimitation) {
@@ -792,15 +844,11 @@ var ThreadUI = global.ThreadUI = {
     //
     Contacts.findByPhoneNumber(number, function gotContact(contacts) {
       var carrierTag = document.getElementById('contact-carrier');
-      /** If we have more than one contact sharing the same phone number
-       *  we show the title of contact detail with validate name/company
-       *  and how many other contacts share that same number. We think it's
-       *  user's responsability to correct this mess with the agenda.
-       */
       // Bug 867948: contacts null is a legitimate case, and
       // getContactDetails is okay with that.
       var details = Utils.getContactDetails(number, contacts);
       var contactName = details.title || number;
+      var carrierText;
 
       this.headerText.dataset.isContact = !!details.isContact;
       this.headerText.textContent = navigator.mozL10n.get(
@@ -811,12 +859,29 @@ var ThreadUI = global.ThreadUI = {
 
       // The carrier banner is meaningless and confusing in
       // group message mode.
-      if (thread.participants.length === 1) {
-        if (contacts && contacts.length) {
-          carrierTag.textContent = Utils.getContactCarrier(number, contacts[0].tel);
+      if (thread.participants.length === 1 &&
+          (contacts && contacts.length)) {
+
+
+        carrierText = Utils.getCarrierTag(
+          number, contacts[0].tel, details
+        );
+
+        // Known Contact with at least:
+        //
+        //  1. a name
+        //  2. a carrier
+        //  3. a type
+        //
+
+        if (carrierText) {
+          carrierTag.textContent = carrierText;
           carrierTag.classList.remove('hide');
+        } else {
+          carrierTag.classList.add('hide');
         }
       } else {
+        // Hide carrier tag in group message or unknown contact cases.
         carrierTag.classList.add('hide');
       }
 
@@ -978,6 +1043,7 @@ var ThreadUI = global.ThreadUI = {
   buildMessageDOM: function thui_buildMessageDOM(message, hidden) {
     var bodyHTML = '';
     var delivery = message.delivery;
+    var isDelivered = message.deliveryStatus === 'success';
     var messageDOM = document.createElement('li');
 
     var classNames = ['message', message.type, delivery];
@@ -990,12 +1056,17 @@ var ThreadUI = global.ThreadUI = {
       classNames.push('outgoing');
     }
 
+    if (delivery === 'sent' && isDelivered) {
+      classNames.push('delivered');
+    }
+
     if (hidden) {
       classNames.push('hidden');
     }
 
     if (message.type && message.type === 'sms') {
-      bodyHTML = LinkHelper.searchAndLinkClickableData(message.body);
+      var escapedBody = Utils.escapeHTML(message.body || '');
+      bodyHTML = LinkHelper.searchAndLinkClickableData(escapedBody);
     }
 
     if (notDownloaded) {
@@ -1314,9 +1385,6 @@ var ThreadUI = global.ThreadUI = {
 
     this.updateHeaderData();
 
-    // Hold onto the recipients until
-    MessageManager.activity.recipients = recipients;
-
     // Send the Message
     if (messageType === 'sms') {
       MessageManager.sendSMS(recipients, content[0]);
@@ -1365,6 +1433,16 @@ var ThreadUI = global.ThreadUI = {
     }
 
     this.ifRilDisabled(this.showAirplaneModeError);
+  },
+
+  onDeliverySuccess: function thui_onDeliverySuccess(message) {
+    var messageDOM = document.getElementById('message-' + message.id);
+
+    if (!messageDOM) {
+      return;
+    }
+    // Update class names to reflect message state
+    messageDOM.classList.add('delivered');
   },
 
   ifRilDisabled: function thui_ifRilDisabled(func) {
@@ -1473,10 +1551,11 @@ var ThreadUI = global.ThreadUI = {
      *     |true| if rendering a contact from stored contacts
      *     |false| if rendering an unknown contact
      *
-     *   isHighlighted:
+     *   isSuggestion:
      *     |true| if the value params.input should be
-     *     highlighted in the rendered HTML
-     *
+     *     highlighted in the rendered HTML & all tel
+     *     entries should be rendered.
+     *     *
      * }
      */
 
@@ -1491,16 +1570,23 @@ var ThreadUI = global.ThreadUI = {
     var input = params.input.trim();
     var ul = params.target;
     var isContact = params.isContact;
-    var isHighlighted = params.isHighlighted;
-
-    var escaped = Utils.escapeRegex(input);
-    var escsubs = escaped.split(/\s+/);
+    var isSuggestion = params.isSuggestion;
     var tels = contact.tel;
-    var regexps = {
-      name: new RegExp('(\\b' + escsubs.join(')|(\\b') + ')', 'gi'),
-      number: new RegExp(escaped, 'ig')
-    };
     var telsLength = tels.length;
+
+    // We search on the escaped HTML via a regular expression
+    var escaped = Utils.escapeRegex(Utils.escapeHTML(input));
+    var escsubs = escaped.split(/\s+/);
+    // Build a list of regexes used for highlighting suggestions
+    var regexps = {
+      name: escsubs.map(function(k) {
+        // String matches occur on the beginning of a "word" to
+        // maintain parity with the contact search algorithm which
+        // only considers left aligned exact matches on words
+        return new RegExp('^' + k, 'gi');
+      }),
+      number: [new RegExp(escaped, 'ig')]
+    };
 
     if (!telsLength) {
       return false;
@@ -1514,35 +1600,58 @@ var ThreadUI = global.ThreadUI = {
 
     for (var i = 0; i < telsLength; i++) {
       var current = tels[i];
-      var number = current.value;
-      var title = details.title || number;
-      var type = current.type && current.type.length ? current.type[0] : '';
-      var carrier = current.carrier ? (current.carrier + ', ') : '';
-      var separator = type || carrier ? ' | ' : '';
+      // Only render a contact's tel value entry for the _specified_
+      // input value when not rendering a suggestion. If the tel
+      // record value _doesn't_ match, then continue.
+      //
+      if (!isSuggestion && !Utils.compareDialables(current.value, input)) {
+        continue;
+      }
+
+      // If rendering for contact search result suggestions, don't
+      // render contact tel records for values that are already
+      // selected as recipients. This comparison should be safe,
+      // as the value in this.recipients.numbers comes from the same
+      // source that current.value comes from.
+      if (isSuggestion && this.recipients.numbers.indexOf(current.value) > -1) {
+        continue;
+      }
 
       var li = document.createElement('li');
-      var data = {
-        name: Utils.escapeHTML(title),
-        number: Utils.escapeHTML(number),
-        type: type,
-        carrier: carrier,
-        separator: separator,
-        nameHTML: '',
-        numberHTML: ''
-      };
 
+      var data = Utils.getDisplayObject(details.title, current);
 
       ['name', 'number'].forEach(function(key) {
-        if (isHighlighted) {
-          data[key + 'HTML'] = data[key].replace(
-            regexps[key], function(match) {
-              return this.tmpl.highlight.interpolate({
-                str: match
-              });
-            }.bind(this)
-          );
+        var escapedData = Utils.escapeHTML(data[key]);
+        if (isSuggestion) {
+          // When rendering a suggestion, we highlight the matched substring.
+          // The approach is to escape the html and the search string, and
+          // then replace on all "words" (whitespace bounded strings) with
+          // the substring run through the highlight template.
+          var splitData = escapedData.split(/\s+/);
+          var loopReplaceFn = (function(match) {
+            matchFound = true;
+            // The match is safe, because splitData[i] is derived from
+            // escapedData
+            return this.tmpl.highlight.interpolate({
+              str: match
+            }, {
+              safe: ['str']
+            });
+          }).bind(this);
+          // For each "word"
+          for (var i = 0; i < splitData.length; i++) {
+            var matchFound = false;
+            // Loop over search term regexes
+            for (var k = 0; !matchFound && k < regexps[key].length; k++) {
+              splitData[i] = splitData[i].replace(
+                regexps[key][k], loopReplaceFn);
+            }
+          }
+          data[key + 'HTML'] = splitData.join(' ');
         } else {
-          data[key + 'HTML'] = Utils.escapeHTML(data[key]);
+          // If we have no html template injection, simply escape the data
+          data[key + 'HTML'] = escapedData;
         }
       }, this);
 
@@ -1638,7 +1747,7 @@ var ThreadUI = global.ThreadUI = {
           input: filterValue,
           target: ul,
           isContact: true,
-          isHighlighted: true
+          isSuggestion: true
         });
       }, this);
     }.bind(this));
@@ -1688,7 +1797,7 @@ var ThreadUI = global.ThreadUI = {
         input: number,
         target: ul,
         isContact: isContact,
-        isHighlighted: false
+        isSuggestion: false
       });
 
       this.activateContact({
@@ -1722,7 +1831,7 @@ var ThreadUI = global.ThreadUI = {
           input: participant,
           target: ul,
           isContact: isContact,
-          isHighlighted: false
+          isSuggestion: false
         });
       }.bind(this));
     }.bind(this));
@@ -1844,5 +1953,66 @@ ThreadUI.groupView.reset = function groupViewReset() {
 };
 
 window.confirm = window.confirm; // allow override in unit tests
+
+/**
+ * generateHeightRule
+ *
+ * Generates a new style element, appends to head
+ * and inserts a generated rule for applying a class
+ * to the recipients list to set its height for
+ * multiline mode.
+ *
+ * @return {Boolean} true if rule was created, false if not.
+ */
+function generateHeightRule() {
+  var available, css, computed, occupied, index,
+      sheet, sheets, style, tmpl;
+
+  occupied = generateHeightRule.occupied;
+
+  if (occupied == null) {
+    computed = window.getComputedStyle(ThreadUI.recipientsList, null);
+
+    occupied = generateHeightRule.occupied = [
+      ThreadUI.INPUT_MARGIN,
+      ThreadUI.subheader.scrollHeight,
+      ThreadUI.sendButton.scrollHeight,
+      parseInt(computed.getPropertyValue('margin-bottom'), 10)
+    ].reduce(function(a, b) { return a + b; });
+  }
+
+  available = ThreadUI.container.clientHeight - occupied;
+
+  if (available === generateHeightRule.available) {
+    return false;
+  }
+
+  if (!generateHeightRule.sheet) {
+    style = document.createElement('style');
+    document.head.appendChild(style);
+    sheets = document.styleSheets;
+  }
+
+  sheet = generateHeightRule.sheet || sheets[sheets.length - 1];
+  index = generateHeightRule.index || sheet.cssRules.length;
+  tmpl = generateHeightRule.tmpl || Utils.Template('height-rule-tmpl');
+
+  css = tmpl.interpolate({
+    height: String(available)
+  }, { safe: ['height'] });
+
+  if (generateHeightRule.index) {
+    sheet.deleteRule(index);
+  }
+
+  sheet.insertRule(css, index);
+
+  generateHeightRule.available = available;
+  generateHeightRule.index = index;
+  generateHeightRule.sheet = sheet;
+  generateHeightRule.tmpl = tmpl;
+
+  return true;
+}
 
 }(this));

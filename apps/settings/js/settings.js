@@ -837,9 +837,11 @@ window.addEventListener('load', function loadSettings() {
       'js/storage.js',
       'shared/js/mobile_operator.js',
       'shared/js/wifi_helper.js',
+      'shared/js/icc_helper.js',
       'js/connectivity.js',
       'js/security_privacy.js',
-      'js/icc_menu.js'
+      'js/icc_menu.js',
+      'shared/js/settings_listener.js'
   ]);
 
   function handleRadioAndCardState() {

@@ -8,6 +8,20 @@ html, body {
   overflow-y: hidden !important;
 }
 
+
+/* 
+  Override BB. Some CSS tweaks for having a better confirm readability
+*/
+form[role="dialog"][data-type="confirm"] p {
+  margin-top: 0 !important;
+  border-bottom: 0.1rem solid #686868;
+}
+
+form[role="dialog"][data-type="confirm"] p small{
+  line-height: 2rem;
+}
+
+
 /* Override Building Block [Header] styles */
 section[role="region"] > header:first-child .icon.icon-clear {
   background-image: url(images/icons/clear.png);
@@ -430,7 +444,8 @@ section[role="region"].new > header:first-child form {
   margin: 0 0.5rem 0 0;
 }
 
-.article-list[data-type="list"] .message.error .bubble > aside progress {
+.article-list[data-type="list"] .message.error .bubble > aside progress,
+.article-list[data-type="list"] .message.delivered .bubble > aside progress {
   display: none;
 }
 
@@ -438,6 +453,12 @@ section[role="region"].new > header:first-child form {
   display: block;
 
   background: url('images/icons/exclamation.png') no-repeat center center;
+  background-size: 2.2rem;
+}
+
+.article-list[data-type="list"] .message.delivered .bubble > aside {
+  display: block;
+  background: url('images/icons/deliveredtick.png') no-repeat center center;
   background-size: 2.2rem;
 }
 
@@ -709,15 +730,13 @@ section[role="region"].new #messages-to-field {
 }
 
 #to-label {
-  display: inline-block;
-  width: 2.5rem;
-  position: absolute;
-  top: 1.5rem;
-  text-overflow: ellipsis;
-  overflow: hidden;
+  margin: 1.5rem 0.5rem 0 0;
+
   white-space: nowrap;
   color: black;
   font-size: 1.465rem;
+  float: left;
+  overflow: hidden;
 }
 
 #add-contact {
@@ -737,28 +756,26 @@ section[role="region"].new #messages-to-field {
 }
 
 #messages-recipients-list {
-  /* From JS, Make this overflow:scroll when it's time to make this field scrollable
-  */
-  overflow-y: hidden;
-  overflow-x: hidden;
-  left: 3rem;
-  position: relative;
-  width: 10rem;
-  width: -moz-calc(100% - 5.5rem);
   height: 2.4rem;
-  transition: height 0.2s ease-in-out;
   padding-top: 1.2rem;
   margin-bottom: 0.8rem;
+
+  transition: height 0.2s ease-in-out;
+  /* From JS, Make this overflow:scroll when it's time to make this field
+   * scrollable */
+  overflow: hidden;
 }
 
 /*
 Used by Recipients.View to display multi or single line.
 Do not remove.
-*/
+
+generateHeightRule() (in ThreadUI/thread_ui.js) will create:
 #messages-recipients-list.multiline {
   overflow-y: scroll;
-  height: 8.8rem;
+  height: {max available height}px;
 }
+*/
 #messages-recipients-list.singleline {
   overflow-y: hidden;
   height: 2.4rem;
@@ -840,8 +857,7 @@ section[role="region"].new .article-list[data-type="list"]  li {
 }
 
 .subheader menu {
-  position:absolute;
-  right: 1.5rem;
-  top: 1.3rem;
-  z-index: 11;
+  margin-top: 1.3rem;
+
+  float: right;
 }
