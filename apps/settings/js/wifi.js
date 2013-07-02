@@ -26,7 +26,7 @@ navigator.mozL10n.ready(function wifiSettings() {
 
   function updateVisibilityStatus() {
     var computedStyle = window.getComputedStyle(gWifi);
-    gWifiSectionVisible = (!document.mozHidden &&
+    gWifiSectionVisible = (!document.hidden &&
                            computedStyle.visibility != 'hidden');
     if (gWifiSectionVisible && gScanPending) {
       gNetworkList.scan();
@@ -34,7 +34,7 @@ navigator.mozL10n.ready(function wifiSettings() {
     }
   }
 
-  document.addEventListener('mozvisibilitychange', updateVisibilityStatus);
+  document.addEventListener('visibilitychange', updateVisibilityStatus);
   gWifi.addEventListener('transitionend', function(evt) {
     if (evt.target == gWifi) {
       updateVisibilityStatus();
@@ -44,8 +44,7 @@ navigator.mozL10n.ready(function wifiSettings() {
   // toggle wifi on/off
   gWifiCheckBox.onchange = function toggleWifi() {
     settings.createLock().set({
-      'wifi.enabled': this.checked,
-      'wifi.suspended': !this.checked
+      'wifi.enabled': this.checked
     }).onerror = function() {
       // Fail to write mozSettings, return toggle control to the user.
       gWifiCheckBox.disabled = false;
@@ -329,7 +328,7 @@ navigator.mozL10n.ready(function wifiSettings() {
         return;
 
       // stop auto-scanning if wifi disabled or the app is hidden
-      if (!gWifiManager.enabled || document.mozHidden) {
+      if (!gWifiManager.enabled || document.hidden) {
         scanning = false;
         gScanPending = true;
         return;
