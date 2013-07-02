@@ -183,12 +183,12 @@ function launchBrowser(URL) {
       a.onerror = function() { alert('Failure going to URL:' + URL); };
 }
 
-function handleDiscovered(event) {
-  handleDiscoveredMessages(event.message);
+function handleNdefDiscovered(event) {
+  handleNdefDiscoveredMessages(event.message);
 }
 
 // NDEF only:
-function handleDiscoveredMessages(messages) {
+function handleNdefDiscoveredMessages(messages) {
   debug("Found tag!");
   nfcUI.setConnectedState(true);
   $("#taglist").css("display", "inline");
@@ -265,30 +265,59 @@ function handleDiscoveredMessages(messages) {
   nfcUI.writePendingMessage();
 }
 
-function addNdefConnectListener() {
+function handleTagDiscovered(event) {
+  debug("Called handleTagDiscovered");
+  debug("EventContents: " + event.message);
+  tech = message.tag_tech;
+  switch (tech) {
+   case "NfcA":
+     debug("NFCA unsupported: " + event.message);
+     break;
+   case "MiFare":
+     debug("MiFare unsupported: " + event.message);
+     break;
+   case "Ndef":
+     debug("Ndef: " + event.message);
+     handleNdefDiscovered(event);
+     break;
+   default:
+     debug("Unknown or unsupported tag tech type");
+  }
+
+  // If there is a pending tag write, apply that write now.
+  nfcUI.writePendingMessage();
+}
+
+function addNfcConnectListeners() {
   debug("Starting Tag Discovery...");
 
-  // Ndef Discovery
-  navigator.mozNfc.onndefdiscovered = function main_handleDiscoveredMessages(event) {
-    handleDiscovered(event);
+  // Ndef Formatted Tag Discovery
+  navigator.mozNfc.onndefdiscovered = function main_handleNdefDiscoveredMessages(event) {
+    handleNdefDiscovered(event);
   };
+
+  // Generic Tag Discovery
+  navigator.mozNfc.ontagdiscovered = function main_handleTagDiscoveredMessages(event) {
+    handleTagDiscovered(event);
+  }
 }
 
-function removeNdefConnectListener() {
+function removeNfcConnectListener() {
   debug("Stopping Tag Discovery...");
   navigator.mozNfc.onndefdiscovered = null;
+  navigator.mozNfc.ontagdiscovered = null;
 }
 
-function addNdefDisconnectListener() {
-  navigator.mozNfc.onndefdisconnected = function(event) {
+function addNfcDisconnectListener() {
+  navigator.mozNfc.ondisconnected = function(event) {
     var message = "Tag no longer in range.";
     nfcUI.setConnectedState(false);
     nfcUI.appendTextAndScroll($("#area"), message+"\n");
   }
 }
 
-function removeNdefDisconnectListener() {
-  navigator.mozNfc.onndefdisconnected = null;
+function removeNfcDisconnectListener() {
+  navigator.mozNfc.ondisconnected = null;
 }
 
 function debug(message) {
@@ -300,15 +329,15 @@ function setListenState(boolState) {
   if (boolState == true) {
     $("#buttontext").text("Stop Tag Discovery");
     isListening = true;
-    addNdefConnectListener();
-    addNdefDisconnectListener();
+    addNfcConnectListeners();
+    addNfcDisconnectListener();
   } else {
     $("#buttontext").text("Start Tag Discovery");
     $("#taglist").css("display", "none");
     $("#actionlist").css("display", "none");
     isListening = false;
-    removeNdefConnectListener();
-    removeNdefDisconnectListener();
+    removeNfcConnectListener();
+    removeNfcDisconnectListener();
   }
 }
 
@@ -316,16 +345,21 @@ function NfcActivityHandler(activity) {
   var activityName = activity.source.name;
   var data = activity.source.data;
   switch (activityName) {
-  case 'ndef-discovered':
+  case 'nfc-ndef-discovered':
     debug("XX Received Activity: name: " + activityName);
-    debug("XX Received Activity: nfc-message(s): " + JSON.stringify(data.record));
-    handleDiscoveredMessages(data.record);
+    debug("XX Received Activity: nfc ndef message(s): " + JSON.stringify(data.record));
+    handleNdefDiscoveredMessages(data.record);
+    break;
+  case 'nfc-tag-discovered':
+    debug("XX Received Activity: name: " + activityName);
+    debug("XX Received Activity: nfc-tag message(s): " + JSON.stringify(data.record));
+    handleTagDiscoveredMessages(data.record);
     break;
   case 'nfc-write-request-status':
     // Apps should use the callback.
     debug("XX Received Activity: nfc-write-request-status: " + JSON.stringify(data));
     break;
-  case 'nfc-ndefdisconnected':
+  case 'nfc-disconnected':
     debug("XX Received Activity: ndefdisconnected: " + JSON.stringify(data));
     break;
   case 'ndefpush-receive':
