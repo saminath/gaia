@@ -338,7 +338,7 @@ function addNfcConnectListeners() {
     };
 
   // Generic Tag Discovery
-  navigator.mozNfc.ontagdiscovered =
+  navigator.mozNfc.ontechdiscovered =
     function main_handleTagDiscoveredMessages(event) {
       handleTagDiscovered(event);
     };
@@ -347,11 +347,11 @@ function addNfcConnectListeners() {
 function removeNfcConnectListener() {
   debug('Stopping Tag Discovery...');
   navigator.mozNfc.onndefdiscovered = null;
-  navigator.mozNfc.ontagdiscovered = null;
+  navigator.mozNfc.ontechdiscovered = null;
 }
 
 function addNfcDisconnectListener() {
-  navigator.mozNfc.ondisconnected = function(event) {
+  navigator.mozNfc.ontechdisconnected = function(event) {
     var message = 'Tag no longer in range.';
     nfcUI.setConnectedState(false);
     nfcUI.appendTextAndScroll($('#area'), message + '\n');
@@ -359,7 +359,7 @@ function addNfcDisconnectListener() {
 }
 
 function removeNfcDisconnectListener() {
-  navigator.mozNfc.ondisconnected = null;
+  navigator.mozNfc.ontechdisconnected = null;
 }
 
 function debug(message) {
