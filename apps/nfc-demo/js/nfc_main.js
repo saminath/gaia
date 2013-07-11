@@ -305,6 +305,36 @@ function handleNdefDiscoveredMessages(messages) {
   nfcUI.writePendingMessage();
 }
 
+function handleTechnologyDiscovered(event) {
+  debug('Called handleTechnologyDiscovered notification');
+  debug('EventContents: ' + event.message);
+  tech = message.tag_tech;
+  switch (tech) {
+   case 'NfcA':
+     debug('NFCA unsupported: ' + event.message);
+     break;
+   case 'MiFare':
+     debug('MiFare unsupported: ' + event.message);
+     break;
+   case 'Ndef':
+     debug('read NDEF: ' + event.message);
+     var req = navigator.ndefDetails();
+     req.onsuccess = function(e) {
+       // NDEF Message with array of NDEFRecords
+       handleNdefDiscovered(e.target.result);
+     };
+     req.onerror = function() {
+       debug('ERROR: Failed to get technology details.');
+     };
+     break;
+   default:
+     debug('Unknown or unsupported tag tech type');
+  }
+
+  // If there is a pending tag write, apply that write now.
+  nfcUI.writePendingMessage();
+}
+
 function handleTagDiscovered(event) {
   debug('Called handleTagDiscovered');
   debug('EventContents: ' + event.message);
@@ -392,6 +422,12 @@ function NfcActivityHandler(activity) {
     debug('XX Received Activity: nfc ndef message(s): ' +
           JSON.stringify(data.record));
     handleNdefDiscoveredMessages(data.record);
+    break;
+  case 'nfc-technology-discovered':
+    debug('XX Received Activity: name: ' + activityName);
+    debug('XX Received Activity: nfc-technology message(s): ' +
+          JSON.stringify(data.record));
+    handleTechnologyDiscoveredMessages(data.record);
     break;
   case 'nfc-tag-discovered':
     debug('XX Received Activity: name: ' + activityName);
