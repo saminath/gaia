@@ -55,6 +55,9 @@
     <!-- Lazy loader -->
     <script defer src="/shared/js/lazy_loader.js"></script>
 
+    <!-- IccHelper -->
+    <script defer src="/shared/js/icc_helper.js"></script>
+
     <!-- Specific code -->
     <script defer src="js/settings.js"></script>
 
@@ -255,6 +258,10 @@
           <li id="wifi-wps-pin-area">
             <p data-l10n-id="wpsPinDescription">PIN is 4 or 8 digits</p>
             <input type="text" />
+          </li>
+          <li id="wifi-wps-pin-aps">
+            <p data-l10n-id="wpsPinAps">Select an opposite device</p>
+            <select></select>
           </li>
         </ul>
       </div>
@@ -2797,20 +2804,6 @@
         </ul>
       </div>
 
-      <form role="dialog" data-type="confirm" id="icc-stk-alert" class="hidden">
-        <section>
-          <h1 data-l10n-id="message">Message</h1>
-          <p id="icc-stk-alert-msg">
-          </p>
-        </section>
-        <menu>
-          <button data-l10n-id="close" id="icc-stk-alert-btn_close">Close</button>
-          <button data-l10n-id="back" id="icc-stk-alert-btn_back">Back</button>
-          <button data-l10n-id="ok" id="icc-stk-alert-btn" class="recommend">Ok</button>
-        </menu>
-      </form>
-
-      <script src="/shared/js/notification_helper.js"></script>
       <script src="js/icc.js"></script>
       -->
     </section>

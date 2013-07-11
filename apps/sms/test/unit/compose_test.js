@@ -368,16 +368,21 @@ suite('compose_test.js', function() {
         Utils.getResizedImgBlob = realgetResizedImgBlob;
       });
       test('Attaching one image', function(done) {
+        var actualSize;
         function onInput() {
           if (!Compose.isResizing) {
             Compose.off('input', onInput);
             var img = Compose.getContent();
             assert.equal(img.length, 1, 'One image');
+            assert.notEqual(actualSize, Compose.size,
+              'the size was recalculated after resizing');
             done();
           }
         };
         Compose.on('input', onInput);
         Compose.append(mockImgAttachment());
+        // we store this so we can make sure it gets resized
+        actualSize = Compose.size;
       });
       test('Attaching another oversized image', function(done) {
         function onInput() {
@@ -425,7 +430,7 @@ suite('compose_test.js', function() {
               done();
             }
           }
-        };
+        }
         Compose.on('input', onInput);
         Compose.append(mockImgAttachment());
       });
@@ -434,22 +439,25 @@ suite('compose_test.js', function() {
     suite('Message Type Events', function() {
       var form;
       var expectType = 'sms';
+
       function typeChange(event) {
         assert.equal(Compose.type, expectType);
         typeChange.called++;
       }
-      suiteSetup(function() {
-        Compose.on('type', typeChange);
-      });
-      suiteTeardown(function() {
-        Compose.off('type', typeChange);
-      });
+
       setup(function() {
         expectType = 'sms';
         Compose.clear();
         typeChange.called = 0;
         form = document.getElementById('messages-compose-form');
+
+        Compose.on('type', typeChange);
       });
+
+      teardown(function() {
+        Compose.off('type', typeChange);
+      });
+
       test('Message switches type when adding/removing attachment',
         function() {
         // form must have the data-message-type set
@@ -495,17 +503,15 @@ suite('compose_test.js', function() {
     setup(function() {
       this.blob = new Blob(['test'], {type: 'image/png'});
       this.attachment = mockAttachment();
+      Compose.clear();
       Compose.append(this.attachment);
-      sinon.stub(AttachmentMenu, 'open');
-      sinon.stub(AttachmentMenu, 'close');
+      this.attachmentSize = Compose.size;
+      this.sinon.stub(AttachmentMenu, 'open');
+      this.sinon.stub(AttachmentMenu, 'close');
 
       // trigger a click on attachment
       this.attachment.mNextRender.click();
 
-    });
-    teardown(function() {
-      AttachmentMenu.open.restore();
-      AttachmentMenu.close.restore();
     });
     test('click opens menu', function() {
       assert.isTrue(AttachmentMenu.open.called);
@@ -513,13 +519,10 @@ suite('compose_test.js', function() {
     suite('clicking on buttons', function() {
       suite('view', function() {
         setup(function() {
-          sinon.stub(this.attachment, 'view');
+          this.sinon.stub(this.attachment, 'view');
 
           // trigger click on view
           document.getElementById('attachment-options-view').click();
-        });
-        teardown(function() {
-          this.attachment.view.restore();
         });
         test('clicking on view calls attachment.view', function() {
           assert.isTrue(this.attachment.view.called);
@@ -537,6 +540,11 @@ suite('compose_test.js', function() {
         test('closes the menu', function() {
           assert.isTrue(AttachmentMenu.close.called);
         });
+        test('recalculates size', function() {
+          assert.equal(Compose.size, 0, 'size should be 0 after remove');
+          assert.notEqual(Compose.size, this.attachmentSize,
+            'size is changed after removing attachment');
+        });
       });
 
       suite('cancel', function() {
@@ -551,8 +559,8 @@ suite('compose_test.js', function() {
 
       suite('replace', function() {
         setup(function(done) {
-          this.replacement = mockAttachment();
-          sinon.stub(Compose, 'requestAttachment', function() {
+          this.replacement = mockAttachment(this.attachmentSize + 5);
+          this.sinon.stub(Compose, 'requestAttachment', function() {
             var mockResult = {};
             setTimeout(function() {
               mockResult.onsuccess(this.replacement);
@@ -563,9 +571,6 @@ suite('compose_test.js', function() {
 
           // trigger click on replace
           document.getElementById('attachment-options-replace').click();
-        });
-        teardown(function() {
-          Compose.requestAttachment.restore();
         });
         test('clicking on replace requests an attachment', function() {
           assert.isTrue(Compose.requestAttachment.called);
@@ -579,17 +584,17 @@ suite('compose_test.js', function() {
         test('closes the menu', function() {
           assert.isTrue(AttachmentMenu.close.called);
         });
+        test('recalculates size', function() {
+          assert.notEqual(Compose.size, this.attachmentSize,
+            'Size was recalculated to be the new size');
+        });
       });
     });
   });
   suite('Image attachment pre-send menu', function() {
     setup(function() {
-      sinon.stub(AttachmentMenu, 'open');
-      sinon.stub(AttachmentMenu, 'close');
-    });
-    teardown(function() {
-      AttachmentMenu.open.restore();
-      AttachmentMenu.close.restore();
+      this.sinon.stub(AttachmentMenu, 'open');
+      this.sinon.stub(AttachmentMenu, 'close');
     });
     test('click opens menu while resizing and resize complete', function(done) {
       Compose.clear();
