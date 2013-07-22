@@ -307,51 +307,36 @@ function handleNdefDiscoveredMessages(messages) {
 
 function handleTechnologyDiscovered(event) {
   debug('Called handleTechnologyDiscovered notification');
-  debug('EventContents: ' + event.message);
-  tech = message.tag_tech;
-  switch (tech) {
-   case 'NfcA':
-     debug('NFCA unsupported: ' + event.message);
-     break;
-   case 'MiFare':
-     debug('MiFare unsupported: ' + event.message);
-     break;
-   case 'Ndef':
-     debug('read NDEF: ' + event.message);
-     var req = navigator.ndefDetails();
-     req.onsuccess = function(e) {
-       // NDEF Message with array of NDEFRecords
-       handleNdefDiscovered(e.target.result);
-     };
-     req.onerror = function() {
-       debug('ERROR: Failed to get technology details.');
-     };
-     break;
-   default:
-     debug('Unknown or unsupported tag tech type');
-  }
+  debug('EventContents 3: ' + JSON.stringify(event.message.content));
+  var tech = event.message.content.tech;
+  var handled = false;
 
-  // If there is a pending tag write, apply that write now.
-  nfcUI.writePendingMessage();
-}
+  // Priority:
+  for (var i in tech) {
+    debug('Here!: ' + i);
+    if (tech[i] == 'NDEF') {
+      var req = navigator.mozNfc.ndefRead();
+      req.onsuccess = function(e) {
+        // NDEF Message with array of NDEFRecords
+        debug('read NDEF success');
+        debug('e.target: ' + JSON.stringify(e.target));
+        handleNdefDiscovered(e.target.result);
+      };
+      req.onerror = function() {
+        debug('ERROR: Failed to read NDEF on tag.');
+      };
+      handled = true;
+    } else if (tech[i] == 'NFC_A') {
+      debug('NFCA unsupported: ' + event.content);
+    } else if (tech[i] == 'MIFARE_ULTRALIGHT') {
+      debug('MiFare unsupported: ' + event.message);
+    } else {
+      debug('Unknown or unsupported tag tech type');
+    }
 
-function handleTagDiscovered(event) {
-  debug('Called handleTagDiscovered');
-  debug('EventContents: ' + event.message);
-  tech = message.tag_tech;
-  switch (tech) {
-   case 'NfcA':
-     debug('NFCA unsupported: ' + event.message);
-     break;
-   case 'MiFare':
-     debug('MiFare unsupported: ' + event.message);
-     break;
-   case 'Ndef':
-     debug('Ndef: ' + event.message);
-     handleNdefDiscovered(event);
-     break;
-   default:
-     debug('Unknown or unsupported tag tech type');
+    if (handled == true) {
+      break;
+    }
   }
 
   // If there is a pending tag write, apply that write now.
@@ -361,22 +346,15 @@ function handleTagDiscovered(event) {
 function addNfcConnectListeners() {
   debug('Starting Tag Discovery...');
 
-  // Ndef Formatted Tag Discovery
-  navigator.mozNfc.onndefdiscovered =
-    function main_handleNdefDiscoveredMessages(event) {
-      handleNdefDiscovered(event);
-    };
-
   // Generic Tag Discovery
   navigator.mozNfc.ontechdiscovered =
-    function main_handleTagDiscoveredMessages(event) {
-      handleTagDiscovered(event);
+    function main_handleTechnologyDiscoveredMessages(event) {
+      handleTechnologyDiscovered(event);
     };
 }
 
 function removeNfcConnectListener() {
   debug('Stopping Tag Discovery...');
-  navigator.mozNfc.onndefdiscovered = null;
   navigator.mozNfc.ontechdiscovered = null;
 }
 

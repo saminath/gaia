@@ -11,6 +11,10 @@
   /**
    * Constants
    */
+
+  /**
+   * NDEF format
+   */
   var nfc = {
     flags_tnf: 0x07,
     flags_ss: 0x10,
@@ -25,15 +29,15 @@
     tnf_unchanged: 0x06,
     tnf_reserved: 0x06,
 
-    rtd_text: "T",
-    rtd_uri: "U",
-    rtd_smart_poster: "Sp",
-    rtd_alternative_carrier: "ac",
-    rtd_handover_carrier: "Hc",
-    rtd_handover_request: "Hr",
-    rtd_handover_select: "Hs",
+    rtd_text: 'T',
+    rtd_uri: 'U',
+    rtd_smart_poster: 'Sp',
+    rtd_alternative_carrier: 'ac',
+    rtd_handover_carrier: 'Hc',
+    rtd_handover_request: 'Hr',
+    rtd_handover_select: 'Hs',
 
-    smartposter_action: "act",
+    smartposter_action: 'act',
 
     // Action Record Values:
     doAction: 0x00,
@@ -44,49 +48,49 @@
     uris: new Array(),
 
     init: function() {
-      this.uris[0x00] = "";
-      this.uris[0x01] = "http://www.";
-      this.uris[0x02] = "https://www.";
-      this.uris[0x03] = "http://";
-      this.uris[0x04] = "https://";
-      this.uris[0x05] = "tel:";
-      this.uris[0x06] = "mailto:";
-      this.uris[0x07] = "ftp://anonymous:anonymous@";
-      this.uris[0x08] = "ftp://ftp.";
-      this.uris[0x09] = "ftps://";
-      this.uris[0x0A] = "sftp://";
-      this.uris[0x0B] = "smb://";
-      this.uris[0x0C] = "nfs://";
-      this.uris[0x0D] = "ftp://";
-      this.uris[0x0E] = "dav://";
-      this.uris[0x0F] = "news:";
-      this.uris[0x10] = "telnet://";
-      this.uris[0x11] = "imap:";
-      this.uris[0x12] = "rtsp://";
-      this.uris[0x13] = "urn:";
-      this.uris[0x14] = "pop:";
-      this.uris[0x15] = "sip:";
-      this.uris[0x16] = "sips:";
-      this.uris[0x17] = "tftp:";
-      this.uris[0x18] = "btspp://";
-      this.uris[0x19] = "btl2cap://";
-      this.uris[0x1A] = "btgoep://";
-      this.uris[0x1B] = "tcpobex://";
-      this.uris[0x1C] = "irdaobex://";
-      this.uris[0x1D] = "file://";
-      this.uris[0x1E] = "urn:epc:id:";
-      this.uris[0x1F] = "urn:epc:tag:";
-      this.uris[0x20] = "urn:epc:pat:";
-      this.uris[0x21] = "urn:epc:raw:";
-      this.uris[0x22] = "urn:epc:";
-      this.uris[0x23] = "urn:nfc:";
+      this.uris[0x00] = '';
+      this.uris[0x01] = 'http://www.';
+      this.uris[0x02] = 'https://www.';
+      this.uris[0x03] = 'http://';
+      this.uris[0x04] = 'https://';
+      this.uris[0x05] = 'tel:';
+      this.uris[0x06] = 'mailto:';
+      this.uris[0x07] = 'ftp://anonymous:anonymous@';
+      this.uris[0x08] = 'ftp://ftp.';
+      this.uris[0x09] = 'ftps://';
+      this.uris[0x0A] = 'sftp://';
+      this.uris[0x0B] = 'smb://';
+      this.uris[0x0C] = 'nfs://';
+      this.uris[0x0D] = 'ftp://';
+      this.uris[0x0E] = 'dav://';
+      this.uris[0x0F] = 'news:';
+      this.uris[0x10] = 'telnet://';
+      this.uris[0x11] = 'imap:';
+      this.uris[0x12] = 'rtsp://';
+      this.uris[0x13] = 'urn:';
+      this.uris[0x14] = 'pop:';
+      this.uris[0x15] = 'sip:';
+      this.uris[0x16] = 'sips:';
+      this.uris[0x17] = 'tftp:';
+      this.uris[0x18] = 'btspp://';
+      this.uris[0x19] = 'btl2cap://';
+      this.uris[0x1A] = 'btgoep://';
+      this.uris[0x1B] = 'tcpobex://';
+      this.uris[0x1C] = 'irdaobex://';
+      this.uris[0x1D] = 'file://';
+      this.uris[0x1E] = 'urn:epc:id:';
+      this.uris[0x1F] = 'urn:epc:tag:';
+      this.uris[0x20] = 'urn:epc:pat:';
+      this.uris[0x21] = 'urn:epc:raw:';
+      this.uris[0x22] = 'urn:epc:';
+      this.uris[0x23] = 'urn:nfc:';
     },
 
     rtd_text_iana_length: 0x3F,
     rtd_text_encoding: 0x40,
     rtd_text_utf8: 0,
-    rtd_text_utf16: 1,
-  }
+    rtd_text_utf16: 1
+  };
 
 
   /**
@@ -98,32 +102,40 @@
       if (optObject) {
         output += JSON.stringify(optObject);
       }
-      console.log(output);
+      dump(output);
     }
   }
 
-  debug(" Initializing NFC Message %%%%%%%%%%%%%%%%%%%%%%");
+  debug(' Initializing NFC Message %%%%%%%%%%%%%%%%%%%%%%');
   /**
    * NFC certified apps can register to receive Nfc commands. Apps without
    * NFC certified app permissions can still receive activity messages.
    */
-  window.navigator.mozSetMessageHandler('nfc-ndef-discovered', handleNdefDiscovered);
-  // Not NDEF formatted. Handle as generic technology tag.
-  window.navigator.mozSetMessageHandler('nfc-technology-discovered', handleTechnologyDiscovered);
-  // Unknown tag, fallback to anything registered for a generic tag.
-  window.navigator.mozSetMessageHandler('nfc-tag-discovered', handleTagDiscovered);
+  window.navigator.mozSetMessageHandler(
+    'nfc-tech-discovered', handleTechnologyDiscovered);
+  window.navigator.mozSetMessageHandler(
+    'nfc-tech-lost', handleTechLost);
 
-  window.navigator.mozSetMessageHandler('nfc-disconnected', handleNdefDisconnected);
-  window.navigator.mozSetMessageHandler('nfc-request-status', handleWriteRequestStatus);
+  // Dom Request Responses. Non-System Apps should just use the DOMRequest
+  // onsuccess/onerror callbacks.
+  window.navigator.mozSetMessageHandler(
+    'nfc-ndef-details', handleNdefDetailsResponse);
+  window.navigator.mozSetMessageHandler(
+    'nfc-ndef-read', handleNdefReadResponse);
+  window.navigator.mozSetMessageHandler(
+    'nfc-ndef-write', handleNdefWriteResponse);
 
-
-  // FIXME: The following should be handled not by NFC, but by a secure elements manager that checks permissions.
+  // FIXME: The following should be handled not by NFC, but by a secure
+  // elements manager that checks permissions.
   window.navigator.mozSetMessageHandler('secureelement-activated', null);
   window.navigator.mozSetMessageHandler('secureelement-deactivated', null);
   window.navigator.mozSetMessageHandler('secureelement-transaction', null);
 
-  // Events:
+  /**
+   * Events:
+   */
   function handleEvent(evt) {
+    debug('XXXXXXXXX Handle Event evt.type' + evt.type);
     switch (evt.type) {
       case 'screenchange':
         screenEnabled = evt.detail.screenEnabled;
@@ -201,9 +213,9 @@
     for (var i = 0; i < ndefmessages.length; i++) {
       var record = ndefmessages[i];
       var handle = null;
-      debug("RECORD: " + JSON.stringify(record));
+      debug('RECORD: ' + JSON.stringify(record));
 
-      switch(+record.tnf) {
+      switch (+record.tnf) {
         case nfc.tnf_empty:
           handle = handleEmpty(record);
           break;
@@ -223,7 +235,7 @@
         case nfc.tnf_unchanged:
         case nfc.tnf_reserved:
         default:
-          debug("Unknown or unimplemented tnf or rtd subtype.");
+          debug('Unknown or unimplemented tnf or rtd subtype.');
           break;
       }
       if (handle) {
@@ -231,7 +243,7 @@
       }
     }
     if (action.length <= 0) {
-      debug("XX Found no ndefmessage actions. XX");
+      debug('XX Found no ndefmessage actions. XX');
       return null;
     }
     return action;
@@ -240,7 +252,6 @@
   /**
    * Tags, and fallback tag handling.
    */
-
   function acceptNfcEvents() {
     // Policy:
     if (screenEnabled && !screenLocked) {
@@ -251,71 +262,89 @@
   }
 
   function handleNdefDiscovered(command) {
-    if (!acceptNfcEvents()) {
-      debug("Ignoring NFC NDEF tag message. Screen state is disabled.");
-      return;
-    }
+    var handled = false;
 
-    var action = handleNdefMessages(command.content.records);
+    var req = window.navigator.mozNfc.ndefRead();
+    req.onsuccess = function() {
+      var records = req.result;
+      var action = handleNdefMessages(records);
 
-    if(action.length <=0) {
-      debug("Unimplemented. Handle Unknown type.");
-    } else {
-      // Policy: Only first ndef message record action is used for triggering activities.
-      // Registered ndef message handlers should interpret messages containing multiiple records
-      // and nested subrecords.
-      debug("Action: " + JSON.stringify(action[0]));
-      var a = new MozActivity(action[0]);
-    }
+      if (action.length <= 0) {
+        debug('Unimplemented. Handle Unknown type.');
+      } else {
+        debug('Action: ' + JSON.stringify(action[0]));
+        var a = new MozActivity(action[0]);
+      }
+      handled = true;
+    };
+    req.onerror = function() {
+      debug('Error reading NDEF record');
+    };
+    return handled;
+  }
 
+  // TODO:
+  function handleNdefFormattableDiscovered(command) {
+    return handleNdefDiscovered(command);
   }
 
   function handleTechnologyDiscovered(command) {
+    debug('System: TechnologyDiscovered: ' + JSON.stringify(command));
     if (!acceptNfcEvents()) {
-      debug("Ignoring NFC technology tag message. Screen state is disabled.");
-      return;
+      debug('Ignoring NFC technology tag message. Screen state is disabled.');
+      //return; // Hmm... not working?
     }
 
-    var technologyTag = command.content.tag;
-    var a = new MozActivity({
-      name: 'technology-discovered',
-      data: {
-        type: 'tag',
-        tag: technologyTag
-      }
-    });
-  }
+    // Check for tech types:
+    debug('NFC Events accepted');
+    debug('command.content.tech: ' + command.content.tech);
+    var handled = false;
+    var tech = command.content.tech;
 
-  function handleTagDiscovered(command) {
-    if (!acceptNfcEvents()) {
-      debug("Ignoring NFC Tag discovered message. Screen state is disabled.");
-      return;
+    // Tech handling priority:
+    for (var i in tech) {
+      debug('NFC.js: Here!: ' + i);
+      if (tech[i] == 'NDEF') {
+        var req = navigator.mozNfc.ndefRead();
+        req.onsuccess = function(e) {
+          // NDEF Message with array of NDEFRecords
+          debug('read NDEF success');
+          debug('e.target: ' + JSON.stringify(e.target));
+          handled = handleNdefDiscovered(e.target.result);
+        };
+        req.onerror = function() {
+          debug('ERROR: Failed to read NDEF on tag.');
+        };
+      } else if (tech[i] == 'NFC_A') {
+        debug('NFCA unsupported: ' + command.content);
+      } else if (tech[i] == 'MIFARE_ULTRALIGHT') {
+        debug('MiFare unsupported: ' + command.content);
+      } else {
+        debug('Unknown or unsupported tag tech type');
+      }
+
+      if (handled == true) {
+        break;
+      }
     }
 
-    var nfctag = command.content.tag;
-    var a = new MozActivity({
-      name: 'tag-discovered',
-      data: {
-        type: 'tag',
-        tag: nfctag
-      }
-    });
+    if (handled == false) {
+      // Fire off activity to whoever is registered to handle a generic binary
+      // blob tag (TODO: tagRead).
+      var technologyTag = command.content.tag;
+      var a = new MozActivity({
+        name: 'tag-discovered',
+        data: {
+          type: 'tag',
+          tag: technologyTag
+        }
+      });
+    }
   }
 
-  // Apps should use the write status callback, not a broadcasted activity.
-  function handleWriteRequestStatus(command) {
+  function handleTechLost(command) {
     var a = new MozActivity({
-      name: 'nfc-write-request-status',
-      data: {
-        type: 'info',
-        message: ''
-      }
-    });
-  }
-
-  function handleNdefDisconnected(command) {
-    var a = new MozActivity({
-      name: 'nfc-ndefdisconnected',
+      name: 'nfc-tech-lost',
       data: {
         type: 'info',
         message: ''
@@ -333,21 +362,21 @@
       data: {
         type: 'empty'
       }
-    }
+    };
   }
 
   function handleWellKnownRecord(record) {
-    debug("XXXXXXXXXXXXXXXXXXXX HandleWellKnowRecord XXXXXXXXXXXXXXXXXXXX" );
-    if(record.type == nfc.rtd_text) {
+    debug('XXXXXXXXXXXXXXXXXXXX HandleWellKnowRecord XXXXXXXXXXXXXXXXXXXX');
+    if (record.type == nfc.rtd_text) {
       return handleTextRecord(record);
-    } else if(record.type == nfc.rtd_uri) {
+    } else if (record.type == nfc.rtd_uri) {
       return handleURIRecord(record);
-    } else if(record.type == nfc.rtd_smart_poster) {
+    } else if (record.type == nfc.rtd_smart_poster) {
       return handleSmartPosterRecord(record);
     } else if (record.type == nfc.smartposter_action) {
       return handleSmartPosterAction(record);
     } else {
-      console.log("Unknown record type: " + record.type);
+      console.log('Unknown record type: ' + record.type);
     }
     return null;
   }
@@ -359,12 +388,13 @@
     var encoding = status & nfc.rtd_text_encoding;
     var text;
     var encodingString;
-    if(encoding == nfc.rtd_text_utf8) {
-      text = decodeURIComponent(escape(record.payload.substring(languageLength + 1)));
-      encodingString='UTF-8';
-    } else if(encoding == nfc.rtd_text_utf16) {
+    if (encoding == nfc.rtd_text_utf8) {
+      text = decodeURIComponent(
+        escape(record.payload.substring(languageLength + 1)));
+      encodingString = 'UTF-8';
+    } else if (encoding == nfc.rtd_text_utf16) {
       record.payload.substring(languageLength + 1);
-      encodingString='UTF-16';
+      encodingString = 'UTF-16';
     }
     var activityText = {
       name: 'ndef-discovered',
@@ -376,22 +406,23 @@
         encoding: encodingString,
         record: record
       }
-    }
+    };
     return activityText;
   }
 
   function handleURIRecord(record) {
-    debug("XXXXXXXXXXXXXXX Handle Ndef URI type XXXXXXXXXXXXXXXX");
+    debug('XXXXXXXXXXXXXXX Handle Ndef URI type XXXXXXXXXXXXXXXX');
     var activityText = null;
     var prefix = nfc.uris[record.payload.charCodeAt(0)];
     if (!prefix) {
       return null;
     }
 
-    if (prefix == "tel:") {
-      // handle special case (FIXME: dialer doesn't currently handle parsing a full ndef message):
+    if (prefix == 'tel:') {
+      // handle special case
+      // (FIXME: dialer doesn't currently handle parsing a full ndef message):
       var number = record.payload.substring(1);
-      debug("XXXXXXXXXXXXXXX Handle Ndef URI type, TEL XXXXXXXXXXXXXXXX");
+      debug('XXXXXXXXXXXXXXX Handle Ndef URI type, TEL XXXXXXXXXXXXXXXX');
       activityText = {
         name: 'ndef-discovered',
         data: {
@@ -400,7 +431,7 @@
           uri: prefix + record.payload.substring(1),
           record: record
         }
-      }
+      };
     } else {
       activityText = {
         name: 'ndef-discovered',
@@ -410,17 +441,17 @@
           uri: prefix + record.payload.substring(1),
           record: record
         }
-      }
+      };
     }
     return activityText;
   }
 
   function handleMimeMedia(record) {
-    var type = "mime-media";
+    var type = 'mime-media';
     var activityText = null;
 
-    debug("XXXXXXXXXXXXXXXXXXXX HandleMimeMedia XXXXXXXXXXXXXXXXXXXX" );
-    if (record.type == "text/x-vCard") {
+    debug('XXXXXXXXXXXXXXXXXXXX HandleMimeMedia XXXXXXXXXXXXXXXXXXXX');
+    if (record.type == 'text/x-vCard') {
       activityText = handleVCardRecord(record);
     } else {
       activityText = {
@@ -429,7 +460,7 @@
           type: record.type,
           record: record
         }
-      }
+      };
     }
     return activityText;
   }
@@ -438,18 +469,22 @@
 
   // FIXME, incomplete mapping/formatting. App should parse the full ndef vcard.
   function handleVCardRecord(record) {
-    var name = record.payload.substring(record.payload.indexOf("FN:") + "FN:".length);
-    name = name.substring(0, name.indexOf("\n"));
-    var first = name.substring(0, name.indexOf(" "));
-    var last = name.substring(name.indexOf(" ")+1);
-    var cell = record.payload.substring(record.payload.indexOf("TEL;TYPE:cell:") + "TEL;TYPE:cell:".length);
-    cell = cell.substring(0, cell.indexOf("\n"));
-    var tel = record.payload.substring(record.payload.indexOf("TEL:") + "TEL:".length);
-    tel = tel.substring(0, tel.indexOf("\n"));
-    var email = record.payload.substring(record.payload.indexOf("EMAIL:") + "EMAIL:".length);
-    tel = email.substring(0, email.indexOf("\n"));
+    var name = record.payload.substring(
+      record.payload.indexOf('FN:') + 'FN:'.length);
+    name = name.substring(0, name.indexOf('\n'));
+    var first = name.substring(0, name.indexOf(' '));
+    var last = name.substring(name.indexOf(' ') + 1);
+    var cell = record.payload.substring(
+      record.payload.indexOf('TEL;TYPE:cell:') + 'TEL;TYPE:cell:'.length);
+    cell = cell.substring(0, cell.indexOf('\n'));
+    var tel = record.payload.substring(
+      record.payload.indexOf('TEL:') + 'TEL:'.length);
+    tel = tel.substring(0, tel.indexOf('\n'));
+    var email = record.payload.substring(
+      record.payload.indexOf('EMAIL:') + 'EMAIL:'.length);
+    tel = email.substring(0, email.indexOf('\n'));
 
-    var type = "webcontacts/contact"; // platform mapping?
+    var type = 'webcontacts/contact'; // platform mapping?
     var activityText = {
       name: 'new',
       data: {
@@ -460,7 +495,7 @@
         email: email,
         record: record
       }
-    }
+    };
     return activityText;
   }
 
@@ -472,11 +507,12 @@
         rtd: record.type,
         record: record
       }
-    }
+    };
     return activityText;
   }
 
-  // Smartposters can be multipart NDEF messages. The meaning and actions are application dependent.
+  // Smartposters can be multipart NDEF messages.
+  // The meaning and actions are application dependent.
   function handleSmartPosterRecord(record) {
     var activityText = {
       name: 'ndef-discovered',
@@ -484,7 +520,7 @@
         type: 'smart-poster',
         record: record
       }
-    }
+    };
     return activityText;
   }
 
@@ -498,7 +534,7 @@
         action: smartaction,
         record: record
       }
-    }
+    };
     return activityText;
   }
 

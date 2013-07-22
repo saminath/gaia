@@ -48,13 +48,6 @@
       "filters": {
         "type": "uri"
       }
-    },
-    "nfc-technology-discovered": {
-    },
-    "nfc-tag-discovered": {
-      "filters": {
-        "type": "uri"
-      }
     }
   }
 }
