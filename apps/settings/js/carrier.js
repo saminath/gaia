@@ -133,6 +133,7 @@ navigator.mozL10n.ready(function carrierSettings() {
       // include the radio button element in a list item
       var span = document.createElement('span');
       var label = document.createElement('label');
+      label.classList.add('pack-radio');
       label.appendChild(input);
       label.appendChild(span);
       var a = document.createElement('a');
@@ -226,6 +227,7 @@ navigator.mozL10n.ready(function carrierSettings() {
 
         var newApnsForIccCard = [];
         var apnsForIccCard = apnsForIccCards[iccCardIndex];
+        var equalTypeAPNFound = false;
         for (var apnIndex = 0; apnIndex < apnsForIccCard.length; apnIndex++) {
 
           var apn = apnsForIccCard[apnIndex];
@@ -253,9 +255,14 @@ navigator.mozL10n.ready(function carrierSettings() {
                 newApnsForIccCard.push(apn);
               }
             }
+            equalTypeAPNFound = true;
           } else {
             newApnsForIccCard.push(apn);
           }
+        }
+        if (!equalTypeAPNFound) {
+          apnToBeMerged.types = [type];
+          newApnsForIccCard.push(apnToBeMerged);
         }
         newApnsForIccCards.push(newApnsForIccCard);
       }

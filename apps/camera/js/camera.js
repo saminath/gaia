@@ -195,6 +195,8 @@ var Camera = {
 
   // Maximum image resolution for still photos taken with camera
   MAX_IMAGE_RES: 1600 * 1200, // Just under 2 megapixels
+  // An estimated JPEG file size is caluclated from 90% quality 24bit/pixel
+  ESTIMATED_JPEG_FILE_SIZE: 300 * 1024,
 
   get overlayTitle() {
     return document.getElementById('overlay-title');
@@ -250,6 +252,14 @@ var Camera = {
 
   get selectButton() {
     return document.getElementById('select-button');
+  },
+
+  get overlayCloseButton() {
+    return document.getElementById('overlay-close-button');
+  },
+
+  get overlayMenuGroup() {
+    return document.getElementById('overlay-menu-group');
   },
 
   // We have seperated init and delayedInit as we want to make sure
@@ -332,6 +342,8 @@ var Camera = {
       .addEventListener('click', this.retakePressed.bind(this));
     this.selectButton
       .addEventListener('click', this.selectPressed.bind(this));
+    this.overlayCloseButton
+      .addEventListener('click', this.cancelPick.bind(this));
 
     if (!navigator.mozCameras) {
       this.captureButton.setAttribute('disabled', 'disabled');
@@ -547,6 +559,10 @@ var Camera = {
       this.stopRecording();
       return;
     }
+    // Hide the filmstrip to prevent the users from
+    // entering the preview mode after Camera starts recording button pressed
+    if (Filmstrip.isShown())
+      Filmstrip.hide();
 
     this.startRecording();
   },
@@ -564,11 +580,6 @@ var Camera = {
       captureButton.removeAttribute('disabled');
       this._recording = true;
       this.startRecordingTimer();
-
-      // Hide the filmstrip to prevent the users from
-      // entering the preview mode after Camera starts recording
-      if (Filmstrip.isShown())
-        Filmstrip.hide();
 
       // User closed app while recording was trying to start
       if (document.hidden) {
@@ -890,6 +901,7 @@ var Camera = {
       var alertText = this._pendingPick ? 'activity-size-limit-reached' :
         'size-limit-reached';
       alert(navigator.mozL10n.get(alertText));
+      this.sizeLimitAlertActive = false;
     }
   },
 
@@ -944,6 +956,7 @@ var Camera = {
     if (this._recording) {
       this.stopRecording();
     }
+    this.hideFocusRing();
     this.disableButtons();
     this.viewfinder.pause();
     this._previewActive = false;
@@ -1213,16 +1226,60 @@ var Camera = {
       return;
     }
 
+    if (this._pendingPick) {
+      this.overlayMenuGroup.classList.remove('hidden');
+    } else {
+      this.overlayMenuGroup.classList.add('hidden');
+    }
+
     this.overlayTitle.textContent = navigator.mozL10n.get(id + '-title');
     this.overlayText.textContent = navigator.mozL10n.get(id + '-text');
     this.overlay.classList.remove('hidden');
   },
 
   pickPictureSize: function camera_pickPictureSize(pictureSizes) {
+    var targetSize = null;
+    var targetFileSize = 0;
+    if (this._pendingPick && this._pendingPick.source.data.maxFileSizeBytes) {
+      // we use worse case of all compression method: gif, jpg, png
+      targetFileSize = this._pendingPick.source.data.maxFileSizeBytes;
+    }
+    if (this._pendingPick && this._pendingPick.source.data.width &&
+        this._pendingPick.source.data.height) {
+      // if we have pendingPick with width and height, set it as target size.
+      targetSize = {'width': this._pendingPick.source.data.width,
+                    'height': this._pendingPick.source.data.height};
+    }
     var maxRes = this.MAX_IMAGE_RES;
+    var estimatedJpgSize = this.ESTIMATED_JPEG_FILE_SIZE;
     var size = pictureSizes.reduce(function(acc, size) {
       var mp = size.width * size.height;
-      return (mp > acc.width * acc.height && mp <= maxRes) ? size : acc;
+      // we don't need the resolution larger than maxRes
+      if (mp > maxRes) {
+        return acc;
+      }
+      // We assume the relationship between MP to file size is linear.
+      // This may be inaccurate on all cases.
+      var estimatedFileSize = mp * estimatedJpgSize / maxRes;
+      if (targetFileSize > 0 && estimatedFileSize > targetFileSize) {
+        return acc;
+      }
+
+      if (targetSize) {
+        // find a resolution both width and height are large than pick size
+        if (size.width < targetSize.width || size.height < targetSize.height) {
+          return acc;
+        }
+        // it's first pictureSize.
+        if (!acc.width || acc.height) {
+          return size;
+        }
+        // find large enough but as small as possible.
+        return (mp < acc.width * acc.height) ? size : acc;
+      } else {
+        // no target size, find as large as possible.
+        return (mp > acc.width * acc.height && mp <= maxRes) ? size : acc;
+      }
     }, {width: 0, height: 0});
 
     if (size.width === 0 && size.height === 0) {

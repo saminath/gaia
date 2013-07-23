@@ -147,6 +147,9 @@ section[role="region"] > header:first-child .icon.icon-edit-contact {
   margin-bottom: 1rem;
 }
 
+#contact-detail .duplicate-actions button {
+  margin-bottom: 1rem;
+}
 
 #contact-detail h2 {
   text-transform: uppercase;
@@ -585,4 +588,14 @@ section[role="region"] > header .icon.icon-settings
 
 #importSources > li.importService {
   height: auto;
+}
+
+#groups-container-box {
+  width: 100%;
+  overflow: hidden;
+}
+
+#groups-container {
+  height: 100%;
+  overflow: scroll;
 }

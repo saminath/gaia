@@ -38,6 +38,12 @@ if (typeof Contacts.extServices === 'undefined') {
       loadService('live');
     };
 
+    extServices.match = function(contactId) {
+      closeRequested = canClose = false;
+      extensionFrame.src = currentURI = 'matching_contacts.html?contactId=' +
+                                         contactId;
+    };
+
     function loadService(serviceName) {
       closeRequested = false;
       canClose = false;
@@ -70,7 +76,7 @@ if (typeof Contacts.extServices === 'undefined') {
           closeRequested = true;
         }
 
-        if (message) {
+        if (message && message.trim().length > 0) {
           Contacts.showStatus(message);
         }
       // Otherwise we do nothing as the sync process will finish sooner or later

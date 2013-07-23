@@ -130,18 +130,7 @@ navigator.mozL10n.ready(function wifiSettings() {
       wpsDialog('wifi-wps', wpsCallback);
     }
 
-    function wpsStatusReset() {
-      // The WPS process is done (connected, cancelled or error):
-      //  - reset the title of the WPS item ("Connect with WPS") right now;
-      //  - leave the current status for a moment, then reset it to the default
-      //    message ("Automatic Wi-Fi setup").
-      localize(gWpsPbcLabelBlock, 'wpsMessage');
-      setTimeout(function resetWpsInfoBlock() {
-        localize(gWpsInfoBlock, 'wpsDescription2');
-      }, 1500);
-    }
-
-    function wpsCallback(method, pin) {
+    function wpsCallback(bssid, method, pin) {
       var req;
       if (method === 'pbc') {
         req = gWifiManager.wps({
@@ -149,11 +138,13 @@ navigator.mozL10n.ready(function wifiSettings() {
         });
       } else if (method === 'myPin') {
         req = gWifiManager.wps({
-          method: 'pin'
+          method: 'pin',
+          bssid: bssid
         });
       } else {
         req = gWifiManager.wps({
           method: 'pin',
+          bssid: bssid,
           pin: pin
         });
       }
@@ -172,10 +163,6 @@ navigator.mozL10n.ready(function wifiSettings() {
     }
 
     function wpsDialog(dialogID, callback) {
-      var dialog = document.getElementById(dialogID);
-      if (!dialog)
-        return;
-
       // hide dialog box
       function pinChecksum(pin) {
         var accum = 0;
@@ -199,6 +186,27 @@ navigator.mozL10n.ready(function wifiSettings() {
         return pinChecksum(Math.floor(num / 10)) === (num % 10);
       }
 
+      var dialog = document.getElementById(dialogID);
+      if (!dialog)
+        return;
+
+      var apSelectionArea = dialog.querySelector('#wifi-wps-pin-aps');
+      var apSelect = apSelectionArea.querySelector('select');
+      for (var i = apSelect.childNodes.length - 1; i >= 0; i--) {
+        apSelect.removeChild(apSelect.childNodes[i]);
+      }
+      var option = document.createElement('option');
+      option.textContent = _('wpsAnyAp');
+      option.value = 'any';
+      apSelect.appendChild(option);
+      var wpsAvailableNetworks = gNetworkList.getWpsAvailableNetworks();
+      for (var i = 0; i < wpsAvailableNetworks.length; i++) {
+        option = document.createElement('option');
+        option.textContent = wpsAvailableNetworks[i].ssid;
+        option.value = wpsAvailableNetworks[i].bssid;
+        apSelect.appendChild(option);
+      }
+
       var submitWpsButton = dialog.querySelector('button[type=submit]');
       var pinItem = document.getElementById('wifi-wps-pin-area');
       var pinDesc = pinItem.querySelector('p');
@@ -217,6 +225,7 @@ navigator.mozL10n.ready(function wifiSettings() {
           submitWpsButton.disabled = false;
           pinItem.hidden = true;
         }
+        apSelectionArea.hidden = method === 'pbc';
       }
 
       var radios = dialog.querySelectorAll('input[type="radio"]');
@@ -226,7 +235,8 @@ navigator.mozL10n.ready(function wifiSettings() {
       onWpsMethodChange();
 
       openDialog(dialogID, function submit() {
-        callback(dialog.querySelector("input[type='radio']:checked").value,
+        callback(apSelect.options[apSelect.selectedIndex].value,
+          dialog.querySelector("input[type='radio']:checked").value,
           pinInput.value);
       });
     }
@@ -256,7 +266,7 @@ navigator.mozL10n.ready(function wifiSettings() {
 
     // supported authentication methods
     var small = document.createElement('small');
-    var keys = WifiHelper.getEncryptions(network);
+    var keys = WifiHelper.getSecurity(network);
     if (keys && keys.length) {
       small.textContent = _('securedBy', { capabilities: keys.join(', ') });
       icon.classList.add('secured');
@@ -299,6 +309,7 @@ navigator.mozL10n.ready(function wifiSettings() {
     var autoscan = false;
     var scanRate = 5000; // 5s after last scan results
     var index = [];      // index of all scanned networks
+    var networks = {};
 
     // get the "Searching..." and "Search Again" items, respectively
     var infoItem = list.querySelector('li[data-state="on"]');
@@ -311,6 +322,7 @@ navigator.mozL10n.ready(function wifiSettings() {
     // clear the network list
     function clear(addScanningItem) {
       index = [];
+      networks = {};
 
       // remove all items except the text expl. and the "search again" button
       var wifiItems = list.querySelectorAll('li:not([data-state])');
@@ -338,25 +350,25 @@ navigator.mozL10n.ready(function wifiSettings() {
       var req = gWifiManager.getNetworks();
 
       req.onsuccess = function onScanSuccess() {
+        clear(false);
         var allNetworks = req.result;
-        var networks = {};
         for (var i = 0; i < allNetworks.length; ++i) {
           var network = allNetworks[i];
-          // use ssid + capabilities as a composited key
+          // use ssid + security as a composited key
           var key = network.ssid + '+' +
-            WifiHelper.getEncryptions(network).join('+');
+            WifiHelper.getSecurity(network).join('+');
           // keep connected network first, or select the highest strength
           if (!networks[key] || network.connected) {
             networks[key] = network;
           } else {
             if (!networks[key].connected &&
-                network.relSignalStrength > networks[key].relSignalStrength)
+                network.relSignalStrength > networks[key].relSignalStrength) {
               networks[key] = network;
+            }
           }
         }
 
         var networkKeys = Object.getOwnPropertyNames(networks);
-        clear(false);
 
         // display network list
         if (networkKeys.length) {
@@ -414,7 +426,7 @@ navigator.mozL10n.ready(function wifiSettings() {
       }
 
       var key = network.ssid + '+' +
-        WifiHelper.getEncryptions(network).join('+');
+        WifiHelper.getSecurity(network).join('+');
       var listItem = index[key];
       var active = list.querySelector('.active');
       if (active && active != listItem) {
@@ -437,6 +449,19 @@ navigator.mozL10n.ready(function wifiSettings() {
       }
     }
 
+    // get WPS available networks
+    function getWpsAvailableNetworks() {
+      var ssids = Object.getOwnPropertyNames(networks);
+      var wpsAvailableNetworks = [];
+      for (var i = 0; i < ssids.length; i++) {
+        var network = networks[ssids[i]];
+        if (WifiHelper.isWpsAvailable(network)) {
+          wpsAvailableNetworks.push(network);
+        }
+      }
+      return wpsAvailableNetworks;
+    }
+
     // API
     return {
       get autoscan() { return autoscan; },
@@ -444,7 +469,8 @@ navigator.mozL10n.ready(function wifiSettings() {
       display: display,
       clear: clear,
       scan: scan,
-      get scanning() { return scanning; }
+      get scanning() { return scanning; },
+      getWpsAvailableNetworks: getWpsAvailableNetworks
     };
   }) (document.getElementById('wifi-availableNetworks'));
 
@@ -484,7 +510,7 @@ navigator.mozL10n.ready(function wifiSettings() {
           var network = allNetworks[i];
           // use ssid + capabilities as a composited key
           var key = network.ssid + '+' +
-            WifiHelper.getEncryptions(network).join('+');
+            WifiHelper.getSecurity(network).join('+');
           networks[key] = network;
         }
         var networkKeys = Object.getOwnPropertyNames(networks);
@@ -620,7 +646,7 @@ navigator.mozL10n.ready(function wifiSettings() {
 
         case 'wifi-auth':
           // network info -- #wifi-status and #wifi-auth
-          var keys = WifiHelper.getEncryptions(network);
+          var keys = WifiHelper.getSecurity(network);
           var security = (keys && keys.length) ? keys.join(', ') : '';
           var sl = Math.min(Math.floor(network.relSignalStrength / 20), 4);
           dialog.querySelector('[data-ssid]').textContent = network.ssid;
@@ -635,7 +661,7 @@ navigator.mozL10n.ready(function wifiSettings() {
           var security = dialog.querySelector('select');
           var onSecurityChange = function() {
             key = security.selectedIndex ? security.value : '';
-            WifiHelper.setEncryptions(network, [key]);
+            WifiHelper.setSecurity(network, [key]);
             dialog.dataset.security = key;
             checkPassword();
           };

@@ -9,6 +9,14 @@
 var VCFReader = function(contents) {
   this.contents = contents;
   this.processedContacts = 0;
+  this.finished = false;
+};
+
+// Number of contacts processed in parallel
+VCFReader.CHUNK_SIZE = 5;
+
+VCFReader.prototype.finish = function() {
+  this.finished = true;
 };
 
 VCFReader.prototype.process = function(cb) {
@@ -28,28 +36,34 @@ VCFReader.prototype.process = function(cb) {
   }
 
   var self = this;
-  var allDone = false;
-  this.totalContacts = rawContacts.length;
-  rawContacts.forEach(function(ct) { VCFReader.save(ct, onParsed); });
+  var total = rawContacts.length;
+
+  if (total === 0) {
+    // Returning becasue there aren't contacts to import
+    cb(rawContacts);
+    return;
+  }
+
+  function importContacts(from) {
+    for (var i = from; i < from + VCFReader.CHUNK_SIZE && i < total; i++) {
+      VCFReader.save(rawContacts[i], onParsed);
+    }
+  }
+
+  importContacts(this.processedContacts);
 
   function onParsed(err, ct) {
     self.onimported && self.onimported();
-
     self.processedContacts += 1;
-    if (self.checkIfCompleted() && allDone === false) {
+
+    if (self.processedContacts < total &&
+        self.processedContacts % VCFReader.CHUNK_SIZE === 0) {
+      // Batch finishes, next one...
+      self.finished ? cb(rawContacts) : importContacts(self.processedContacts);
+    } else if (self.processedContacts === total) {
       cb(rawContacts);
-      allDone = true;
     }
   }
-};
-
-/**
- * Checks if all the contacts have been processed by comparing them to the
- * initial number of entries in the vCard
- * @return {Boolean} return true if processed, false otherwise.
- */
-VCFReader.prototype.checkIfCompleted = function() {
-  return this.processedContacts === this.totalContacts;
 };
 
 /**
@@ -89,14 +103,13 @@ VCFReader._decodeQuoted = function(str) {
  * @return {string}
  */
 VCFReader.decodeQP = function(metaObj, value) {
-  var decoded = value;
-  var isQP = metaObj && metaObj['encoding'] &&
-    metaObj['encoding'].toLowerCase() === 'quoted-printable';
+  var isQP = metaObj && metaObj.encoding &&
+    metaObj.encoding.toLowerCase() === 'quoted-printable';
 
   if (isQP)
-    decoded = VCFReader._decodeQuoted(decoded);
+    value = VCFReader._decodeQuoted(value);
 
-  return decoded;
+  return value;
 };
 
 VCFReader.nameParts = [
@@ -120,8 +133,11 @@ VCFReader.processName = function(vcardObj, contactObj) {
   var parts = VCFReader.nameParts;
 
   // Set First Name right away as the 'name' property
-  if (vcardObj.fn && vcardObj.fn.length)
-    contactObj.name = vcardObj.fn[0].value;
+  if (vcardObj.fn && vcardObj.fn.length) {
+    var fnMeta = vcardObj.fn[0].meta;
+    var fnValue = vcardObj.fn[0].value[0];
+    contactObj.name = [VCFReader.decodeQP(fnMeta, fnValue)];
+  }
 
   if (vcardObj.n && vcardObj.n.length) {
     var values = vcardObj.n[0].value;
@@ -189,8 +205,10 @@ VCFReader.processComm = function(vcardObj, contactObj) {
       var cur = {};
 
       if (v.meta) {
-        if (v.value)
+        if (v.value) {
           cur.value = VCFReader.decodeQP(v.meta, v.value[0]);
+          cur.value = cur.value.replace(/^tel:/i, '');
+        }
 
         metaValues = Object.keys(v.meta).map(function(key) {
           return v.meta[key];
@@ -231,9 +249,7 @@ VCFReader.processFields = function(vcardObj, contactObj) {
   return contactObj;
 };
 
-VCFReader.Re1 = /^\s*(version|fn|title|org)\s*:(.+)$/i;
-VCFReader.Re2 = /^([^:;]+);?([^:]+)?:(.+)$/i;
-VCFReader.ReKey = /item\d{1,2}\./;
+VCFReader.ReBasic = /^([^:]+):(.+)$/i;
 VCFReader.ReTuple = /([a-z]+)=(.*)/i;
 
 VCFReader._parseTuple = function(p, i) {
@@ -250,26 +266,60 @@ VCFReader._parseTuple = function(p, i) {
  * @private
  */
 VCFReader.parseLine_ = function(line) {
-  if (!VCFReader.Re2.test(line)) return null;
-  var results = line.match(VCFReader.Re2);
-  var key = results[1].replace(VCFReader.ReKey, '').toLowerCase().trim();
+  if (!VCFReader.ReBasic.test(line)) return null;
 
+  var parsed = VCFReader.ReBasic.exec(line);
+  var tuples = parsed[1].split(/[;,]/);
+  var key = tuples.shift();
   var meta = {};
-  if (results[2]) {
-    results[2].split(/[;,]/).forEach(function(l, i) {
-      var p = VCFReader._parseTuple(l, i);
-      if (p)
-        meta[p[0]] = p[1];
-    });
-  }
+
+  tuples.forEach(function(l, i) {
+    var tuple = VCFReader._parseTuple(l, i);
+    meta[tuple[0]] = tuple[1];
+  });
 
   return {
-    key: key,
+    key: key.toLowerCase(),
     data: {
       meta: meta,
-      value: results[3].split(';')
+      value: parsed[2].split(';').map(function(v) { return v.trim(); })
     }
   };
+};
+
+VCFReader.splitLines = function(vcf) {
+  var lines = [];
+  var currentStr = '';
+  var inLabel = false;
+  for (var i = 0, l = vcf.length; i < l; i++) {
+    if (vcf[i] === '"') {
+      inLabel = !inLabel;
+      currentStr += vcf[i];
+      continue;
+    }
+
+    // If we are inside a label or the char is not a newline, add char
+    if (inLabel || !(/(\n|\r)/.test(vcf[i]))) {
+      currentStr += vcf[i];
+      continue;
+    }
+
+    var sub = vcf.substring(i + 1, vcf.length - 1);
+    // If metadata contains a label attribute and there are no newlines until
+    // the ':' separator, add char
+    if (currentStr.toLowerCase().indexOf('label;') !== -1 &&
+      sub.search(/^[^\n\r]+:/) === -1) {
+      currentStr += vcf[i];
+      continue;
+    }
+
+    if (sub.search(/^[^\S\n\r]+/) !== -1) {
+      continue;
+    }
+    lines.push([currentStr]);
+    currentStr = '';
+  }
+  return lines;
 };
 
 /**
@@ -282,11 +332,7 @@ VCFReader.parseSingleEntry = function(input) {
   if (!input) return null;
 
   var fields = {};
-  // When a line starts with a whitespace it means it is a continuation of the
-  // previous line. We join them here.
-  input = input.replace(/(\r\n|\r|\n)[^\S\n\r]+/g, '');
-
-  var lines = input.split(/\r\n|\r|\n/);
+  var lines = VCFReader.splitLines(input);
   lines.forEach(function(line) {
     var parsedLine = VCFReader.parseLine_(line);
     if (parsedLine) {
@@ -318,7 +364,6 @@ VCFReader.vcardToContact = function(vcard) {
   VCFReader.processAddr(vcard, obj);
   VCFReader.processComm(vcard, obj);
   VCFReader.processFields(vcard, obj);
-
   var contact = new mozContact();
   contact.init(obj);
 

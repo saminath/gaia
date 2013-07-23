@@ -5,6 +5,9 @@
 
 requireApp('sms/js/link_helper.js');
 
+requireApp('sms/js/utils.js');
+requireApp('sms/test/unit/mock_utils.js');
+
 suite('link_helper_test.js', function() {
 
   suite('LinkHelper URL replacements', function() {
@@ -163,6 +166,12 @@ suite('link_helper_test.js', function() {
       test('Simple URL with IPv6', function() {
         testURLNOK('http://[::1]/');
       });
+      test('Bug 890342 1', function() {
+        testURLNOK('2.74');
+      });
+      test('Bug 890342 2', function() {
+        testURLNOK('21.72');
+      });
     });
   });
 
@@ -203,6 +212,12 @@ suite('link_helper_test.js', function() {
 
   suite('LinkHelper Phone replacements', function() {
 
+    function testPhoneMatch(text, match) {
+      var expected = text.replace(match, phone2msg(match));
+      var result = LinkHelper.searchAndLinkClickableData(text);
+      assert.equal(result, expected);
+    }
+
     function phone2msg(phone) {
       return '<a data-phonenumber="' + phone + '"' +
              ' data-action="phone-link">' + phone + '</a>';
@@ -219,12 +234,57 @@ suite('link_helper_test.js', function() {
       assert.equal(res, phone);
     }
 
-    test('Simple french mobile nat.', function() {
-      testPhoneOK('0612345678');
+    suite('Matches', function() {
+      test('Simple french mobile nat.', function() {
+        testPhoneOK('0612345678');
+      });
+
+      test('Simple french mobile intl', function() {
+        testPhoneOK('+33612345678');
+      });
+
+      test('Phone from #887737', function() {
+        testPhoneOK('+5511 98907-6047');
+      });
+
+      test('Phone proceding trailing number', function() {
+        testPhoneMatch('Test1 600123123', '600123123');
+      });
     });
 
-    test('Simple french mobile intl', function() {
-      testPhoneOK('+33612345678');
+    suite('Failures', function() {
+      ['0.34', '1200', '5000', '0.122', '0921'].forEach(function(phone) {
+        test(phone, function() {
+          testPhoneNOK(phone);
+        });
+      });
+    });
+
+    suite('Varied cases', function() {
+      FixturePhones.forEach(function(fixture) {
+        suite(fixture.name, function() {
+          fixture.values.forEach(function(value) {
+            test(value, function() {
+              testPhoneOK(value);
+            });
+          });
+        });
+      });
+    });
+
+    suite('Tricky Problems', function() {
+      test('Two 9 digit numbers separated by space (#892480)', function() {
+        var test = '123456789 987654321';
+        var expected = test.split(' ').map(phone2msg).join(' ');
+        var result = LinkHelper.searchAndLinkClickableData(test);
+        assert.equal(result, expected);
+      });
+      test('Two 6 digit numbers separated by newline (#892480)', function() {
+        var test = '222333\n333222';
+        var expected = test.split('\n').map(phone2msg).join('\n');
+        var result = LinkHelper.searchAndLinkClickableData(test);
+        assert.equal(result, expected);
+      });
     });
 
   });

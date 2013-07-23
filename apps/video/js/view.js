@@ -46,24 +46,7 @@ navigator.mozSetMessageHandler('activity', function viewVideo(activity) {
     }
   }
 
-  if (type !== 'video/youtube') {
-    showPlayer(url, title);
-    return;
-  }
-
-  // This is the youtube case. We need to ensure that we have been
-  // localized before trying to fetch the youtube video so youtube
-  // knows what language to send errors to us in.
-  // XXX: show a loading spinner here?
-  if (navigator.mozL10n.readyState === 'complete') {
-    getYoutubeVideo(url, showPlayer, handleYoutubeError);
-  }
-  else {
-    window.addEventListener('localized', function handleLocalized() {
-      window.removeEventListener('localized', handleLocalized);
-      getYoutubeVideo(url, showPlayer, handleYoutubeError);
-    });
-  }
+  showPlayer(url, title);
 
   // Terminate video playback when visibility is changed.
   window.addEventListener('visibilitychange',
@@ -72,29 +55,6 @@ navigator.mozSetMessageHandler('activity', function viewVideo(activity) {
         done();
       }
     });
-
-  function handleYoutubeError(message) {
-    // Start with a localized error message prefix
-    var error = navigator.mozL10n.get('youtube-error-prefix');
-
-    if (message) {
-      // Remove any HTML tags from the youtube error message
-      var div = document.createElement('div');
-      div.innerHTML = message;
-      message = div.textContent;
-      error += '\n\n' + message;
-    }
-
-    // Display the error message to the user
-    // XXX Using alert() is simple but ugly.
-    alert(error);
-
-    // When the user clicks okay, end the activity.
-    // Do this on a timer so the alert has time to go away.
-    // Otherwise it appears to remain up over the caller and the user
-    // has to dismiss it twice. See bug 825435.
-    setTimeout(function() { activity.postResult({}); }, 50);
-  }
 
   function initUI() {
     // Fullscreen mode and inline activities don't seem to play well together
@@ -151,8 +111,8 @@ navigator.mozSetMessageHandler('activity', function viewVideo(activity) {
     dom.videoControls.classList[visible ? 'remove' : 'add']('hidden');
     controlShowing = visible;
     if (visible) {
-      // update elapsed time while showing.
-      dom.elapsedText.textContent = formatDuration(dom.player.currentTime);
+      // update elapsed time and slider while showing.
+      updateSlider();
     }
   }
 
@@ -309,16 +269,7 @@ navigator.mozSetMessageHandler('activity', function viewVideo(activity) {
         return;
       }
 
-      var percent = (dom.player.currentTime / dom.player.duration) * 100;
-      if (isNaN(percent)) // this happens when we end the activity
-        return;
-      percent += '%';
-
-      dom.elapsedText.textContent = formatDuration(dom.player.currentTime);
-      dom.elapsedTime.style.width = percent;
-      // Don't move the play head if the user is dragging it.
-      if (!dragging)
-        dom.playHead.style.left = percent;
+      updateSlider();
     }
 
     // Since we don't always get reliable 'ended' events, see if
@@ -349,6 +300,19 @@ navigator.mozSetMessageHandler('activity', function viewVideo(activity) {
 
     dom.player.currentTime = 0;
     pause();
+  }
+
+  function updateSlider() {
+    var percent = (dom.player.currentTime / dom.player.duration) * 100;
+    if (isNaN(percent)) // this happens when we end the activity
+      return;
+    percent += '%';
+
+    dom.elapsedText.textContent = formatDuration(dom.player.currentTime);
+    dom.elapsedTime.style.width = percent;
+    // Don't move the play head if the user is dragging it.
+    if (!dragging)
+      dom.playHead.style.left = percent;
   }
 
   // handle drags on the time slider
@@ -414,7 +378,7 @@ navigator.mozSetMessageHandler('activity', function viewVideo(activity) {
     }
 
     var minutes = Math.floor(duration / 60);
-    var seconds = Math.round(duration % 60);
+    var seconds = Math.floor(duration % 60);
     if (minutes < 60) {
       return padLeft(minutes, 2) + ':' + padLeft(seconds, 2);
     }
@@ -439,7 +403,9 @@ navigator.mozSetMessageHandler('activity', function viewVideo(activity) {
   }
 
   function showSpinner() {
-    dom.spinnerOverlay.classList.remove('hidden');
+    if (!blob) {
+      dom.spinnerOverlay.classList.remove('hidden');
+    }
   }
 
   function hideSpinner() {
