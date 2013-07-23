@@ -24,7 +24,7 @@ function checkDomain(domain) {
 }
 
 // defines things that can match right before to be a "safe" link
-var safeStart = '\n\t\r\f .,:;(>'.split('');
+var safeStart = /[\s,:;\(>]/;
 
 const MINIMUM_DIGITS_IN_PHONE_NUMBER = 6;
 
@@ -44,10 +44,11 @@ var LINK_TYPES = {
   phone: {
     regexp: new RegExp([
       // sddp: space, dot, dash or parens
-      '(?:\\+\\d{1,4}[\\s.()-]{0,3}|\\()?' +     // (\+<digits><sddp>|\()?
-      '(?:\\d{1,4}[\\s.()-]{0,3})?' +            // <digits><sdd>*
-      '(?:\\d[\\d\\s.()-]{0,100}\\d)'            // <digit><digit|sddp>*<digit>
-      ].join(''), 'mg'),
+      '(?:\\+\\d{1,4}[ \\t.()-]{0,3}|\\()?' +     // (\+<digits><sddp>|\()?
+      '(?:\\d{1,4}[ \\t.()-]{0,3})?' +            // <digits><sdd>*
+      '(?:\\d[\\d \\t.()-]{0,12}\\d)' +           // <digit><digit|sddp>*<digit>
+      '(?!\\d)' // the next character after can't be a digit
+      ].join(''), 'g'),
     matchFilter: function phoneMatchFilter(phone, link) {
       var onlyDigits = Utils.removeNonDialables(phone);
 
@@ -132,9 +133,18 @@ function searchForLinks(type, string) {
 
   // while we match stuff...
   while (match = regexp.exec(string)) {
+
     // if the match isn't at the begining of the string, check for a safe
-    // character set before the match before we call it a linkSpec
-    if (match.index && safeStart.indexOf(string[match.index - 1]) === -1) {
+    // character before the match
+
+    var rest = string.slice(match.index - 1);
+    if (match.index && !safeStart.test(rest.charAt(0))) {
+
+      // we should only advance the regexp to the next safeStart
+      var nextSafe = safeStart.exec(rest);
+      if (nextSafe) {
+        regexp.lastIndex = match.index + nextSafe.index;
+      }
       continue;
     }
 

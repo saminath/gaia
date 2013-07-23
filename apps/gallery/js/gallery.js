@@ -738,9 +738,15 @@ function cropPickedImage(fileinfo) {
 
   setView(cropView);
 
+  // Before the picked image is loaded, the done button is disabled
+  // to avoid users picking a black/empty image.
+  $('crop-done-button').disabled = true;
+
   photodb.getFile(pickedFile.name, function(file) {
     cropURL = URL.createObjectURL(file);
     cropEditor = new ImageEditor(cropURL, $('crop-frame'), {}, function() {
+      // Enable the done button so that users are able to finish picking image.
+      $('crop-done-button').disabled = false;
       // If the initiating app doesn't want to allow the user to crop
       // the image, we don't display the crop overlay. But we still use
       // this image editor to preview the image.

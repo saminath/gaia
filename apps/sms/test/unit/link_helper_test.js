@@ -212,6 +212,12 @@ suite('link_helper_test.js', function() {
 
   suite('LinkHelper Phone replacements', function() {
 
+    function testPhoneMatch(text, match) {
+      var expected = text.replace(match, phone2msg(match));
+      var result = LinkHelper.searchAndLinkClickableData(text);
+      assert.equal(result, expected);
+    }
+
     function phone2msg(phone) {
       return '<a data-phonenumber="' + phone + '"' +
              ' data-action="phone-link">' + phone + '</a>';
@@ -240,6 +246,10 @@ suite('link_helper_test.js', function() {
       test('Phone from #887737', function() {
         testPhoneOK('+5511 98907-6047');
       });
+
+      test('Phone proceding trailing number', function() {
+        testPhoneMatch('Test1 600123123', '600123123');
+      });
     });
 
     suite('Failures', function() {
@@ -259,6 +269,21 @@ suite('link_helper_test.js', function() {
             });
           });
         });
+      });
+    });
+
+    suite('Tricky Problems', function() {
+      test('Two 9 digit numbers separated by space (#892480)', function() {
+        var test = '123456789 987654321';
+        var expected = test.split(' ').map(phone2msg).join(' ');
+        var result = LinkHelper.searchAndLinkClickableData(test);
+        assert.equal(result, expected);
+      });
+      test('Two 6 digit numbers separated by newline (#892480)', function() {
+        var test = '222333\n333222';
+        var expected = test.split('\n').map(phone2msg).join('\n');
+        var result = LinkHelper.searchAndLinkClickableData(test);
+        assert.equal(result, expected);
       });
     });
 

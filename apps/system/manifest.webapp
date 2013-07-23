@@ -1,6 +1,7 @@
 {
   "name": "System",
   "type": "certified",
+  "role": "system",
   "description": "Main System",
   "launch_path": "/index.html",
   "developer": {
@@ -69,7 +70,8 @@
      { "bluetooth-opp-transfer-start": "/index.html" },
      { "icc-stkcommand": "/index.html" },
      { "bluetooth-hfp-status-changed": "/index.html" },
+     { "bluetooth-sco-status-changed": "/index.html" },
      { "nfc-ndef-discovered": "/index.html" },
-     { "nfc-ndef-disconnected": "/index.html" }
+     { "nfc-disconnected": "/index.html" }
   ]
 }

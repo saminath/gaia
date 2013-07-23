@@ -6,7 +6,6 @@
 
     <!-- Building blocks Temporal -->
     <link rel="stylesheet" type="text/css" href="style/bb/input-areas/style.css">
-    <link rel="stylesheet" type="text/css" href="style/bb/progress-activity/style.css">
     <link rel="stylesheet" type="text/css" href="style/bb/menus-dialogues/valueselector/date/style.css">
     <link rel="stylesheet" type="text/css" href="style/bb/menus-dialogues/valueselector/style.css">
     <link rel="stylesheet" type="text/css" href="style/bb/menus-dialogues/core.css">
@@ -33,6 +32,8 @@
     <script type="text/javascript" defer src="shared/js/l10n_date.js"></script>
 
     <!-- Specific scripts -->
+    <script type="text/javascript" async src="js/validators.js"></script>
+    <script type="text/javascript" async src="js/views/BalanceLowLimitView.js"></script>
     <script type="text/javascript" async src="js/settings/limitdialog.js"></script>
     <script type="text/javascript" async src="js/settings/autosettings.js"></script>
     <script type="text/javascript" async src="js/view_manager.js"></script>
@@ -89,8 +90,8 @@
                 <p class="meta"></p>
             </li>
             <li>
-              <label class="end switch">
-                <input class="settings-option" data-option="lowLimit" type="checkbox" data-type="switch" id="low-limit" />
+              <label class="pack-switch end">
+                <input class="settings-option" data-option="lowLimit" type="checkbox" id="low-limit" />
                 <span></span>
               </label>
               <p data-l10n-id="low-balance-alert">Low balance alert</p>
@@ -122,8 +123,8 @@
               <p class="meta"></p>
             </li>
             <li>
-              <label class="end switch">
-                <input class="settings-option" data-option="dataLimit" type="checkbox" data-type="switch" />
+              <label class="pack-switch end">
+                <input class="settings-option" data-option="dataLimit" type="checkbox"/>
                 <span></span>
               </label>
               <p data-l10n-id="data-limit-alert">Data use alert</p>

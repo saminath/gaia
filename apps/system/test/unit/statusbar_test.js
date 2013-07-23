@@ -7,11 +7,13 @@ requireApp('system/test/unit/mock_navigator_moz_telephony.js');
 requireApp('system/test/unit/mock_icc_helper.js');
 requireApp('system/test/unit/mock_mobile_operator.js');
 requireApp('system/test/unit/mocks_helper.js');
+requireApp('system/test/unit/mock_lock_screen.js');
 
 requireApp('system/js/statusbar.js');
 requireApp('system/js/lockscreen.js');
 
-var mocksForStatusBar = ['SettingsListener', 'MobileOperator', 'IccHelper'];
+var mocksForStatusBar = ['SettingsListener', 'MobileOperator',
+                         'IccHelper', 'LockScreen'];
 
 mocksForStatusBar.forEach(function(mockName) {
   if (!window[mockName]) {
@@ -118,6 +120,95 @@ suite('system/Statusbar', function() {
     });
   });
 
+  suite('time bar', function() {
+    setup(function() {
+      StatusBar.clock.stop();
+      StatusBar.screen = document.createElement('div');
+    });
+    teardown(function() {
+      StatusBar.screen = null;
+    });
+    test('first launch', function() {
+      MockLockScreen.locked = true;
+      StatusBar.init();
+      assert.equal(StatusBar.clock.timeoutID, null);
+      assert.equal(StatusBar.icons.time.hidden, true);
+    });
+    test('lock', function() {
+      var evt = new CustomEvent('lock');
+      StatusBar.handleEvent(evt);
+      assert.equal(StatusBar.clock.timeoutID, null);
+      assert.equal(StatusBar.icons.time.hidden, true);
+    });
+    test('unlock', function() {
+      var evt = new CustomEvent('unlock');
+      StatusBar.handleEvent(evt);
+      assert.notEqual(StatusBar.clock.timeoutID, null);
+      assert.equal(StatusBar.icons.time.hidden, false);
+    });
+    test('attentionscreen show', function() {
+      var evt = new CustomEvent('attentionscreenshow');
+      StatusBar.handleEvent(evt);
+      assert.notEqual(StatusBar.clock.timeoutID, null);
+      assert.equal(StatusBar.icons.time.hidden, false);
+    });
+    test('attentionsceen hide', function() {
+      var evt = new CustomEvent('attentionscreenhide');
+      StatusBar.handleEvent(evt);
+      assert.equal(StatusBar.clock.timeoutID, null);
+      assert.equal(StatusBar.icons.time.hidden, true);
+    });
+    test('emergency call when locked', function() {
+      var evt = new CustomEvent('lockpanelchange', {
+        detail: {
+          panel: 'emergency-call'
+        }
+      });
+      StatusBar.screen.classList.add('locked');
+      StatusBar.handleEvent(evt);
+      assert.notEqual(StatusBar.clock.timeoutID, null);
+      assert.equal(StatusBar.icons.time.hidden, false);
+    });
+    test('moztime change', function() {
+      var evt = new CustomEvent('moztimechange');
+      StatusBar.handleEvent(evt);
+      assert.notEqual(StatusBar.clock.timeoutID, null);
+      assert.equal(StatusBar.icons.time.hidden, false);
+    });
+    test('screen enable but screen is unlocked', function() {
+      var evt = new CustomEvent('screenchange', {
+        detail: {
+          screenEnabled: true
+        }
+      });
+      MockLockScreen.locked = false;
+      StatusBar.handleEvent(evt);
+      assert.notEqual(StatusBar.clock.timeoutID, null);
+      assert.equal(StatusBar.icons.time.hidden, false);
+    });
+    test('screen enable and screen is locked', function() {
+      var evt = new CustomEvent('screenchange', {
+        detail: {
+          screenEnabled: true
+        }
+      });
+      MockLockScreen.locked = true;
+      StatusBar.handleEvent(evt);
+      assert.equal(StatusBar.clock.timeoutID, null);
+      assert.equal(StatusBar.icons.time.hidden, true);
+    });
+    test('screen disable', function() {
+      var evt = new CustomEvent('screenchange', {
+        detail: {
+          screenEnabled: false
+        }
+      });
+      StatusBar.handleEvent(evt);
+      assert.equal(StatusBar.clock.timeoutID, null);
+      assert.equal(StatusBar.icons.time.hidden, true);
+    });
+  });
+
   suite('signal icon', function() {
     var dataset;
     setup(function() {
@@ -135,7 +226,7 @@ suite('system/Statusbar', function() {
       };
 
       IccHelper.mProps['cardState'] = 'absent';
-      MockNavigatorMozMobileConnection.iccInfo = {};
+      IccHelper.mProps['iccInfo'] = {};
 
       StatusBar.update.signal.call(StatusBar);
 
@@ -156,7 +247,7 @@ suite('system/Statusbar', function() {
       };
 
       IccHelper.mProps['cardState'] = 'absent';
-      MockNavigatorMozMobileConnection.iccInfo = {};
+      IccHelper.mProps['iccInfo'] = {};
 
       StatusBar.update.signal.call(StatusBar);
 
@@ -177,7 +268,7 @@ suite('system/Statusbar', function() {
       };
 
       IccHelper.mProps['cardState'] = 'pinRequired';
-      MockNavigatorMozMobileConnection.iccInfo = {};
+      IccHelper.mProps['iccInfo'] = {};
 
       StatusBar.update.signal.call(StatusBar);
 
@@ -198,7 +289,7 @@ suite('system/Statusbar', function() {
       };
 
       IccHelper.mProps['cardState'] = 'ready';
-      MockNavigatorMozMobileConnection.iccInfo = {};
+      IccHelper.mProps['iccInfo'] = {};
 
       StatusBar.update.signal.call(StatusBar);
 
@@ -219,7 +310,7 @@ suite('system/Statusbar', function() {
       };
 
       IccHelper.mProps['cardState'] = 'absent';
-      MockNavigatorMozMobileConnection.iccInfo = {};
+      IccHelper.mProps['iccInfo'] = {};
 
       StatusBar.update.signal.call(StatusBar);
 
@@ -240,7 +331,7 @@ suite('system/Statusbar', function() {
       };
 
       IccHelper.mProps['cardState'] = 'pinRequired';
-      MockNavigatorMozMobileConnection.iccInfo = {};
+      IccHelper.mProps['iccInfo'] = {};
 
       StatusBar.update.signal.call(StatusBar);
 
@@ -261,7 +352,7 @@ suite('system/Statusbar', function() {
       };
 
       IccHelper.mProps['cardState'] = 'pinRequired';
-      MockNavigatorMozMobileConnection.iccInfo = {};
+      IccHelper.mProps['iccInfo'] = {};
 
       MockNavigatorMozTelephony.active = {
         state: 'connected'
@@ -286,7 +377,7 @@ suite('system/Statusbar', function() {
       };
 
       IccHelper.mProps['cardState'] = 'pinRequired';
-      MockNavigatorMozMobileConnection.iccInfo = {};
+      IccHelper.mProps['iccInfo'] = {};
 
       MockNavigatorMozTelephony.active = {
         state: 'dialing'
@@ -311,7 +402,7 @@ suite('system/Statusbar', function() {
       };
 
       IccHelper.mProps['cardState'] = 'pinRequired';
-      MockNavigatorMozMobileConnection.iccInfo = {};
+      IccHelper.mProps['iccInfo'] = {};
 
       StatusBar.update.signal.call(StatusBar);
 
@@ -342,7 +433,7 @@ suite('system/Statusbar', function() {
       };
 
       IccHelper.mProps['cardState'] = 'ready';
-      MockNavigatorMozMobileConnection.iccInfo = {};
+      IccHelper.mProps['iccInfo'] = {};
 
       StatusBar.update.signal.call(StatusBar);
 
@@ -363,7 +454,7 @@ suite('system/Statusbar', function() {
       };
 
       IccHelper.mProps['cardState'] = 'ready';
-      MockNavigatorMozMobileConnection.iccInfo = {};
+      IccHelper.mProps['iccInfo'] = {};
 
       StatusBar.update.signal.call(StatusBar);
 
@@ -384,7 +475,7 @@ suite('system/Statusbar', function() {
       };
 
       IccHelper.mProps['cardState'] = 'ready';
-      MockNavigatorMozMobileConnection.iccInfo = {};
+      IccHelper.mProps['iccInfo'] = {};
 
       StatusBar.update.signal.call(StatusBar);
 
@@ -404,8 +495,8 @@ suite('system/Statusbar', function() {
         network: {}
       };
 
-      MockNavigatorMozMobileConnection.cardState = 'pinRequired';
-      MockNavigatorMozMobileConnection.iccInfo = {};
+      IccHelper.mProps['cardState'] = 'pinRequired';
+      IccHelper.mProps['iccInfo'] = {};
 
       var mockTel = MockNavigatorMozTelephony;
 
@@ -437,7 +528,7 @@ suite('system/Statusbar', function() {
         }
       };
 
-      MockNavigatorMozMobileConnection.iccInfo = {
+      IccHelper.mProps['iccInfo'] = {
         isDisplaySpnRequired: false,
         spn: 'Fake SPN'
       };

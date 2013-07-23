@@ -73,12 +73,12 @@ suite('compose_test.js', function() {
       smallImageBlob = blob;
     });
   });
+
   suiteTeardown(function() {
     navigator.mozL10n = realMozL10n;
   });
 
   suite('Message Composition', function() {
-
     var message;
 
     setup(function() {
@@ -88,6 +88,7 @@ suite('compose_test.js', function() {
       // Compose.init('messages-compose-form');
       message = document.querySelector('[contenteditable]');
     });
+
     suite('Placeholder', function() {
       setup(function(done) {
         Compose.clear();
@@ -338,7 +339,7 @@ suite('compose_test.js', function() {
         Compose.clear();
       });
 
-      test('Attaching creates iframe.attachment', function() {
+      test('Attaching creates iframe.attachment-container', function() {
         var attachment = mockAttachment();
         Compose.append(attachment);
         var iframes = message.querySelectorAll('iframe');
@@ -347,7 +348,8 @@ suite('compose_test.js', function() {
         // get alarmed at window[0] pointing to the iframe
         Compose.clear();
         assert.equal(iframes.length, 1, 'One iframe');
-        assert.ok(iframes[0].classList.contains('attachment'), '.attachment');
+        assert.ok(iframes[0].classList.contains('attachment-container'),
+          '.attachment-container');
         assert.ok(txt[0] === attachment, 'iframe WeakMap\'d to attachment');
       });
     });
@@ -499,10 +501,10 @@ suite('compose_test.js', function() {
       });
     });
   });
+
   suite('Attachment pre-send menu', function() {
     setup(function() {
-      this.blob = new Blob(['test'], {type: 'image/png'});
-      this.attachment = mockAttachment();
+      this.attachment = mockImgAttachment();
       Compose.clear();
       Compose.append(this.attachment);
       this.attachmentSize = Compose.size;
@@ -511,10 +513,12 @@ suite('compose_test.js', function() {
 
       // trigger a click on attachment
       this.attachment.mNextRender.click();
-
     });
     test('click opens menu', function() {
       assert.isTrue(AttachmentMenu.open.called);
+    });
+    test('open called with correct attachment', function() {
+      assert.ok(AttachmentMenu.open.calledWith(this.attachment));
     });
     suite('clicking on buttons', function() {
       suite('view', function() {
@@ -559,15 +563,17 @@ suite('compose_test.js', function() {
 
       suite('replace', function() {
         setup(function(done) {
-          this.replacement = mockAttachment(this.attachmentSize + 5);
+          this.replacement = mockImgAttachment(true);
           this.sinon.stub(Compose, 'requestAttachment', function() {
             var mockResult = {};
             setTimeout(function() {
               mockResult.onsuccess(this.replacement);
+              this.replacementSize = Compose.size;
               done();
             }.bind(this));
             return mockResult;
           }.bind(this));
+          this.sinon.stub(Utils, 'getResizedImgBlob');
 
           // trigger click on replace
           document.getElementById('attachment-options-replace').click();
@@ -585,12 +591,25 @@ suite('compose_test.js', function() {
           assert.isTrue(AttachmentMenu.close.called);
         });
         test('recalculates size', function() {
-          assert.notEqual(Compose.size, this.attachmentSize,
+          assert.notEqual(this.replacementSize, this.attachmentSize,
             'Size was recalculated to be the new size');
+        });
+        test('resizes image', function() {
+          assert.ok(Utils.getResizedImgBlob.called);
+        });
+        suite('after resize', function() {
+          setup(function() {
+            Utils.getResizedImgBlob.args[0][2](smallImageBlob);
+          });
+
+          test('recalculates size again', function() {
+            assert.notEqual(Compose.size, this.replacementSize);
+          });
         });
       });
     });
   });
+
   suite('Image attachment pre-send menu', function() {
     setup(function() {
       this.sinon.stub(AttachmentMenu, 'open');
@@ -615,3 +634,4 @@ suite('compose_test.js', function() {
     });
   });
 });
+

@@ -5,6 +5,7 @@
 
 requireApp('sms/js/utils.js');
 requireApp('sms/test/unit/mock_utils.js');
+requireApp('sms/js/wbmp.js');
 requireApp('sms/js/smil.js');
 
 var mocksHelperForSMIL = new MocksHelper([
@@ -15,16 +16,39 @@ mocksHelperForSMIL.init();
 
 suite('SMIL', function() {
   var testImageBlob;
+  var testAudioBlob;
+  var testVideoBlob;
+  var testWbmpBlob;
   suiteSetup(function smil_suiteSetup(done) {
     mocksHelperForSMIL.suiteSetup();
-    var req = new XMLHttpRequest();
-    req.open('GET', '/test/unit/media/kitten-450.jpg', true);
-    req.responseType = 'blob';
-    req.onload = function() {
-      testImageBlob = req.response;
-      done();
-    };
-    req.send();
+
+    var assetsNeeded = 0;
+    function getAsset(filename, loadCallback) {
+      assetsNeeded++;
+
+      var req = new XMLHttpRequest();
+      req.open('GET', filename, true);
+      req.responseType = 'blob';
+      req.onload = function() {
+        loadCallback(req.response);
+        if (--assetsNeeded === 0) {
+          done();
+        }
+      };
+      req.send();
+    }
+    getAsset('/test/unit/media/kitten-450.jpg', function(blob) {
+      testImageBlob = blob;
+    });
+    getAsset('/test/unit/media/audio.oga', function(blob) {
+      testAudioBlob = blob;
+    });
+    getAsset('/test/unit/media/video.ogv', function(blob) {
+      testVideoBlob = blob;
+    });
+    getAsset('/test/unit/media/grid.wbmp', function(blob) {
+      testWbmpBlob = blob;
+    });
   });
   suiteTeardown(function() {
     mocksHelperForSMIL.suiteTeardown();
@@ -92,6 +116,28 @@ suite('SMIL', function() {
         assert.equal(output[0].text, testText);
         assert.equal(output[0].blob, testImageBlob);
         assert.equal(output[0].name, 'example.jpg');
+        done();
+      });
+    });
+    test('SMIL doc with 2 text only slides', function(done) {
+      var text = ['Test slide 1', 'Test slide 2'];
+      var message = {
+        smil: '<smil><body><par><text src="cid:1"/></par>' +
+              '<par><text src="cid:2"/></par></body></smil>',
+        attachments: [{
+          id: '<1>',
+          location: 'text1',
+          content: new Blob([text[0]], {type: 'text/plain'})
+        },{
+          id: '<2>',
+          location: 'text2',
+          content: new Blob([text[1]], {type: 'text/plain'})
+        }]
+      };
+      SMIL.parse(message, function(output) {
+        assert.equal(output.length, 2);
+        assert.equal(output[0].text, text[0]);
+        assert.equal(output[1].text, text[1]);
         done();
       });
     });
@@ -183,6 +229,54 @@ suite('SMIL', function() {
       });
     });
 
+    suite('SMIL doc: audio and image on same <par>', function() {
+      var testText = 'Testing 1 2 3';
+      var result;
+      setup(function(done) {
+        var testText = 'Testing 1 2 3';
+        var message = {
+          smil: '<smil><body><par><text src="cid:1"/>' +
+                '<audio src="cid:2"/><img src="cid:3"/>' +
+                '</par></body></smil>',
+          attachments: [{
+            id: '<1>',
+            location: 'text1',
+            content: new Blob([testText], {type: 'text/plain'})
+          }, {
+            id: '<2>',
+            location: 'audio.oga',
+            content: testAudioBlob
+          }, {
+            id: '<3>',
+            location: 'example.jpg',
+            content: testImageBlob
+          }]
+        };
+        SMIL.parse(message, function(output) {
+          result = output;
+          done();
+        });
+      });
+      test('Results in two "slides"', function() {
+        assert.equal(result.length, 2);
+      });
+      test('First slide does not have text', function() {
+        assert.equal(result[0].text, undefined);
+      });
+      test('First slide contains audio', function() {
+        assert.equal(result[0].name, 'audio.oga');
+        assert.equal(result[0].blob, testAudioBlob);
+      });
+      test('Second slide contains text', function() {
+        assert.equal(result[1].text, testText);
+      });
+      test('Second slide contains image', function() {
+        assert.equal(result[1].name, 'example.jpg');
+        assert.equal(result[1].blob, testImageBlob);
+      });
+    });
+
+
     test('empty SMIL doc with attachments', function(done) {
       var testText = 'Testing 1 2 3';
       var message = {
@@ -225,6 +319,21 @@ suite('SMIL', function() {
       });
     });
 
+    test('Type of attachment is WBMP format', function(done) {
+      var message = {
+        smil: '<smil><body><par><img src="grid.wbmp"/>' +
+              '</par></body></smil>',
+        attachments: [{
+          location: 'grid.wbmp',
+          content: testWbmpBlob
+        }]
+      };
+      SMIL.parse(message, function(output) {
+        assert.equal(output[0].blob.type, 'image/png');
+        assert.equal(output[0].name, 'grid.png');
+        done();
+      });
+    });
   });
   suite('SMIL.generate', function() {
     test('Text only message', function(done) {

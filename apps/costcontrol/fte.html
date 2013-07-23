@@ -12,7 +12,6 @@
   <link rel="stylesheet" type="text/css" href="style/bb/menus-dialogues/prompt/style.css">
   <link rel="stylesheet" type="text/css" href="style/bb/menus-dialogues/valueselector/style.css">
   <link rel="stylesheet" type="text/css" href="style/bb/menus-dialogues/valueselector/date/style.css">
-  <link rel="stylesheet" type="text/css" href="style/bb/progress-activity/style.css">
 
   <!-- Building blocks -->
   <link rel="stylesheet" type="text/css" href="shared/style/headers.css">
@@ -46,6 +45,7 @@
   <script type="text/javascript" defer src="js/costcontrol.js"></script>
   <script type="text/javascript" defer src="js/costcontrol_init.js"></script>
   <script type="text/javascript" defer src="js/config/config_manager.js"></script>
+  <script type="text/javascript" defer src="js/views/BalanceLowLimitView.js"></script>
   <script type="text/javascript" defer src="js/view_manager.js"></script>
   <script type="text/javascript" defer src="js/settings/limitdialog.js"></script>
   <script type="text/javascript" defer src="js/settings/autosettings.js"></script>
@@ -127,8 +127,8 @@
       <section class="content">
         <ul class="settings">
           <li>
-            <label class="end">
-              <input id="low-limit" class="settings-option" data-option="lowLimit" type="checkbox" checked="checked" data-type="switch">
+            <label class="pack-switch end">
+              <input id="low-limit" class="settings-option" data-option="lowLimit" type="checkbox" checked="checked">
               <span></span>
             </label>
             <p data-l10n-id="low-balance-alert">Low Balance alert</p>
@@ -227,8 +227,8 @@
             <p data-l10n-id="starting-on">Starting on</p>
           </li>
           <li>
-            <label class="end">
-              <input class="settings-option" data-option="dataLimit" type="checkbox" data-type="switch">
+            <label class="pack-switch end">
+              <input class="settings-option" data-option="dataLimit" type="checkbox">
               <span></span>
             </label>
             <p data-l10n-id="data-limit-alert">Data use alert</p>
@@ -348,8 +348,8 @@
       <section class="content">
         <ul class="settings">
           <li>
-            <label class="end">
-              <input class="settings-option" data-option="dataLimit" type="checkbox" data-type="switch">
+            <label class="pack-switch end">
+              <input class="settings-option" data-option="dataLimit" type="checkbox">
               <span></span>
             </label>
             <p data-l10n-id="data-limit-alert">Data use alert</p>
@@ -468,8 +468,8 @@
       </header>
       <ul class="content settings">
         <li>
-          <label class="end">
-            <input class="settings-option" data-option="dataLimit" type="checkbox" data-type="switch">
+          <label class="pack-switch end">
+            <input class="settings-option" data-option="dataLimit" type="checkbox">
             <span></span>
           </label>
           <p data-l10n-id="data-limit-alert">Data use alert</p>
