@@ -593,8 +593,11 @@ var WindowManager = (function() {
       }
 
       // We have been canceled by another transition.
-      if (!closeFrame || transitionCloseCallback != startClosingTransition)
+      if (!closeFrame || transitionCloseCallback != startClosingTransition) {
+        setTimeout(closeCallback);
+        closeCallback = null;
         return;
+      }
 
       // Make sure we're not called twice.
       transitionCloseCallback = null;
@@ -980,6 +983,12 @@ var WindowManager = (function() {
 
     iframe.setAttribute('mozapp', manifestURL);
     iframe.src = url;
+
+    // Add minimal chrome if the app needs it.
+    if (manifest.enable_navigation_ui) {
+      frame.setAttribute('data-wrapper', 'true');
+    }
+
     return frame;
   }
 
