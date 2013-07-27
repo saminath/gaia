@@ -27,7 +27,7 @@
     tnf_external_type: 0x04,
     tnf_unknown: 0x05,
     tnf_unchanged: 0x06,
-    tnf_reserved: 0x06,
+    tnf_reserved: 0x07,
 
     rtd_text: 'T',
     rtd_uri: 'U',
