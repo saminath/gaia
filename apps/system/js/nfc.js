@@ -118,18 +118,14 @@
 
   // Dom Request Responses. Non-System Apps should just use the DOMRequest
   // onsuccess/onerror callbacks.
+  /*
   window.navigator.mozSetMessageHandler(
     'nfc-ndef-details', handleNdefDetailsResponse);
   window.navigator.mozSetMessageHandler(
     'nfc-ndef-read', handleNdefReadResponse);
   window.navigator.mozSetMessageHandler(
     'nfc-ndef-write', handleNdefWriteResponse);
-
-  // FIXME: The following should be handled not by NFC, but by a secure
-  // elements manager that checks permissions.
-  window.navigator.mozSetMessageHandler('secureelement-activated', null);
-  window.navigator.mozSetMessageHandler('secureelement-deactivated', null);
-  window.navigator.mozSetMessageHandler('secureelement-transaction', null);
+  */
 
   /**
    * Events:
@@ -264,7 +260,8 @@
   function handleNdefDiscovered(command) {
     var handled = false;
 
-    var req = window.navigator.mozNfc.ndefRead();
+    //var req = window.navigator.mozNfc.ndefRead();
+    var req = window.navigator.mozNfc.ndefDetails();
     req.onsuccess = function() {
       var records = req.result;
       var action = handleNdefMessages(records);
@@ -306,9 +303,10 @@
       debug('NFC.js: Here!: ' + i);
       if (tech[i] == 'NDEF') {
         var req = navigator.mozNfc.ndefRead();
+        //var req = navigator.mozNfc.ndefRead();
         req.onsuccess = function(e) {
           // NDEF Message with array of NDEFRecords
-          debug('read NDEF success');
+          debug('details NDEF success');
           debug('e.target: ' + JSON.stringify(e.target));
           handled = handleNdefDiscovered(e.target.result);
         };
