@@ -257,14 +257,14 @@
     }
   }
 
-  function handleNdefDiscovered(command) {
+  function handleNdefDiscovered() {
     var handled = false;
 
-    //var req = window.navigator.mozNfc.ndefRead();
-    var req = window.navigator.mozNfc.ndefDetails();
+    var req = window.navigator.mozNfc.ndefRead();
+    debug('System read 1:');
     req.onsuccess = function() {
-      var records = req.result;
-      var action = handleNdefMessages(records);
+      debug('System read 2: ' + JSON.stringify(req.result));
+      var action = handleNdefMessages(req.result);
 
       if (action.length <= 0) {
         debug('Unimplemented. Handle Unknown type.');
@@ -287,9 +287,9 @@
 
   function handleTechnologyDiscovered(command) {
     debug('System: TechnologyDiscovered: ' + JSON.stringify(command));
+
     if (!acceptNfcEvents()) {
       debug('Ignoring NFC technology tag message. Screen state is disabled.');
-      //return; // Hmm... not working?
     }
 
     // Check for tech types:
@@ -302,17 +302,7 @@
     for (var i in tech) {
       debug('NFC.js: Here!: ' + i);
       if (tech[i] == 'NDEF') {
-        var req = navigator.mozNfc.ndefRead();
-        //var req = navigator.mozNfc.ndefRead();
-        req.onsuccess = function(e) {
-          // NDEF Message with array of NDEFRecords
-          debug('details NDEF success');
-          debug('e.target: ' + JSON.stringify(e.target));
-          handled = handleNdefDiscovered(e.target.result);
-        };
-        req.onerror = function() {
-          debug('ERROR: Failed to read NDEF on tag.');
-        };
+          handled = handleNdefDiscovered();
       } else if (tech[i] == 'NFC_A') {
         debug('NFCA unsupported: ' + command.content);
       } else if (tech[i] == 'MIFARE_ULTRALIGHT') {
@@ -341,6 +331,7 @@
   }
 
   function handleTechLost(command) {
+    debug('SYSTEM NFC: techlost: ' + JSON.stringify(command));
     var a = new MozActivity({
       name: 'nfc-tech-lost',
       data: {

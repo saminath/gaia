@@ -220,8 +220,11 @@ function launchBrowser(URL) {
       };
 }
 
-function handleNdefDiscovered(event) {
-  handleNdefDiscoveredMessages(event.message);
+function handleNdefDiscovered(message) {
+  debug('Incoming message: ' + message);
+  debug('Incoming message 2: ' + JSON.stringify(message));
+  debug('NdefMessage Length:' + message.records.length);
+  handleNdefDiscoveredMessages(message.records);
 }
 
 // NDEF only:
@@ -315,16 +318,29 @@ function handleTechnologyDiscovered(event) {
   for (var i in tech) {
     debug('Here!: ' + i);
     if (tech[i] == 'NDEF') {
-      var req = navigator.mozNfc.ndefRead();
-      req.onsuccess = function(e) {
+      debug('Tech is NDEF');
+      var detailreq = navigator.mozNfc.ndefDetails();
+      //var detailreq = window.navigator.mozNfc.ndefRead();
+      debug('NDEF Details Request submitted.');
+      detailreq.onsuccess = function(e) {
         // NDEF Message with array of NDEFRecords
-        debug('read NDEF success');
-        debug('e.target: ' + JSON.stringify(e.target));
+        debug('Details NDEF success');
+        debug('detailreq.result: ' + JSON.stringify(detailreq.result));
+        var readreq = navigator.mozNfc.ndefRead();
+        readreq.onsuccess = function() {
+          debug('Read success.');
+          debug('readreq: ' + JSON.stringify(readreq.result));
+          handleNdefDiscovered(res);
+        };
+        readreq.onerror = function() {
+          debug('ERROR: Failed to read NDEF on tag.');
+        };
         handleNdefDiscovered(e.target.result);
       };
-      req.onerror = function() {
-        debug('ERROR: Failed to read NDEF on tag.');
+      detailreq.onerror = function() {
+        debug('ERROR: Failed to get NDEF details.');
       };
+
       handled = true;
     } else if (tech[i] == 'NFC_A') {
       debug('NFCA unsupported: ' + event.content);
@@ -359,15 +375,15 @@ function removeNfcConnectListener() {
 }
 
 function addNfcDisconnectListener() {
-  navigator.mozNfc.ontechdisconnected = function(event) {
-    var message = 'Tag no longer in range.';
+  navigator.mozNfc.ontechlost = function(event) {
+    var message = 'Nfc Tech no longer in range.';
     nfcUI.setConnectedState(false);
     nfcUI.appendTextAndScroll($('#area'), message + '\n');
   };
 }
 
 function removeNfcDisconnectListener() {
-  navigator.mozNfc.ontechdisconnected = null;
+  navigator.mozNfc.ontechlost = null;
 }
 
 function debug(message) {
@@ -418,8 +434,8 @@ function NfcActivityHandler(activity) {
     debug('XX Received Activity: nfc-write-request-status: ' +
           JSON.stringify(data));
     break;
-  case 'nfc-disconnected':
-    debug('XX Received Activity: ndefdisconnected: ' +
+  case 'nfc-tech-lost':
+    debug('XX Received Activity: nfc-tech-lost: ' +
           JSON.stringify(data));
     break;
   case 'ndefpush-receive':
