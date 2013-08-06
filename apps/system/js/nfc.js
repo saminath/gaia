@@ -264,7 +264,7 @@
     debug('System read 1:');
     req.onsuccess = function() {
       debug('System read 2: ' + JSON.stringify(req.result));
-      var action = handleNdefMessages(req.result);
+      var action = handleNdefMessages(req.result.records);
 
       if (action.length <= 0) {
         debug('Unimplemented. Handle Unknown type.');
