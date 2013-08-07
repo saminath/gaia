@@ -220,11 +220,11 @@ function launchBrowser(URL) {
       };
 }
 
-function handleNdefDiscovered(message) {
-  debug('Incoming message: ' + message);
-  debug('Incoming message 2: ' + JSON.stringify(message));
-  debug('NdefMessage Length:' + message.records.length);
-  handleNdefDiscoveredMessages(message.records);
+function handleNdefDiscovered(ndefmessages) {
+  debug('Incoming message: ' + ndefmessages);
+  debug('Incoming message 2: ' + JSON.stringify(ndefmessages));
+  debug('NdefMessage Length:' + ndefmessages.length);
+  handleNdefDiscoveredMessages(ndefmessages);
 }
 
 // NDEF only:
@@ -329,13 +329,12 @@ function handleTechnologyDiscovered(event) {
         var readreq = navigator.mozNfc.ndefRead();
         readreq.onsuccess = function() {
           debug('Read success.');
-          debug('readreq: ' + JSON.stringify(readreq.result));
-          handleNdefDiscovered(res);
+          debug('readreq: ' + JSON.stringify(readreq.result.records));
+          handleNdefDiscovered(readreq.result.records);
         };
         readreq.onerror = function() {
           debug('ERROR: Failed to read NDEF on tag.');
         };
-        handleNdefDiscovered(e.target.result);
       };
       detailreq.onerror = function() {
         debug('ERROR: Failed to get NDEF details.');
