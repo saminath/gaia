@@ -222,7 +222,6 @@ function launchBrowser(URL) {
 
 function handleNdefDiscovered(ndefmessages) {
   debug('Incoming message: ' + ndefmessages);
-  debug('Incoming message 2: ' + JSON.stringify(ndefmessages));
   debug('NdefMessage Length:' + ndefmessages.length);
   handleNdefDiscoveredMessages(ndefmessages);
 }
@@ -310,7 +309,7 @@ function handleNdefDiscoveredMessages(messages) {
 
 function handleTechnologyDiscovered(event) {
   debug('Called handleTechnologyDiscovered notification');
-  debug('EventContents 3: ' + JSON.stringify(event.message.content));
+  debug('EventContents: ' + JSON.stringify(event.message.content));
   var tech = event.message.content.tech;
   var handled = false;
 
