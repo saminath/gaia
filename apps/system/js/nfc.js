@@ -181,7 +181,7 @@
   function launchDialer(record) {
     var number = record.payload.substring(1);
     var a = new MozActivity({
-      name: 'ndef-discovered',
+      name: 'nfc-ndef-discovered',
       data: {
         type: 'webtelephony/number',
         number: number,
@@ -190,21 +190,9 @@
     });
   }
 
-  function decodeNdefMessages(ndefmessages) {
-    var records = ndefmessages;
-    for (var i = 0; i < records.length; i++) {
-      records[i].tnf = records[i].tnf;
-      records[i].type = atob(records[i].type);
-      records[i].id = atob(records[i].id);
-      records[i].payload = atob(records[i].payload);
-    }
-    return records;
-  }
-
   // An Ndef Message is an array of one or more Ndef tags.
   function handleNdefMessages(ndefmessages) {
     var action = new Array();
-    var ndefmessages = decodeNdefMessages(ndefmessages);
 
     for (var i = 0; i < ndefmessages.length; i++) {
       var record = ndefmessages[i];
@@ -347,7 +335,7 @@
    */
   function handleEmpty(record) {
     return {
-      name: 'ndef-discovered',
+      name: 'nfc-ndef-discovered',
       data: {
         type: 'empty'
       }
@@ -386,7 +374,7 @@
       encodingString = 'UTF-16';
     }
     var activityText = {
-      name: 'ndef-discovered',
+      name: 'nfc-ndef-discovered',
       data: {
         type: 'text',
         rtd: record.type,
@@ -413,7 +401,7 @@
       var number = record.payload.substring(1);
       debug('XXXXXXXXXXXXXXX Handle Ndef URI type, TEL XXXXXXXXXXXXXXXX');
       activityText = {
-        name: 'ndef-discovered',
+        name: 'nfc-ndef-discovered',
         data: {
           type: 'webtelephony/number',
           number: number,
@@ -423,7 +411,7 @@
       };
     } else {
       activityText = {
-        name: 'ndef-discovered',
+        name: 'nfc-ndef-discovered',
         data: {
           type: 'uri',
           rtd: record.type,
@@ -444,7 +432,7 @@
       activityText = handleVCardRecord(record);
     } else {
       activityText = {
-        name: 'ndef-discovered',
+        name: 'nfc-ndef-discovered',
         data: {
           type: record.type,
           record: record
@@ -490,7 +478,7 @@
 
   function handleExternalType(record) {
     var activityText = {
-      name: 'ndef-discovered',
+      name: 'nfc-ndef-discovered',
       data: {
         type: 'external-type',
         rtd: record.type,
@@ -504,7 +492,7 @@
   // The meaning and actions are application dependent.
   function handleSmartPosterRecord(record) {
     var activityText = {
-      name: 'ndef-discovered',
+      name: 'nfc-ndef-discovered',
       data: {
         type: 'smart-poster',
         record: record
@@ -517,7 +505,7 @@
     // The recommended action has an application specific meaning:
     var smartaction = record.payload.charCodeAt(0);
     var activityText = {
-      name: 'ndef-discovered',
+      name: 'nfc-ndef-discovered',
       data: {
         type: 'smartposter-action',
         action: smartaction,
