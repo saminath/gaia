@@ -164,16 +164,20 @@
     });
   }
 
-  // FIXME
-  function launchAddContact(record) {
+  function launchAddContact(vcard) {
     var a = new MozActivity({
       name: 'new',
       data: {
         type: 'webcontacts/contact',
-        name: 'PlaceHolderName',
-        tel: 'PlaceHolderTel',
-        email: 'PlaceHolderEmail',
-        record: record
+        params: {
+          'tel': vcard.tel,
+          'email': vcard.email,
+          'address': vcard.address,
+          'note': vcard.note,
+          'giveName': vcard.givenName,
+          'familyName': vcard.familyName,
+          'company': vcard.company
+        }
       }
     });
   }
@@ -185,7 +189,7 @@
       data: {
         type: 'webtelephony/number',
         number: number,
-        record: record
+        record: [record]
       }
     });
   }
@@ -274,7 +278,7 @@
   }
 
   function handleTechnologyDiscovered(command) {
-    debug('System: TechnologyDiscovered: ' + JSON.stringify(command));
+    debug('TechnologyDiscovered: ' + JSON.stringify(command));
 
     if (!acceptNfcEvents()) {
       debug('Ignoring NFC technology tag message. Screen state is disabled.');
@@ -319,7 +323,7 @@
   }
 
   function handleTechLost(command) {
-    debug('SYSTEM NFC: techlost: ' + JSON.stringify(command));
+    debug('Technology Lost: ' + JSON.stringify(command));
     var a = new MozActivity({
       name: 'nfc-tech-lost',
       data: {
@@ -381,7 +385,7 @@
         text: text,
         language: language,
         encoding: encodingString,
-        record: record
+        record: [record]
       }
     };
     return activityText;
@@ -406,7 +410,7 @@
           type: 'webtelephony/number',
           number: number,
           uri: prefix + record.payload.substring(1),
-          record: record
+          record: [record]
         }
       };
     } else {
@@ -416,7 +420,7 @@
           type: 'uri',
           rtd: record.type,
           uri: prefix + record.payload.substring(1),
-          record: record
+          record: [record]
         }
       };
     }
@@ -428,14 +432,14 @@
     var activityText = null;
 
     debug('XXXXXXXXXXXXXXXXXXXX HandleMimeMedia XXXXXXXXXXXXXXXXXXXX');
-    if (record.type == 'text/x-vCard') {
+    if (record.type == 'text/vcard') {
       activityText = handleVCardRecord(record);
     } else {
       activityText = {
         name: 'nfc-ndef-discovered',
         data: {
           type: record.type,
-          record: record
+          record: [record]
         }
       };
     }
@@ -444,33 +448,96 @@
 
 
 
-  // FIXME, incomplete mapping/formatting. App should parse the full ndef vcard.
-  function handleVCardRecord(record) {
-    var name = record.payload.substring(
-      record.payload.indexOf('FN:') + 'FN:'.length);
-    name = name.substring(0, name.indexOf('\n'));
-    var first = name.substring(0, name.indexOf(' '));
-    var last = name.substring(name.indexOf(' ') + 1);
-    var cell = record.payload.substring(
-      record.payload.indexOf('TEL;TYPE:cell:') + 'TEL;TYPE:cell:'.length);
-    cell = cell.substring(0, cell.indexOf('\n'));
-    var tel = record.payload.substring(
-      record.payload.indexOf('TEL:') + 'TEL:'.length);
-    tel = tel.substring(0, tel.indexOf('\n'));
-    var email = record.payload.substring(
-      record.payload.indexOf('EMAIL:') + 'EMAIL:'.length);
-    tel = email.substring(0, email.indexOf('\n'));
+  function findKey(key, payload) {
+    var p = payload.indexOf(key);
+    var value = null;
+    debug('Key: ' + key + ', At position: ' + p);
+    if (p >= 0) {
+      value = payload.substring(p + key.length);
+      value = value.substring(0, value.indexOf('\n'));
+    }
+    debug('Value: ' + value);
+    return value;
+  }
 
-    var type = 'webcontacts/contact'; // platform mapping?
+  // FIXME, incomplete mapping/formatting. App (or full featured vcard parser
+  // library should parse the full ndef vcard.
+  // VCARD 2.1:
+  function handleVCardRecord(record) {
+    var vcard = {};
+    var payload = record.payload;
+    /**
+      https://tools.ietf.org/html/rfc6350:
+      name  = "SOURCE" / "KIND" / "FN" / "N" / "NICKNAME"
+         / "PHOTO" / "BDAY" / "ANNIVERSARY" / "GENDER" / "ADR" / "TEL"
+         / "EMAIL" / "IMPP" / "LANG" / "TZ" / "GEO" / "TITLE" / "ROLE"
+         / "LOGO" / "ORG" / "MEMBER" / "RELATED" / "CATEGORIES"
+         / "NOTE" / "PRODID" / "REV" / "SOUND" / "UID" / "CLIENTPIDMAP"
+         / "URL" / "KEY" / "FBURL" / "CALADRURI" / "CALURI" / "XML"
+         / iana-token / x-name
+     */
+    var fn = findKey('FN:', payload);
+    var n = findKey('N:', payload);
+    var p = fn.indexOf(' ');
+    var first = null;
+    var last = null;
+    if (p == 0) {
+      var first = fn.substring(0, fn.indexOf(' '));
+    } else {
+      var first = fn.substring(0, fn.indexOf(' '));
+      var last = fn.substring(fn.indexOf(' ') + 1);
+    }
+
+    var nickname = findKey('NICKNAME:', payload);
+    var photo = findKey('PHOTO:', payload);
+    var cell = findKey('TEL;TYPE:cell:', payload);
+    var tel = findKey('TEL:', payload);
+    var email = findKey('EMAIL:', payload);
+    var note = findKey('NOTE:', payload);
+    var address = findKey('ADR;HOME:', payload);
+    var company = findKey('ADR;WORK:', payload);
+
+    // Add fields:
+    if (tel) {
+      vcard.tel = tel;
+    }
+    if (cell) {
+      vcard.cell = cell;
+    }
+    if (email) {
+      vcard.email = email;
+    }
+    if (address) {
+      vcard.address = address;
+    }
+    if (note) {
+      vcard.note = note;
+    }
+    if (photo) {
+      card.photo = photo;
+    }
+    if (first) {
+      vcard.givenName = first;
+    }
+    if (last) {
+      vcard.familyName = last;
+    }
+    if (n) {
+      vcard.n = n;
+    }
+    if (nickname) {
+      vcard.nickname = nickname;
+    }
+    if (company) {
+      vcard.company = company;
+    }
+
     var activityText = {
       name: 'new',
       data: {
-        type: type,
-        name: first + ' ' + last,
-        cell: cell,
-        tel: tel,
-        email: email,
-        record: record
+        type: 'webcontacts/contact',
+        params: vcard,
+        record: [record]
       }
     };
     return activityText;
@@ -482,7 +549,7 @@
       data: {
         type: 'external-type',
         rtd: record.type,
-        record: record
+        record: [record]
       }
     };
     return activityText;
@@ -495,7 +562,7 @@
       name: 'nfc-ndef-discovered',
       data: {
         type: 'smart-poster',
-        record: record
+        record: [record]
       }
     };
     return activityText;
@@ -509,7 +576,7 @@
       data: {
         type: 'smartposter-action',
         action: smartaction,
-        record: record
+        record: [record]
       }
     };
     return activityText;

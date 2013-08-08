@@ -118,19 +118,22 @@ contactFormToNdefRecord: function(elementRef) {
   var telephone = $(elementRef + ' > .nfc_contact_payload_telephone').val();
   var mobile = $(elementRef + ' > .nfc_contact_payload_mobile').val();
   var email = $(elementRef + ' > .nfc_contact_payload_email').val();
+  var address = $(elementRef + ' > .nfc_contact_payload_address').val();
 
 
   console.log('Form processing Results: ' +
               'FirstName: ' + fname + ' LastName: ' + lname +
               ' MiddleName1: ' + mname1 + ' MiddleName2: ' + mname2 +
               ' FullName: ' + fullname + ' Telephone: ' + telephone +
-              ' Mobile: ' + mobile + ' Email: ' + email);
+              ' Mobile: ' + mobile + ' Email: ' + email +
+              ' Address: ' + address);
 
   // payload:
   var payload = 'BEGIN:VCARD\n';
-  payload += 'VERSION:2.1\n';
+
+  payload += 'VERSION:2.1\n'; // Version 3.0, 4.0, jcard, xcard, etc.
   payload += 'N:' + lname + ';' + fname + ';' + mname1 + ';' + mname2 + ';\n';
-  payload += 'FN:' + fullname + '\n';
+  payload += 'FN:' + fname + ' ' + lname + '\n';
 
   if (email) {
     payload += 'EMAIL:' + email + '\n';
@@ -138,14 +141,14 @@ contactFormToNdefRecord: function(elementRef) {
 
   if (telephone) {
     payload += 'TEL:' + telephone + '\n';
-  } else {
-    payload += 'TEL;';
   }
 
   if (mobile) {
     payload += 'TEL;TYPE:cell:' + mobile + '\n';
-  } else {
-    payload += 'CELL\n';
+  }
+
+  if (address) {
+    payload += 'ADR;HOME:' + address + '\n';
   }
 
   payload += 'END:VCARD';

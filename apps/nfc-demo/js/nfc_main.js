@@ -321,7 +321,7 @@ function handleTechnologyDiscovered(event) {
       var detailreq = navigator.mozNfc.ndefDetails();
       //var detailreq = window.navigator.mozNfc.ndefRead();
       debug('NDEF Details Request submitted.');
-      detailreq.onsuccess = function(e) {
+      detailreq.onsuccess = function() {
         // NDEF Message with array of NDEFRecords
         debug('Details NDEF success');
         debug('detailreq.result: ' + JSON.stringify(detailreq.result));
