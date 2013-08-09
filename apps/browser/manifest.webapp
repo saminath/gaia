@@ -48,7 +48,7 @@
         "url": { "required":true, "regexp":"/^https?:.{1,16384}$/i" }
       }
     },
-    "ndef-discovered": {
+    "nfc-ndef-discovered": {
       "filters": {
         "type": "uri",
         "uri": { "required":true, "regexp":"/^https?:.{1,16384}$/i" }

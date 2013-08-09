@@ -25,26 +25,26 @@
         "type": "info"
       }
     },
-    "ndef-discovered": {
+    "nfc-ndef-discovered": {
       "filters": {
         "type": "empty"
       }
     },
-    "ndef-discovered": {
+    "nfc-ndef-discovered": {
       "filters": {
         "type": "webtelephony/number"
       },
       "href": "/dialer/index.html#keyboard-view",
       "disposition": "window"
     },
-    "ndef-discovered": {
+    "nfc-ndef-discovered": {
       "filters": {
         "type": "text/x-vCard"
       },
       "disposition": "inline",
       "href": "/contacts/index.html?new"
     },
-    "ndef-discovered": {
+    "nfc-ndef-discovered": {
       "filters": {
         "type": "uri"
       }

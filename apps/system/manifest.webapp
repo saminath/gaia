@@ -71,7 +71,7 @@
      { "icc-stkcommand": "/index.html" },
      { "bluetooth-hfp-status-changed": "/index.html" },
      { "bluetooth-sco-status-changed": "/index.html" },
-     { "nfc-ndef-discovered": "/index.html" },
-     { "nfc-disconnected": "/index.html" }
+     { "nfc-tech-discovered": "/index.html" },
+     { "nfc-tech-lost": "/index.html" }
   ]
 }
