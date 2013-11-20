@@ -312,7 +312,13 @@ var NfcManager = {
 
   // NDEF only
   handleP2P: function handleP2P(tech, sessionToken, ndefMsg) {
-    if (ndefMsg.length > 0) {
+    if (ndefMsg != null) {
+      /*
+       * Incoming P2P message carries a NDEF message. Dispatch
+       * the NDEF message (this might bring another app to the
+       * foreground). First check for handover messages that
+       * are handled by the handover manager.
+       */
       var firstRecord = ndefMsg[0];
       if ((firstRecord.tnf == NDEF.tnf_well_known) &&
           NfcUtil.equalArrays(firstRecord.type, NDEF.rtd_handover_select)) {
@@ -323,16 +329,9 @@ var NfcManager = {
       if ((firstRecord.tnf == NDEF.tnf_well_known) &&
           NfcUtil.equalArrays(firstRecord.type, NDEF.rtd_handover_request)) {
         this._debug('Handle Handover Request');
-        handoverManager.handleHandoverRequest(ndefMsg, command.sessionToken);
+        handoverManager.handleHandoverRequest(ndefMsg, sessionToken);
         return;
       }
-    }
-    if (ndefMsg != null) {
-      /*
-       * Incoming P2P message carries a NDEF message. Dispatch
-       * the NDEF message (this might bring another app to the
-       * foreground).
-       */
       this.handleNdefDiscovered(tech, sessionToken, ndefMsg);
       return;
     }
