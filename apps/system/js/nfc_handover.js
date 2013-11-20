@@ -14,7 +14,7 @@
  */
 function HandoverManager() {
 
-  this.DEBUG = false;
+  this.DEBUG = true;
   this.settings = window.navigator.mozSettings;
   this.bluetooth = window.navigator.mozBluetooth;
   this.nfc = window.navigator.mozNfc;
@@ -562,15 +562,12 @@ function HandoverManager() {
   };
 
   this.handleHandoverRequest = function handleHandoverRequest(ndef, session) {
-    // We don't handle incoming requests yet
-    /*
     debug('Sending Handover Select');
     var nfcPeer = this.nfc.getNFCPeer(session);
     var p = new NdefHandoverCodec();
-    var hs = p.encodeHandoverSelect('30:76:6F:3E:98:96', 1);
+    var carrierPowerState = this.bluetooth.enabled ? 1 : 2;
+    var hs = p.encodeHandoverSelect('30:76:6F:3E:98:96', carrierPowerState);
     nfcPeer.sendNDEF(hs);
-    pair(ndef);
-    */
   };
 
   this.bluetooth.addEventListener('adapteradded', function() {
