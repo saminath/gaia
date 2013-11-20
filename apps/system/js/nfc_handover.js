@@ -20,7 +20,6 @@ function HandoverManager() {
   this.nfc = window.navigator.mozNfc;
 
   this.defaultAdapter = null;
-  this.bluetoothMAC = null;
 
   var self = this;
 
@@ -502,72 +501,78 @@ function HandoverManager() {
   /****************************************************************************/
   /****************************************************************************/
 
-  function doPairingAfterBluetoothEnabled() {
-    debug('doPairingAfterBluetoothEnabled');
+  /*
+   * actionQueue keeps a list of actions that need to be performed after
+   * Bluetooth is turned on.
+   */
+  this.actionQueue = new Array();
+
+  function doPairing(mac) {
+    debug('doPairing: ' + mac);
     if (self.defaultAdapter == null) {
       // No BT
       debug('No defaultAdapter');
       return;
     }
-    if (self.bluetoothMAC == null) {
-      // No pairing request
-      debug('No pairing request');
-      return;
-    }
-    var req = self.defaultAdapter.pair(self.bluetoothMAC);
+    var req = self.defaultAdapter.pair(mac);
     req.onsuccess = function() {
       debug('Pairing succeeded!');
-      self.bluetoothMAC = null;
     };
     req.onerror = function() {
       debug('Pairing failed!');
-      self.bluetoothMAC = null;
     };
   }
 
-  /*****************************************************************************
-   * pair(): perform Bluetooth Pairing. 'ndef' contains a Handover Select
-   * message. If it contains a Bluetooth Simple Pairing Record, Bluetooth will
-   * be enabled (if not already) and the pairing with the remote device will
-   * be performed.
-   */
-  function pair(ndef) {
-    debug('PAIR');
+  this.handleHandoverSelect = function handleHandoverSelect(ndef) {
+    debug('handleHandoverSelect');
     var p = new NdefHandoverCodec();
     var h = p.parse(ndef);
     if (h == null) {
-      // Bad handover request
+      // Bad handover message. Just ignore.
+      debug('Bad handover messsage');
       return;
     }
     var btsspRecord = p.searchForBluetoothAC(h);
-    if (btsspRecord == null) {
-      // No BT AC
+    if (btsspRecord != null) {
+      // There is no Bluetooth Alternative Carrier record in the
+      // Handover Select message. Since we cannot handle WiFi Direct,
+      // just ignore.
+      debug('No BT AC');
       return;
     }
     var btssp = p.parseBluetoothSSP(btsspRecord);
-    self.bluetoothMAC = btssp.mac;
-    debug('Pair with: ' + btssp.mac);
+    var mac = btssp.mac;
+    debug('Pair with: ' + mac);
     if (!self.bluetooth.enabled) {
       debug('Bluetooth: not yet enabled');
-      self.settings.createLock().set({'bluetooth.enabled': true});
+      this.actionQueue.push({callback: doPairing,
+                             args: [mac]});
+      this.settings.createLock().set({'bluetooth.enabled': true});
     } else {
-      doPairingAfterBluetoothEnabled();
+      doPairing(mac);
     }
   };
 
-  this.handleHandoverSelect = function handleHandoverSelect(ndef) {
-    // We will have to do more for a negotiated handover.
-    // For a static handover this is fine for now.
-    pair(ndef);
+  function doHandoverRequest(ndef, session) {
+    debug('doHandoverRequest');
+    var nfcPeer = self.nfc.getNFCPeer(session);
+    var p = new NdefHandoverCodec();
+    var carrierPowerState = self.bluetooth.enabled ? 1 : 2;
+    var hs = p.encodeHandoverSelect('30:76:6F:3E:98:96', carrierPowerState);
+    nfcPeer.sendNDEF(hs);
   };
 
   this.handleHandoverRequest = function handleHandoverRequest(ndef, session) {
-    debug('Sending Handover Select');
-    var nfcPeer = this.nfc.getNFCPeer(session);
-    var p = new NdefHandoverCodec();
-    var carrierPowerState = this.bluetooth.enabled ? 1 : 2;
-    var hs = p.encodeHandoverSelect('30:76:6F:3E:98:96', carrierPowerState);
-    nfcPeer.sendNDEF(hs);
+    debug('handleHandoverRequest');
+    if (!self.bluetooth.enabled) {
+      debug('Bluetooth: not yet enabled');
+      this.actionQueue.push({callback: doHandoverRequest,
+                             args: [ndef, session]});
+      this.settings.createLock().set({'bluetooth.enabled': true});
+    } else {
+      doHandoverRequest(ndef, session);
+    }
+
   };
 
   this.bluetooth.addEventListener('adapteradded', function() {
@@ -577,7 +582,15 @@ function HandoverManager() {
       self.defaultAdapter = req.result;
       debug('MAC address: ' + self.defaultAdapter.address);
       debug('MAC name: ' + self.defaultAdapter.name);
-      doPairingAfterBluetoothEnabled();
+      /*
+       * Call all actions that have queued up while Bluetooth
+       * was turned on.
+       */
+      for (var i = 0; i < self.actionQueue.length; i++) {
+        var action = self.actionQueue[i];
+        action.callback.apply(null, action.args);
+      }
+      self.actionQueue = new Array();
     };
   });
 }
