@@ -403,7 +403,7 @@ return;
       if ((firstRecord.tnf == NDEF.tnf_well_known) &&
           NfcUtil.equalArrays(firstRecord.type, NDEF.rtd_handover_request)) {
         this._debug('Handle Handover Request');
-        handoverManager.handleHandoverRequest(ndefMsg, sessionToken);
+        handoverManager.handleHandoverRequest(ndefMsg, command.sessionToken);
         return;
       }
     }

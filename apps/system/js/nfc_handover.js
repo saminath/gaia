@@ -8,9 +8,11 @@
 /*******************************************************************************
  * HandoverManager handles handovers from other Bluetooth devices according
  * to the specification of the NFC Forum (Document:
- * NFCForum-TS-ConnectionHandover_1_2.doc). HandoverManager exports two
- * functions: handleHandoverRequest and handleHandoverSelect. Those functions
- * will be called from the NFC Manager (nfc_manager.js)
+ * NFCForum-TS-ConnectionHandover_1_2.doc). HandoverManager exports three
+ * functions:
+ * - handleHandoverRequest: handle NDEF Handover Request messages
+ * - handleHandoverSelect: handle NDEF Handover Select message
+ * - sendFile: trigger a file transfer with a remote device via BT.
  */
 function HandoverManager() {
 
@@ -22,6 +24,12 @@ function HandoverManager() {
   this.defaultAdapter = null;
 
   var self = this;
+
+  /*****************************************************************************
+   *****************************************************************************
+   * Utility functions/classes
+   *****************************************************************************
+   ****************************************************************************/
 
   /**
    * Debug method
@@ -148,315 +156,304 @@ function HandoverManager() {
   /*****************************************************************************
    * NdefCodec: Coding/decoding of NDEF messages (NFCForum-TS-NDEF_1.0)
    */
-  function NdefCodec() {
-    this.buffer = null;
-  }
+  var NdefCodec = {
 
-  /**
-   * parse(): parses a NDEF message contained in a Buffer instance.
-   * Usage:
-   *   var buf = new Buffer(<Uint8Array that contains the raw NDEF message>);
-   *   var p = new NdefCodec();
-   *   var ndef = p.parse(buf);
-   *
-   * NdefCodec instances can be reused. 'null' is returned if the message
-   * could not be parsed. Otherwise the result is an array of MozNdefRecord
-   * instances.
-   */
-  NdefCodec.prototype.parse = function parse(buffer) {
-    this.buffer = buffer;
-    //try {
-      return this.doParse();
-      /*
-    } catch (err) {
-      debug(err);
-      return null;
-    }
-    */
-  };
+    /**
+     * parse(): parses a NDEF message contained in a Buffer instance.
+     * Usage:
+     *   var buf = new Buffer(<Uint8Array that contains the raw NDEF message>);
+     *   var ndef = NdefCodec.parse(buf);
+     *
+     * 'null' is returned if the message could not be parsed. Otherwise the
+     * result is an array of MozNdefRecord instances.
+     */
+    parse: function parse(buffer) {
+      this.buffer = buffer;
+      try {
+        return NdefCodec.doParse();
+      } catch (err) {
+        debug(err);
+        return null;
+      }
+    },
 
-  NdefCodec.prototype.doParse = function doParse() {
-    var records = new Array();
-    var isFirstRecord = true;
-    do {
-      var firstOctet = this.buffer.getOctet();
-      if (isFirstRecord && !(firstOctet & NdefConsts.MB)) {
-        throw 'MB bit not set in first NDEF record';
-      }
-      if (!isFirstRecord && (firstOctet & NdefConsts.MB)) {
-        throw 'MB can only be set for the first record';
-      }
-      if (firstOctet & NdefConsts.CF) {
-        throw 'Cannot deal with chunked records';
-      }
-      records.push(this.parseNdefRecord(firstOctet));
-      isFirstRecord = false;
-    } while (!(firstOctet & NdefConsts.ME));
-    return records;
-  };
+    doParse: function doParse() {
+      var records = new Array();
+      var isFirstRecord = true;
+      do {
+        var firstOctet = this.buffer.getOctet();
+        if (isFirstRecord && !(firstOctet & NdefConsts.MB)) {
+          throw 'MB bit not set in first NDEF record';
+        }
+        if (!isFirstRecord && (firstOctet & NdefConsts.MB)) {
+          throw 'MB can only be set for the first record';
+        }
+        if (firstOctet & NdefConsts.CF) {
+          throw 'Cannot deal with chunked records';
+        }
+        records.push(NdefCodec.parseNdefRecord(firstOctet));
+        isFirstRecord = false;
+      } while (!(firstOctet & NdefConsts.ME));
+      return records;
+    },
 
-  NdefCodec.prototype.parseNdefRecord = function parseNdefRecord(firstOctet) {
-    var tnf = firstOctet & NdefConsts.TNF;
-    var typeLen = this.buffer.getOctet();
-    var payloadLen = this.buffer.getOctet();
-    if (!(firstOctet & NdefConsts.SR)) {
-      for (var i = 0; i < 3; i++) {
-        payloadLen <<= 8;
-        payloadLen |= this.buffer.getOctet();
+    parseNdefRecord: function parseNdefRecord(firstOctet) {
+      var tnf = firstOctet & NdefConsts.TNF;
+      var typeLen = this.buffer.getOctet();
+      var payloadLen = this.buffer.getOctet();
+      if (!(firstOctet & NdefConsts.SR)) {
+        for (var i = 0; i < 3; i++) {
+          payloadLen <<= 8;
+          payloadLen |= this.buffer.getOctet();
+        }
       }
+      var idLen = 0;
+      if (firstOctet & NdefConsts.IL) {
+        idLen = this.buffer.getOctet();
+      }
+      var type = this.buffer.getOctetArray(typeLen);
+      var id = this.buffer.getOctetArray(idLen);
+      var payload = this.buffer.getOctetArray(payloadLen);
+      return new MozNdefRecord(tnf, type, id, payload);
     }
-    var idLen = 0;
-    if (firstOctet & NdefConsts.IL) {
-      idLen = this.buffer.getOctet();
-    }
-    var type = this.buffer.getOctetArray(typeLen);
-    var id = this.buffer.getOctetArray(idLen);
-    var payload = this.buffer.getOctetArray(payloadLen);
-    return new MozNdefRecord(tnf, type, id, payload);
   };
 
   /*****************************************************************************
    * NdefHandoverCodec: Coding/decoding of NDEF Handover messages.
    * (NFCForum-TS-ConnectionHandover_1_2.doc)
    */
-  function NdefHandoverCodec() {
-  }
+  var NdefHandoverCodec = {
 
-  /**
-   * parse(): parse a NDEF message containing a handover message. 'ndefMsg'
-   * is an Array of MozNdefRecord. Only 'Hr' and 'Hs' records are parsed.
-   * The result is an object with the following attributes:
-   *   - type: either 'Hr' (Handover Request) or 'Hs' (Handover Select)
-   *   - majorVersion
-   *   - minorVersion
-   *   - cr: Collision resolution value. Tthis value is only present
-   *         for a 'Hr' record
-   *   - ac: Array of Alternate Carriers. Each object of this array has
-   *         the following attributes:
-   *           - cps: Carrier Power State
-   *           - cdr: Carrier Data Record: MozNdefRecord containing further
-   *                  info
-   */
-  NdefHandoverCodec.prototype.parse = function parse(ndefMsg) {
- //   try {
-      return this.doParse(ndefMsg);
-      /*
-    } catch (err) {
-      debug(err);
-      return null;
-    }
-    */
-  };
-
-  NdefHandoverCodec.prototype.doParse = function doParse(ndefMsg) {
-    var record = ndefMsg[0];
-    var buffer = new Buffer(record.payload);
-    var h = {};
-    var version = buffer.getOctet();
-    h.majorVersion = version >>> 4;
-    h.minorVersion = version & 0x0f;
-    h.ac = [];
-
-    var p = new NdefCodec();
-    var embeddedNdef = p.parse(buffer);
-    if (embeddedNdef == null) {
-      throw 'Could not parse embedded NDEF in Hr/Hs record';
-    }
-
-    if (record.tnf != NdefConsts.tnf_well_known) {
-      throw 'Expected Well Known TNF in Hr/Hs record';
-    }
-
-    if (NdefUtils.equalArrays(record.type, NdefConsts.rtd_handover_select)) {
-      h.type = 'Hs';
-      this.parseAcRecords(h, ndefMsg, embeddedNdef, 0);
-    } else if (NdefUtils.equalArrays(record.type,
-               NdefConsts.rtd_handover_request)) {
-      h.type = 'Hr';
-      var crr = embeddedNdef[0];
-      if (!NdefUtils.equalArrays(crr.type,
-          NdefConsts.rtd_collision_resolution)) {
-        throw 'Expected Collision Resolution Record';
+    /**
+     * parse(): parse a NDEF message containing a handover message. 'ndefMsg'
+     * is an Array of MozNdefRecord. Only 'Hr' and 'Hs' records are parsed.
+     * The result is an object with the following attributes:
+     *   - type: either 'Hr' (Handover Request) or 'Hs' (Handover Select)
+     *   - majorVersion
+     *   - minorVersion
+     *   - cr: Collision resolution value. Tthis value is only present
+     *         for a 'Hr' record
+     *   - ac: Array of Alternate Carriers. Each object of this array has
+     *         the following attributes:
+     *           - cps: Carrier Power State
+     *           - cdr: Carrier Data Record: MozNdefRecord containing further
+     *                  info
+     */
+    parse: function parse(ndefMsg) {
+      try {
+        return NdefHandoverCodec.doParse(ndefMsg);
+      } catch (err) {
+        debug(err);
+        return null;
       }
-      if (crr.payload.length != 2) {
-        throw 'Expected random number in Collision Resolution Record';
-      }
-      h.cr = (crr.payload[0] << 8) | crr.payload[1];
-      this.parseAcRecords(h, ndefMsg, embeddedNdef, 1);
-    } else {
-      throw 'Can only handle Hr and Hs records for now';
-    }
-    return h;
-  };
+    },
 
-  NdefHandoverCodec.prototype.parseAcRecords =
-                   function parseAcRecords(h, ndef, acNdef, offset) {
-    for (var i = offset; i < acNdef.length; i++) {
-      var record = acNdef[i];
-      if (NdefUtils.equalArrays(record.type,
-          NdefConsts.rtd_alternative_carrier)) {
-        h.ac.push(this.parseAC(record.payload, ndef));
+    doParse: function doParse(ndefMsg) {
+      var record = ndefMsg[0];
+      var buffer = new Buffer(record.payload);
+      var h = {};
+      var version = buffer.getOctet();
+      h.majorVersion = version >>> 4;
+      h.minorVersion = version & 0x0f;
+      h.ac = [];
+
+      var embeddedNdef = NdefCodec.parse(buffer);
+      if (embeddedNdef == null) {
+        throw 'Could not parse embedded NDEF in Hr/Hs record';
+      }
+
+      if (record.tnf != NdefConsts.tnf_well_known) {
+        throw 'Expected Well Known TNF in Hr/Hs record';
+      }
+
+      if (NdefUtils.equalArrays(record.type, NdefConsts.rtd_handover_select)) {
+        h.type = 'Hs';
+        this.parseAcRecords(h, ndefMsg, embeddedNdef, 0);
+      } else if (NdefUtils.equalArrays(record.type,
+                 NdefConsts.rtd_handover_request)) {
+        h.type = 'Hr';
+        var crr = embeddedNdef[0];
+        if (!NdefUtils.equalArrays(crr.type,
+            NdefConsts.rtd_collision_resolution)) {
+          throw 'Expected Collision Resolution Record';
+        }
+        if (crr.payload.length != 2) {
+          throw 'Expected random number in Collision Resolution Record';
+        }
+        h.cr = (crr.payload[0] << 8) | crr.payload[1];
+        this.parseAcRecords(h, ndefMsg, embeddedNdef, 1);
       } else {
-        throw 'Can only parse AC record within Hs';
+        throw 'Can only handle Hr and Hs records for now';
       }
-    }
-  };
+      return h;
+    },
 
-  NdefHandoverCodec.prototype.parseAC = function parseAC(ac, ndef) {
-    var b = new Buffer(ac);
-    var ac = {};
-    ac.cps = b.getOctet() & 0x03;
-    var cdrLen = b.getOctet();
-    var cdr = b.getOctetArray(cdrLen);
-    ac.cdr = this.findNdefRecordWithId(cdr, ndef);
-    return ac;
-  };
-
-  NdefHandoverCodec.prototype.findNdefRecordWithId =
-                   function findNdefRecordWithId(id, ndef) {
-    for (var i = 0; i < ndef.length; i++) {
-      var record = ndef[i];
-      if (NdefUtils.equalArrays(id, record.id)) {
-        return record;
-      }
-    }
-    throw 'Could not find record with id';
-  };
-
-  /**
-   * searchForBluetoothAC(): searches a Handover message for an
-   * Alternative Carrier that contains a Bluetooth profile.
-   * Parameter 'h' is the result of the parse() function.
-   * Returns null if no Bluetooth AC could be found, otherwise
-   * returns a MozNdefRecord.
-   */
-  NdefHandoverCodec.prototype.searchForBluetoothAC =
-                     function searchForBluetoothAC(h) {
-    for (var i = 0; i < h.ac.length; i++) {
-      var cdr = h.ac[i].cdr;
-      if (cdr.tnf == NdefConsts.tnf_mime_media) {
-        var mimeType = NdefUtils.toUTF8(cdr.type);
-        if (mimeType == 'application/vnd.bluetooth.ep.oob') {
-          return cdr;
+    parseAcRecords: function parseAcRecords(h, ndef, acNdef, offset) {
+      for (var i = offset; i < acNdef.length; i++) {
+        var record = acNdef[i];
+        if (NdefUtils.equalArrays(record.type,
+            NdefConsts.rtd_alternative_carrier)) {
+          h.ac.push(this.parseAC(record.payload, ndef));
+        } else {
+          throw 'Can only parse AC record within Hs';
         }
       }
-    }
-    return null;
-  };
+    },
 
-  /**
-   * parseBluetoothSSP(): Parses a Carrier Data Record that contains a
-   * Bluetooth Secure Simple Pairing record (NFCForum-AD-BTSSP_1.0).
-   * 'cdr': Carrier Data Record. Returns an object with the following
-   * attributes:
-   *   - mac: MAC address (string representation)
-   *   - localName: Local name (optional)
-   */
-  NdefHandoverCodec.prototype.parseBluetoothSSP =
-                     function parseBluetoothSSP(cdr) {
-    var btssp = {};
-    var buf = new Buffer(cdr.payload);
-    var btsspLen = buf.getOctet() | (buf.getOctet() << 8);
-    var mac = '';
-    for (var i = 0; i < 6; i++) {
-      if (mac.length > 0) {
-        mac = ':' + mac;
-      }
-      var o = buf.getOctet();
-      mac = o.toString(16).toUpperCase() + mac;
-      if (o < 16) {
-        mac = '0' + mac;
-      }
-    }
-    btssp.mac = mac;
-    while (buf.offset != cdr.payload.length) {
-      // Read OOB value
-      var len = buf.getOctet() - 1 /* 'len' */;
-      var type = buf.getOctet();
-      switch (type) {
-      case 0x08:
-      case 0x09:
-        // Local name
-        var n = buf.getOctetArray(len);
-        btssp.localName = NdefUtils.toUTF8(n);
-        break;
-      default:
-        // Ignore OOB value
-        buf.skip(len);
-        break;
-      }
-    }
-    return btssp;
-  };
+    parseAC: function parseAC(ac, ndef) {
+      var b = new Buffer(ac);
+      var ac = {};
+      ac.cps = b.getOctet() & 0x03;
+      var cdrLen = b.getOctet();
+      var cdr = b.getOctetArray(cdrLen);
+      ac.cdr = this.findNdefRecordWithId(cdr, ndef);
+      return ac;
+    },
 
-  /**
-   * encodeHandoverRequest(): returns a NDEF message containing a Handover
-   * Request. Only a Bluetooth AC will be added to the Handover Request.
-   * 'mac': MAC address (string). 'cps': Carrier Power State.
-   * 'rnd': Random value for collision resolution
-   */
-  NdefHandoverCodec.prototype.encodeHandoverRequest =
-                     function encodeHandoverRequest(mac, cps, rnd) {
-    var macVals = mac.split(':');
-    if (macVals.length != 6) {
+    findNdefRecordWithId: function findNdefRecordWithId(id, ndef) {
+      for (var i = 0; i < ndef.length; i++) {
+        var record = ndef[i];
+        if (NdefUtils.equalArrays(id, record.id)) {
+          return record;
+        }
+      }
+      throw 'Could not find record with id';
+    },
+
+    /**
+     * searchForBluetoothAC(): searches a Handover message for an
+     * Alternative Carrier that contains a Bluetooth profile.
+     * Parameter 'h' is the result of the parse() function.
+     * Returns null if no Bluetooth AC could be found, otherwise
+     * returns a MozNdefRecord.
+     */
+    searchForBluetoothAC: function searchForBluetoothAC(h) {
+      for (var i = 0; i < h.ac.length; i++) {
+        var cdr = h.ac[i].cdr;
+        if (cdr.tnf == NdefConsts.tnf_mime_media) {
+          var mimeType = NdefUtils.toUTF8(cdr.type);
+          if (mimeType == 'application/vnd.bluetooth.ep.oob') {
+            return cdr;
+          }
+        }
+      }
       return null;
+    },
+
+    /**
+     * parseBluetoothSSP(): Parses a Carrier Data Record that contains a
+     * Bluetooth Secure Simple Pairing record (NFCForum-AD-BTSSP_1.0).
+     * 'cdr': Carrier Data Record. Returns an object with the following
+     * attributes:
+     *   - mac: MAC address (string representation)
+     *   - localName: Local name (optional)
+     */
+    parseBluetoothSSP: function parseBluetoothSSP(cdr) {
+      var btssp = {};
+      var buf = new Buffer(cdr.payload);
+      var btsspLen = buf.getOctet() | (buf.getOctet() << 8);
+      var mac = '';
+      for (var i = 0; i < 6; i++) {
+        if (mac.length > 0) {
+          mac = ':' + mac;
+        }
+        var o = buf.getOctet();
+        mac = o.toString(16).toUpperCase() + mac;
+        if (o < 16) {
+          mac = '0' + mac;
+        }
+      }
+      btssp.mac = mac;
+      while (buf.offset != cdr.payload.length) {
+        // Read OOB value
+        var len = buf.getOctet() - 1 /* 'len' */;
+        var type = buf.getOctet();
+        switch (type) {
+        case 0x08:
+        case 0x09:
+          // Local name
+          var n = buf.getOctetArray(len);
+          btssp.localName = NdefUtils.toUTF8(n);
+          break;
+        default:
+          // Ignore OOB value
+          buf.skip(len);
+          break;
+        }
+      }
+      return btssp;
+    },
+
+    /**
+     * encodeHandoverRequest(): returns a NDEF message containing a Handover
+     * Request. Only a Bluetooth AC will be added to the Handover Request.
+     * 'mac': MAC address (string). 'cps': Carrier Power State.
+     * 'rnd': Random value for collision resolution
+     */
+    encodeHandoverRequest: function encodeHandoverRequest(mac, cps, rnd) {
+      var macVals = mac.split(':');
+      if (macVals.length != 6) {
+        return null;
+      }
+      var m = new Array();
+      for (var i = 5; i >= 0; i--) {
+        m.push(parseInt(macVals[i], 16));
+      }
+      var rndLSB = rnd & 0xff;
+      var rndMSB = rnd >>> 8;
+      var hr = [new MozNdefRecord(1,
+                                  new Uint8Array([72, 114]),
+                                  new Uint8Array([]),
+                                  new Uint8Array([18, 145, 2, 2, 99, 114,
+                                                  rndMSB, rndLSB, 81, 2, 4, 97,
+                                                  99, cps, 1, 98, 0])),
+                new MozNdefRecord(2,
+                                  new Uint8Array([97, 112, 112, 108, 105, 99,
+                                                  97, 116, 105, 111, 110, 47,
+                                                  118, 110, 100, 46, 98, 108,
+                                                  117, 101, 116, 111, 111, 116,
+                                                  104, 46, 101, 112, 46, 111,
+                                                  111, 98]),
+                                  new Uint8Array([98]),
+                                  new Uint8Array([8, 0, m[0], m[1], m[2], m[3],
+                                                  m[4], m[5]]))];
+      return hr;
+    },
+
+    encodeHandoverSelect: function encodeHandoverSelect(mac, cps) {
+      var macVals = mac.split(':');
+      if (macVals.length != 6) {
+        return null;
+      }
+      var m = new Array();
+      for (var i = 5; i >= 0; i--) {
+        m.push(parseInt(macVals[i], 16));
+      }
+      var hs = [new MozNdefRecord(NdefConsts.tnf_well_known,
+                                  NdefConsts.rtd_handover_select,
+                                  new Uint8Array([]),
+                                  new Uint8Array([0x12, 0xD1, 0x02, 0x04, 0x61,
+                                                0x63, cps, 0x01, 0x30, 0x00])),
+                new MozNdefRecord(NdefConsts.tnf_mime_media,
+                                  new Uint8Array([97, 112, 112, 108, 105, 99,
+                                                  97, 116, 105, 111, 110, 47,
+                                                  118, 110, 100, 46, 98, 108,
+                                                  117, 101, 116, 111, 111, 116,
+                                                  104, 46, 101, 112, 46, 111,
+                                                  111, 98]),
+                                  new Uint8Array([0x30]),
+                                  new Uint8Array([8, 0, m[0], m[1], m[2], m[3],
+                                                  m[4], m[5]]))];
+      return hs;
     }
-    var m = new Array();
-    for (var i = 5; i >= 0; i--) {
-      m.push(parseInt(macVals[i], 16));
-    }
-    var rndLSB = rnd & 0xff;
-    var rndMSB = rnd >>> 8;
-    var hr = [new MozNdefRecord(1,
-                                new Uint8Array([72, 114]),
-                                new Uint8Array([]),
-                                new Uint8Array([18, 145, 2, 2, 99, 114,
-                                                rndMSB, rndLSB, 81, 2, 4, 97,
-                                                99, cps, 1, 98, 0])),
-              new MozNdefRecord(2,
-                                new Uint8Array([97, 112, 112, 108, 105, 99,
-                                                97, 116, 105, 111, 110, 47,
-                                                118, 110, 100, 46, 98, 108,
-                                                117, 101, 116, 111, 111, 116,
-                                                104, 46, 101, 112, 46, 111,
-                                                111, 98]),
-                                new Uint8Array([98]),
-                                new Uint8Array([8, 0, m[0], m[1], m[2], m[3],
-                                                m[4], m[5]]))];
-    return hr;
   };
 
-  NdefHandoverCodec.prototype.encodeHandoverSelect =
-                       function encodeHandoverSelect(mac, cps) {
-    var macVals = mac.split(':');
-    if (macVals.length != 6) {
-      return null;
-    }
-    var m = new Array();
-    for (var i = 5; i >= 0; i--) {
-      m.push(parseInt(macVals[i], 16));
-    }
-    var hs = [new MozNdefRecord(NdefConsts.tnf_well_known,
-                                NdefConsts.rtd_handover_select,
-                                new Uint8Array([]),
-                                new Uint8Array([0x12, 0xD1, 0x02, 0x04, 0x61,
-                                              0x63, cps, 0x01, 0x30, 0x00])),
-              new MozNdefRecord(NdefConsts.tnf_mime_media,
-                                new Uint8Array([97, 112, 112, 108, 105, 99,
-                                                97, 116, 105, 111, 110, 47,
-                                                118, 110, 100, 46, 98, 108,
-                                                117, 101, 116, 111, 111, 116,
-                                                104, 46, 101, 112, 46, 111,
-                                                111, 98]),
-                                new Uint8Array([0x30]),
-                                new Uint8Array([8, 0, m[0], m[1], m[2], m[3],
-                                                m[4], m[5]]))];
-    return hs;
-  };
+  /*****************************************************************************
+   *****************************************************************************
+   * Event handlers
+   *****************************************************************************
+   ****************************************************************************/
 
-  /****************************************************************************/
-  /****************************************************************************/
-  /****************************************************************************/
 
   /*
    * actionQueue keeps a list of actions that need to be performed after
@@ -464,6 +461,16 @@ function HandoverManager() {
    */
   this.actionQueue = new Array();
 
+  /*
+   * sendFileRequest is set whenever an app called peer.sendFile(blob).
+   * It will be inspected in the handling of Handover Select messages
+   * to distinguish between static and negotiated handovers.
+   */
+  this.sendFileRequest = null;
+
+  /*
+   * settingsNotified is used to prevent triggering Settings multiple times.
+   */
   this.settingsNotified = false;
 
   this.bluetooth.addEventListener('adapteradded', function() {
@@ -486,6 +493,41 @@ function HandoverManager() {
     };
   });
 
+  navigator.mozSetMessageHandler('bluetooth-opp-receiving-file-confirmation',
+      function(evt) {
+        // Immediately accept incoming file transfer. No UI needed since
+        // the user implicitly authorized the action by holding the device
+        // close to another.
+        self.defaultAdapter.confirmReceivingFile(evt.address, true);
+      }
+  );
+
+  navigator.mozSetMessageHandler('bluetooth-opp-transfer-complete',
+      function(evt) {
+        if (self.sendFileRequest == null) {
+          // Handover Manager didn't trigger file transfer. Just ignore.
+          return;
+        }
+        if (evt.success) {
+          self.sendFileRequest.onsuccess(evt);
+        } else {
+          self.sendFileRequest.onerror(evt);
+        }
+        self.sendFileRequest = null;
+      }
+  );
+
+  /*****************************************************************************
+   *****************************************************************************
+   * Handover API
+   *****************************************************************************
+   ****************************************************************************/
+
+  /*
+   * Performs an action once Bluetooth is enabled. If Bluetooth is disabled,
+   * it is enabled and the action is queued. If Bluetooth is already enabled,
+   * performs the action directly.
+   */
   function doAction(action) {
     if (!self.bluetooth.enabled) {
       debug('Bluetooth: not yet enabled');
@@ -515,16 +557,34 @@ function HandoverManager() {
     };
   }
 
-  this.handleHandoverSelect = function handleHandoverSelect(ndef) {
+  function doFileTransfer(mac) {
+    if (self.fileTransfer == null) {
+      // Nothing to do
+      return;
+    }
+    var blob = self.sendFileRequest.blob;
+    self.defaultAdapter.sendFile(blob, mac);
+  }
+
+  function doHandoverRequest(ndef, session) {
+    debug('doHandoverRequest');
+    var nfcPeer = self.nfc.getNFCPeer(session);
+    var carrierPowerState = self.bluetooth.enabled ? 1 : 2;
+    var mac = '30:76:6F:3E:98:96'; //self.defaultAdapter.address
+    var hs = NdefHandoverCodec.encodeHandoverSelect(mac, carrierPowerState);
+    nfcPeer.sendNDEF(hs);
+  }
+
+  HandoverManager.prototype.handleHandoverSelect =
+                                 function handleHandoverSelect(ndef) {
     debug('handleHandoverSelect');
-    var p = new NdefHandoverCodec();
-    var h = p.parse(ndef);
+    var h = NdefHandoverCodec.parse(ndef);
     if (h == null) {
       // Bad handover message. Just ignore.
       debug('Bad handover messsage');
       return;
     }
-    var btsspRecord = p.searchForBluetoothAC(h);
+    var btsspRecord = NdefHandoverCodec.searchForBluetoothAC(h);
     if (btsspRecord == null) {
       // There is no Bluetooth Alternative Carrier record in the
       // Handover Select message. Since we cannot handle WiFi Direct,
@@ -532,25 +592,47 @@ function HandoverManager() {
       debug('No BT AC');
       return;
     }
-    var btssp = p.parseBluetoothSSP(btsspRecord);
+    var btssp = NdefHandoverCodec.parseBluetoothSSP(btsspRecord);
     var mac = btssp.mac;
-    debug('Pair with: ' + mac);
-    doAction({callback: doPairing, args: [mac]});
+    if (this.sendFileRequest != null) {
+      // This is the response to a file transfer request (negotiated handover)
+      doAction({callback: doFileTransfer, args: [mac]});
+    } else {
+      // This is a static handover
+      debug('Pair with: ' + mac);
+      doAction({callback: doPairing, args: [mac]});
+    }
   };
 
-  function doHandoverRequest(ndef, session) {
-    debug('doHandoverRequest');
-    var nfcPeer = self.nfc.getNFCPeer(session);
-    var p = new NdefHandoverCodec();
-    var carrierPowerState = self.bluetooth.enabled ? 1 : 2;
-    var hs = p.encodeHandoverSelect('30:76:6F:3E:98:96', carrierPowerState);
-    nfcPeer.sendNDEF(hs);
-  };
-
-  this.handleHandoverRequest = function handleHandoverRequest(ndef, session) {
+  HandoverManager.prototype.handleHandoverRequest =
+                     function handleHandoverRequest(ndef, session) {
     debug('handleHandoverRequest');
     doAction({callback: doHandoverRequest, args: [ndef, session]});
   };
+
+  function initiateFileTransfer(session, blob, onsuccess, onerror) {
+    /*
+     * Initiate a file transfer by sending a Handover Request to the
+     * remote device.
+     */
+    self.sendFileRequest = {blob: blob, onsuccess: onsuccess,
+                            onerror: onerror};
+    var nfcPeer = self.nfc.getNFCPeer(session);
+    var carrierPowerState = self.bluetooth.enabled ? 1 : 2;
+    var rnd = 0xDEAD;
+    var mac = '30:76:6F:3E:98:96'; //self.defaultAdapter.address
+    var hr = NdefHandoverCodec.encodeHandoverRequest(mac, carrierPowerState,
+                                                     rnd);
+    nfcPeer.sendNDEF(hs);
+  };
+
+  HandoverManager.prototype.handleFileTransfer =
+            function handleFileTransfer(session, blob, onsuccess, onerror) {
+    debug('handleFileTransfer');
+    doAction({callback: initiateFileTransfer, args: [session, blob,
+                                                     onsuccess, onerror]});
+  };
+
 }
 
 var handoverManager = new HandoverManager();
