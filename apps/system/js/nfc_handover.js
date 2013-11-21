@@ -120,382 +120,339 @@ function HandoverManager() {
      */
     this.uint8array = new Uint8Array(uint8array);
     this.offset = 0;
-
-    this.getOctet = function getOctet() {
-      if (this.offset == this.uint8array.length) {
-        throw 'Buffer too small';
-      }
-      return this.uint8array[this.offset++];
-    };
-
-    this.getOctetArray = function getOctetArray(len) {
-      if (this.offset + len > this.uint8array.length) {
-        throw 'Buffer too small';
-      }
-      var a = this.uint8array.subarray(this.offset, this.offset + len);
-      this.offset += len;
-      return a;
-    };
-
-    this.skip = function skip(len) {
-      if (this.offset + len > this.uint8array.length) {
-        throw 'Buffer too small';
-      }
-      this.offset += len;
-    };
   }
+
+  Buffer.prototype.getOctet = function getOctet() {
+    if (this.offset == this.uint8array.length) {
+      throw 'Buffer too small';
+    }
+    return this.uint8array[this.offset++];
+  };
+
+  Buffer.prototype.getOctetArray = function getOctetArray(len) {
+    if (this.offset + len > this.uint8array.length) {
+      throw 'Buffer too small';
+    }
+    var a = this.uint8array.subarray(this.offset, this.offset + len);
+    this.offset += len;
+    return a;
+  };
+
+  Buffer.prototype.skip = function skip(len) {
+    if (this.offset + len > this.uint8array.length) {
+      throw 'Buffer too small';
+    }
+    this.offset += len;
+  };
 
   /*****************************************************************************
    * NdefCodec: Coding/decoding of NDEF messages (NFCForum-TS-NDEF_1.0)
    */
   function NdefCodec() {
     this.buffer = null;
-
-    /**
-     * parse(): parses a NDEF message contained in a Buffer instance.
-     * Usage:
-     *   var buf = new Buffer(<Uint8Array that contains the raw NDEF message>);
-     *   var p = new NdefCodec();
-     *   var ndef = p.parse(buf);
-     *
-     * NdefCodec instances can be reused. 'null' is returned if the message
-     * could not be parsed. Otherwise the result is an array of MozNdefRecord
-     * instances.
-     */
-    this.parse = function parse(buffer) {
-      this.buffer = buffer;
-      try {
-        return this._doParse();
-      } catch (err) {
-        debug(err);
-        return null;
-      }
-    };
-
-    this._doParse = function _doParse() {
-      var records = new Array();
-      var isFirstRecord = true;
-      do {
-        var firstOctet = this.buffer.getOctet();
-        if (isFirstRecord && !(firstOctet & NdefConsts.MB)) {
-          throw 'MB bit not set in first NDEF record';
-        }
-        if (!isFirstRecord && (firstOctet & NdefConsts.MB)) {
-          throw 'MB can only be set for the first record';
-        }
-        if (firstOctet & NdefConsts.CF) {
-          throw 'Cannot deal with chunked records';
-        }
-        records.push(this._parseNdefRecord(firstOctet));
-        isFirstRecord = false;
-      } while (!(firstOctet & NdefConsts.ME));
-      return records;
-    };
-
-    this._parseNdefRecord = function _parseNdefRecord(firstOctet) {
-      var tnf = firstOctet & NdefConsts.TNF;
-      var typeLen = this.buffer.getOctet();
-      var payloadLen = this.buffer.getOctet();
-      if (!(firstOctet & NdefConsts.SR)) {
-        for (var i = 0; i < 3; i++) {
-          payloadLen <<= 8;
-          payloadLen |= this.buffer.getOctet();
-        }
-      }
-      var idLen = 0;
-      if (firstOctet & NdefConsts.IL) {
-        idLen = this.buffer.getOctet();
-      }
-      var type = this.buffer.getOctetArray(typeLen);
-      var id = this.buffer.getOctetArray(idLen);
-      var payload = this.buffer.getOctetArray(payloadLen);
-      return new MozNdefRecord(tnf, type, id, payload);
-    };
-
-    /**
-     * encode(): marshall a NDEF message into a binary representation. 'ndef'
-     * is an Array of MozNdefRecord instances. The result is an Array with
-     * the encoded NDEF message.
-     */
-    this.encode = function encode(ndef) {
-      var b = new Array();
-      var isFirstRecord = true;
-      for (var j = 0; j < ndef.length; j++) {
-        var record = ndef[j];
-        var payloadLen = record.payload.length;
-        var idLen = record.id.length;
-        var typeLen = record.type.length;
-        var firstOctet = 0;
-        if (isFirstRecord) {
-          firstOctet |= NdefConsts.MB;
-        }
-        isFirstRecord = false;
-        if (j == ndef.length - 1) {
-          firstOctet |= NdefConsts.ME;
-        }
-        firstOctet |= record.tnf & 0x07;
-        if (idLen > 0) {
-          firstOctet |= NdefConsts.IL;
-        }
-        if (payloadLen <= 0xff) {
-          firstOctet |= NdefConsts.SR;
-        }
-        b.push(firstOctet);
-        b.push(typeLen);
-        b.push(payloadLen & 0xff);
-        if (payloadLen > 0xff) {
-          for (var i = 0; i < 3; i++) {
-            payloadLen >>>= 8;
-            b.push(payloadLen & 0xff);
-          }
-        }
-        if (idLen > 0) {
-          b.push(idLen);
-        }
-        for (var i = 0; i < record.type.length; i++) {
-          b.push(record.type[i]);
-        }
-        for (var i = 0; i < record.id.length; i++) {
-          b.push(record.id[i]);
-        }
-        for (var i = 0; i < record.payload.length; i++) {
-          b.push(record.payload[i]);
-        }
-      }
-      return b;
-    };
   }
+
+  /**
+   * parse(): parses a NDEF message contained in a Buffer instance.
+   * Usage:
+   *   var buf = new Buffer(<Uint8Array that contains the raw NDEF message>);
+   *   var p = new NdefCodec();
+   *   var ndef = p.parse(buf);
+   *
+   * NdefCodec instances can be reused. 'null' is returned if the message
+   * could not be parsed. Otherwise the result is an array of MozNdefRecord
+   * instances.
+   */
+  NdefCodec.prototype.parse = function parse(buffer) {
+    this.buffer = buffer;
+    //try {
+      return this.doParse();
+      /*
+    } catch (err) {
+      debug(err);
+      return null;
+    }
+    */
+  };
+
+  NdefCodec.prototype.doParse = function doParse() {
+    var records = new Array();
+    var isFirstRecord = true;
+    do {
+      var firstOctet = this.buffer.getOctet();
+      if (isFirstRecord && !(firstOctet & NdefConsts.MB)) {
+        throw 'MB bit not set in first NDEF record';
+      }
+      if (!isFirstRecord && (firstOctet & NdefConsts.MB)) {
+        throw 'MB can only be set for the first record';
+      }
+      if (firstOctet & NdefConsts.CF) {
+        throw 'Cannot deal with chunked records';
+      }
+      records.push(this.parseNdefRecord(firstOctet));
+      isFirstRecord = false;
+    } while (!(firstOctet & NdefConsts.ME));
+    return records;
+  };
+
+  NdefCodec.prototype.parseNdefRecord = function parseNdefRecord(firstOctet) {
+    var tnf = firstOctet & NdefConsts.TNF;
+    var typeLen = this.buffer.getOctet();
+    var payloadLen = this.buffer.getOctet();
+    if (!(firstOctet & NdefConsts.SR)) {
+      for (var i = 0; i < 3; i++) {
+        payloadLen <<= 8;
+        payloadLen |= this.buffer.getOctet();
+      }
+    }
+    var idLen = 0;
+    if (firstOctet & NdefConsts.IL) {
+      idLen = this.buffer.getOctet();
+    }
+    var type = this.buffer.getOctetArray(typeLen);
+    var id = this.buffer.getOctetArray(idLen);
+    var payload = this.buffer.getOctetArray(payloadLen);
+    return new MozNdefRecord(tnf, type, id, payload);
+  };
 
   /*****************************************************************************
    * NdefHandoverCodec: Coding/decoding of NDEF Handover messages.
    * (NFCForum-TS-ConnectionHandover_1_2.doc)
    */
   function NdefHandoverCodec() {
-
-    /**
-     * parse(): parse a NDEF message containing a handover message. 'ndefMsg'
-     * is an Array of MozNdefRecord. Only 'Hr' and 'Hs' records are parsed.
-     * The result is an object with the following attributes:
-     *   - type: either 'Hr' (Handover Request) or 'Hs' (Handover Select)
-     *   - majorVersion
-     *   - minorVersion
-     *   - cr: Collision resolution value. Tthis value is only present
-     *         for a 'Hr' record
-     *   - ac: Array of Alternate Carriers. Each object of this array has
-     *         the following attributes:
-     *           - cps: Carrier Power State
-     *           - cdr: Carrier Data Record: MozNdefRecord containing further
-     *                  info
-     */
-    this.parse = function parse(ndefMsg) {
-      try {
-        return this._doParse(ndefMsg);
-      } catch (err) {
-        debug(err);
-        return null;
-      }
-    };
-
-    this._doParse = function _doParse(ndefMsg) {
-      var record = ndefMsg[0];
-      var buffer = new Buffer(record.payload);
-      var h = {};
-      var version = buffer.getOctet();
-      h.majorVersion = version >>> 4;
-      h.minorVersion = version & 0x0f;
-      h.ac = [];
-
-      var p = new NdefCodec();
-      var embeddedNdef = p.parse(buffer);
-      if (embeddedNdef == null) {
-        throw 'Could not parse embedded NDEF in Hr/Hs record';
-      }
-
-      if (record.tnf != NdefConsts.tnf_well_known) {
-        throw 'Expected Well Known TNF in Hr/Hs record';
-      }
-
-      if (NdefUtils.equalArrays(record.type, NdefConsts.rtd_handover_select)) {
-        h.type = 'Hs';
-        this._parseAcRecords(h, ndefMsg, embeddedNdef, 0);
-      } else if (NdefUtils.equalArrays(record.type,
-                 NdefConsts.rtd_handover_request)) {
-        h.type = 'Hr';
-        var crr = embeddedNdef[0];
-        if (!NdefUtils.equalArrays(crr.type,
-            NdefConsts.rtd_collision_resolution)) {
-          throw 'Expected Collision Resolution Record';
-        }
-        if (crr.payload.length != 2) {
-          throw 'Expected random number in Collision Resolution Record';
-        }
-        h.cr = (crr.payload[0] << 8) | crr.payload[1];
-        this._parseAcRecords(h, ndefMsg, embeddedNdef, 1);
-      } else {
-        throw 'Can only handle Hr and Hs records for now';
-      }
-      return h;
-    };
-
-    this._parseAcRecords = function _parseAcRecords(h, ndef, acNdef, offset) {
-      for (var i = offset; i < acNdef.length; i++) {
-        var record = acNdef[i];
-        if (NdefUtils.equalArrays(record.type,
-            NdefConsts.rtd_alternative_carrier)) {
-          h.ac.push(this._parseAC(record.payload, ndef));
-        } else {
-          throw 'Can only parse AC record within Hs';
-        }
-      }
-    };
-
-    this._parseAC = function _parseAC(ac, ndef) {
-      var b = new Buffer(ac);
-      var ac = {};
-      ac.cps = b.getOctet() & 0x03;
-      var cdrLen = b.getOctet();
-      var cdr = b.getOctetArray(cdrLen);
-      ac.cdr = this._findNdefRecordWithId(cdr, ndef);
-      return ac;
-    };
-
-    this._findNdefRecordWithId = function _findNdefRecordWithId(id, ndef) {
-      for (var i = 0; i < ndef.length; i++) {
-        var record = ndef[i];
-        if (NdefUtils.equalArrays(id, record.id)) {
-          return record;
-        }
-      }
-      throw 'Could not find record with id';
-    };
-
-    /**
-     * searchForBluetoothAC(): searches a Handover message for an
-     * Alternative Carrier that contains a Bluetooth profile.
-     * Parameter 'h' is the result of the parse() function.
-     * Returns null if no Bluetooth AC could be found, otherwise
-     * returns a MozNdefRecord.
-     */
-    this.searchForBluetoothAC = function searchForBluetoothAC(h) {
-      for (var i = 0; i < h.ac.length; i++) {
-        var cdr = h.ac[i].cdr;
-        if (cdr.tnf == NdefConsts.tnf_mime_media) {
-          var mimeType = NdefUtils.toUTF8(cdr.type);
-          if (mimeType == 'application/vnd.bluetooth.ep.oob') {
-            return cdr;
-          }
-        }
-      }
-      return null;
-    };
-
-    /**
-     * parseBluetoothSSP(): Parses a Carrier Data Record that contains a
-     * Bluetooth Secure Simple Pairing record (NFCForum-AD-BTSSP_1.0).
-     * 'cdr': Carrier Data Record. Returns an object with the following
-     * attributes:
-     *   - mac: MAC address (string representation)
-     *   - localName: Local name (optional)
-     */
-    this.parseBluetoothSSP = function parseBluetoothSSP(cdr) {
-      var btssp = {};
-      var buf = new Buffer(cdr.payload);
-      var btsspLen = buf.getOctet() | (buf.getOctet() << 8);
-      var mac = '';
-      for (var i = 0; i < 6; i++) {
-        if (mac.length > 0) {
-          mac = ':' + mac;
-        }
-        var o = buf.getOctet();
-        mac = o.toString(16).toUpperCase() + mac;
-        if (o < 16) {
-          mac = '0' + mac;
-        }
-      }
-      btssp.mac = mac;
-      while (buf.offset != cdr.payload.length) {
-        // Read OOB value
-        var len = buf.getOctet() - 1 /* 'len' */;
-        var type = buf.getOctet();
-        switch (type) {
-        case 0x08:
-        case 0x09:
-          // Local name
-          var n = buf.getOctetArray(len);
-          btssp.localName = NdefUtils.toUTF8(n);
-          break;
-        default:
-          // Ignore OOB value
-          buf.skip(len);
-          break;
-        }
-      }
-      return btssp;
-    };
-
-    /**
-     * encodeHandoverRequest(): returns a NDEF message containing a Handover
-     * Request. Only a Bluetooth AC will be added to the Handover Request.
-     * 'mac': MAC address (string). 'cps': Carrier Power State.
-     * 'rnd': Random value for collision resolution
-     */
-    this.encodeHandoverRequest = function encodeHandoverRequest(mac, cps, rnd) {
-      var macVals = mac.split(':');
-      if (macVals.length != 6) {
-        return null;
-      }
-      var m = new Array();
-      for (var i = 5; i >= 0; i--) {
-        m.push(parseInt(macVals[i], 16));
-      }
-      var rndLSB = rnd & 0xff;
-      var rndMSB = rnd >>> 8;
-      var hr = [new MozNdefRecord(1,
-                                  new Uint8Array([72, 114]),
-                                  new Uint8Array([]),
-                                  new Uint8Array([18, 145, 2, 2, 99, 114,
-                                                  rndMSB, rndLSB, 81, 2, 4, 97,
-                                                  99, cps, 1, 98, 0])),
-                new MozNdefRecord(2,
-                                  new Uint8Array([97, 112, 112, 108, 105, 99,
-                                                  97, 116, 105, 111, 110, 47,
-                                                  118, 110, 100, 46, 98, 108,
-                                                  117, 101, 116, 111, 111, 116,
-                                                  104, 46, 101, 112, 46, 111,
-                                                  111, 98]),
-                                  new Uint8Array([98]),
-                                  new Uint8Array([8, 0, m[0], m[1], m[2], m[3],
-                                                  m[4], m[5]]))];
-      return hr;
-    };
-
-    this.encodeHandoverSelect = function encodeHandoverSelect(mac, cps) {
-      var macVals = mac.split(':');
-      if (macVals.length != 6) {
-        return null;
-      }
-      var m = new Array();
-      for (var i = 5; i >= 0; i--) {
-        m.push(parseInt(macVals[i], 16));
-      }
-      var hs = [new MozNdefRecord(NdefConsts.tnf_well_known,
-                                  NdefConsts.rtd_handover_select,
-                                  new Uint8Array([]),
-                                  new Uint8Array([0x12, 0xD1, 0x02, 0x04, 0x61,
-                                                0x63, cps, 0x01, 0x30, 0x00])),
-                new MozNdefRecord(NdefConsts.tnf_mime_media,
-                                  new Uint8Array([97, 112, 112, 108, 105, 99,
-                                                  97, 116, 105, 111, 110, 47,
-                                                  118, 110, 100, 46, 98, 108,
-                                                  117, 101, 116, 111, 111, 116,
-                                                  104, 46, 101, 112, 46, 111,
-                                                  111, 98]),
-                                  new Uint8Array([0x30]),
-                                  new Uint8Array([8, 0, m[0], m[1], m[2], m[3],
-                                                  m[4], m[5]]))];
-      return hs;
-    };
   }
+
+  /**
+   * parse(): parse a NDEF message containing a handover message. 'ndefMsg'
+   * is an Array of MozNdefRecord. Only 'Hr' and 'Hs' records are parsed.
+   * The result is an object with the following attributes:
+   *   - type: either 'Hr' (Handover Request) or 'Hs' (Handover Select)
+   *   - majorVersion
+   *   - minorVersion
+   *   - cr: Collision resolution value. Tthis value is only present
+   *         for a 'Hr' record
+   *   - ac: Array of Alternate Carriers. Each object of this array has
+   *         the following attributes:
+   *           - cps: Carrier Power State
+   *           - cdr: Carrier Data Record: MozNdefRecord containing further
+   *                  info
+   */
+  NdefHandoverCodec.prototype.parse = function parse(ndefMsg) {
+ //   try {
+      return this.doParse(ndefMsg);
+      /*
+    } catch (err) {
+      debug(err);
+      return null;
+    }
+    */
+  };
+
+  NdefHandoverCodec.prototype.doParse = function doParse(ndefMsg) {
+    var record = ndefMsg[0];
+    var buffer = new Buffer(record.payload);
+    var h = {};
+    var version = buffer.getOctet();
+    h.majorVersion = version >>> 4;
+    h.minorVersion = version & 0x0f;
+    h.ac = [];
+
+    var p = new NdefCodec();
+    var embeddedNdef = p.parse(buffer);
+    if (embeddedNdef == null) {
+      throw 'Could not parse embedded NDEF in Hr/Hs record';
+    }
+
+    if (record.tnf != NdefConsts.tnf_well_known) {
+      throw 'Expected Well Known TNF in Hr/Hs record';
+    }
+
+    if (NdefUtils.equalArrays(record.type, NdefConsts.rtd_handover_select)) {
+      h.type = 'Hs';
+      this.parseAcRecords(h, ndefMsg, embeddedNdef, 0);
+    } else if (NdefUtils.equalArrays(record.type,
+               NdefConsts.rtd_handover_request)) {
+      h.type = 'Hr';
+      var crr = embeddedNdef[0];
+      if (!NdefUtils.equalArrays(crr.type,
+          NdefConsts.rtd_collision_resolution)) {
+        throw 'Expected Collision Resolution Record';
+      }
+      if (crr.payload.length != 2) {
+        throw 'Expected random number in Collision Resolution Record';
+      }
+      h.cr = (crr.payload[0] << 8) | crr.payload[1];
+      this.parseAcRecords(h, ndefMsg, embeddedNdef, 1);
+    } else {
+      throw 'Can only handle Hr and Hs records for now';
+    }
+    return h;
+  };
+
+  NdefHandoverCodec.prototype.parseAcRecords =
+                   function parseAcRecords(h, ndef, acNdef, offset) {
+    for (var i = offset; i < acNdef.length; i++) {
+      var record = acNdef[i];
+      if (NdefUtils.equalArrays(record.type,
+          NdefConsts.rtd_alternative_carrier)) {
+        h.ac.push(this.parseAC(record.payload, ndef));
+      } else {
+        throw 'Can only parse AC record within Hs';
+      }
+    }
+  };
+
+  NdefHandoverCodec.prototype.parseAC = function parseAC(ac, ndef) {
+    var b = new Buffer(ac);
+    var ac = {};
+    ac.cps = b.getOctet() & 0x03;
+    var cdrLen = b.getOctet();
+    var cdr = b.getOctetArray(cdrLen);
+    ac.cdr = this.findNdefRecordWithId(cdr, ndef);
+    return ac;
+  };
+
+  NdefHandoverCodec.prototype.findNdefRecordWithId =
+                   function findNdefRecordWithId(id, ndef) {
+    for (var i = 0; i < ndef.length; i++) {
+      var record = ndef[i];
+      if (NdefUtils.equalArrays(id, record.id)) {
+        return record;
+      }
+    }
+    throw 'Could not find record with id';
+  };
+
+  /**
+   * searchForBluetoothAC(): searches a Handover message for an
+   * Alternative Carrier that contains a Bluetooth profile.
+   * Parameter 'h' is the result of the parse() function.
+   * Returns null if no Bluetooth AC could be found, otherwise
+   * returns a MozNdefRecord.
+   */
+  NdefHandoverCodec.prototype.searchForBluetoothAC =
+                     function searchForBluetoothAC(h) {
+    for (var i = 0; i < h.ac.length; i++) {
+      var cdr = h.ac[i].cdr;
+      if (cdr.tnf == NdefConsts.tnf_mime_media) {
+        var mimeType = NdefUtils.toUTF8(cdr.type);
+        if (mimeType == 'application/vnd.bluetooth.ep.oob') {
+          return cdr;
+        }
+      }
+    }
+    return null;
+  };
+
+  /**
+   * parseBluetoothSSP(): Parses a Carrier Data Record that contains a
+   * Bluetooth Secure Simple Pairing record (NFCForum-AD-BTSSP_1.0).
+   * 'cdr': Carrier Data Record. Returns an object with the following
+   * attributes:
+   *   - mac: MAC address (string representation)
+   *   - localName: Local name (optional)
+   */
+  NdefHandoverCodec.prototype.parseBluetoothSSP =
+                     function parseBluetoothSSP(cdr) {
+    var btssp = {};
+    var buf = new Buffer(cdr.payload);
+    var btsspLen = buf.getOctet() | (buf.getOctet() << 8);
+    var mac = '';
+    for (var i = 0; i < 6; i++) {
+      if (mac.length > 0) {
+        mac = ':' + mac;
+      }
+      var o = buf.getOctet();
+      mac = o.toString(16).toUpperCase() + mac;
+      if (o < 16) {
+        mac = '0' + mac;
+      }
+    }
+    btssp.mac = mac;
+    while (buf.offset != cdr.payload.length) {
+      // Read OOB value
+      var len = buf.getOctet() - 1 /* 'len' */;
+      var type = buf.getOctet();
+      switch (type) {
+      case 0x08:
+      case 0x09:
+        // Local name
+        var n = buf.getOctetArray(len);
+        btssp.localName = NdefUtils.toUTF8(n);
+        break;
+      default:
+        // Ignore OOB value
+        buf.skip(len);
+        break;
+      }
+    }
+    return btssp;
+  };
+
+  /**
+   * encodeHandoverRequest(): returns a NDEF message containing a Handover
+   * Request. Only a Bluetooth AC will be added to the Handover Request.
+   * 'mac': MAC address (string). 'cps': Carrier Power State.
+   * 'rnd': Random value for collision resolution
+   */
+  NdefHandoverCodec.prototype.encodeHandoverRequest =
+                     function encodeHandoverRequest(mac, cps, rnd) {
+    var macVals = mac.split(':');
+    if (macVals.length != 6) {
+      return null;
+    }
+    var m = new Array();
+    for (var i = 5; i >= 0; i--) {
+      m.push(parseInt(macVals[i], 16));
+    }
+    var rndLSB = rnd & 0xff;
+    var rndMSB = rnd >>> 8;
+    var hr = [new MozNdefRecord(1,
+                                new Uint8Array([72, 114]),
+                                new Uint8Array([]),
+                                new Uint8Array([18, 145, 2, 2, 99, 114,
+                                                rndMSB, rndLSB, 81, 2, 4, 97,
+                                                99, cps, 1, 98, 0])),
+              new MozNdefRecord(2,
+                                new Uint8Array([97, 112, 112, 108, 105, 99,
+                                                97, 116, 105, 111, 110, 47,
+                                                118, 110, 100, 46, 98, 108,
+                                                117, 101, 116, 111, 111, 116,
+                                                104, 46, 101, 112, 46, 111,
+                                                111, 98]),
+                                new Uint8Array([98]),
+                                new Uint8Array([8, 0, m[0], m[1], m[2], m[3],
+                                                m[4], m[5]]))];
+    return hr;
+  };
+
+  NdefHandoverCodec.prototype.encodeHandoverSelect =
+                       function encodeHandoverSelect(mac, cps) {
+    var macVals = mac.split(':');
+    if (macVals.length != 6) {
+      return null;
+    }
+    var m = new Array();
+    for (var i = 5; i >= 0; i--) {
+      m.push(parseInt(macVals[i], 16));
+    }
+    var hs = [new MozNdefRecord(NdefConsts.tnf_well_known,
+                                NdefConsts.rtd_handover_select,
+                                new Uint8Array([]),
+                                new Uint8Array([0x12, 0xD1, 0x02, 0x04, 0x61,
+                                              0x63, cps, 0x01, 0x30, 0x00])),
+              new MozNdefRecord(NdefConsts.tnf_mime_media,
+                                new Uint8Array([97, 112, 112, 108, 105, 99,
+                                                97, 116, 105, 111, 110, 47,
+                                                118, 110, 100, 46, 98, 108,
+                                                117, 101, 116, 111, 111, 116,
+                                                104, 46, 101, 112, 46, 111,
+                                                111, 98]),
+                                new Uint8Array([0x30]),
+                                new Uint8Array([8, 0, m[0], m[1], m[2], m[3],
+                                                m[4], m[5]]))];
+    return hs;
+  };
 
   /****************************************************************************/
   /****************************************************************************/
@@ -593,6 +550,13 @@ function HandoverManager() {
       self.actionQueue = new Array();
     };
   });
+
+  this.test = function(a) {
+    var buf = new Buffer(a);
+    var p = new NdefCodec();
+    var ndef = p.parse(buf);
+    return ndef;
+  };
 }
 
 var handoverManager = new HandoverManager();
