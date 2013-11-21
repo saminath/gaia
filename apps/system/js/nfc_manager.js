@@ -310,7 +310,7 @@ var NfcManager = {
       }
   },
 
-  // NDEF only
+  // NDEF only currently
   handleP2P: function handleP2P(tech, sessionToken, ndefMsg) {
     if (ndefMsg != null) {
       /*
@@ -335,11 +335,11 @@ var NfcManager = {
       this.handleNdefDiscovered(tech, sessionToken, ndefMsg);
       return;
     }
-    /*
-     * Incoming P2P message does not carry an NDEF message.
-     * Check if the foreground app has registered an onpeerfound
-     * and do the shrinking UI if needed.
-     */
+     //
+     // Incoming P2P message does not carry an NDEF message.
+     // Check if the foreground app has registered an onpeerfound
+     // and do the shrinking UI if needed.
+     //
     var nfcdom = window.navigator.mozNfc;
 
     // FIXME: Do P2P UI: Ask user if P2P event is acceptable in the app's
@@ -383,6 +383,8 @@ var NfcManager = {
         'Ignoring NFC technology tag message. Screen state is disabled.');
       return;
     }
+    // UX: TODO
+    window.navigator.vibrate([25, 50, 125]);
 
     // Check for tech types:
     this._debug('command.tech: ' + command.tech);
@@ -433,14 +435,9 @@ var NfcManager = {
 
   handleTechLost: function nm_handleTechLost(command) {
     this._debug('Technology Lost: ' + JSON.stringify(command));
-    var a = new MozActivity({
-      name: 'nfc-tech-lost',
-      data: {
-        type: 'info',
-        sessionId: command.sessionToken,
-        message: ''
-      }
-    });
+    // TODO: Do something with the UI/UX to indicate the tag is gone.
+    // TODO: Dismiss activity chooser?
+    window.navigator.vibrate([125, 50, 25]);
   },
 
   // Miscellaneous utility functions to handle formating the JSON for activities
