@@ -14,7 +14,7 @@
  */
 function HandoverManager() {
 
-  this.DEBUG = false;
+  this.DEBUG = true;
   this.settings = window.navigator.mozSettings;
   this.bluetooth = window.navigator.mozBluetooth;
   this.nfc = window.navigator.mozNfc;
@@ -464,6 +464,41 @@ function HandoverManager() {
    */
   this.actionQueue = new Array();
 
+  this.settingsNotified = false;
+
+  this.bluetooth.addEventListener('adapteradded', function() {
+    debug('adapteradded');
+    var req = self.bluetooth.getDefaultAdapter();
+    req.onsuccess = function bt_getAdapterSuccess() {
+      self.settingsNotified = false;
+      self.defaultAdapter = req.result;
+      debug('MAC address: ' + self.defaultAdapter.address);
+      debug('MAC name: ' + self.defaultAdapter.name);
+      /*
+       * Call all actions that have queued up while Bluetooth
+       * was turned on.
+       */
+      for (var i = 0; i < self.actionQueue.length; i++) {
+        var action = self.actionQueue[i];
+        action.callback.apply(null, action.args);
+      }
+      self.actionQueue = new Array();
+    };
+  });
+
+  function doAction(action) {
+    if (!self.bluetooth.enabled) {
+      debug('Bluetooth: not yet enabled');
+      self.actionQueue.push(action);
+      if (self.settingsNotified == false) {
+        self.settings.createLock().set({'bluetooth.enabled': true});
+        self.settingsNotified = true;
+      }
+    } else {
+      action.callback.apply(null, action.args);
+    }
+  }
+
   function doPairing(mac) {
     debug('doPairing: ' + mac);
     if (self.defaultAdapter == null) {
@@ -490,7 +525,7 @@ function HandoverManager() {
       return;
     }
     var btsspRecord = p.searchForBluetoothAC(h);
-    if (btsspRecord != null) {
+    if (btsspRecord == null) {
       // There is no Bluetooth Alternative Carrier record in the
       // Handover Select message. Since we cannot handle WiFi Direct,
       // just ignore.
@@ -500,14 +535,7 @@ function HandoverManager() {
     var btssp = p.parseBluetoothSSP(btsspRecord);
     var mac = btssp.mac;
     debug('Pair with: ' + mac);
-    if (!self.bluetooth.enabled) {
-      debug('Bluetooth: not yet enabled');
-      this.actionQueue.push({callback: doPairing,
-                             args: [mac]});
-      this.settings.createLock().set({'bluetooth.enabled': true});
-    } else {
-      doPairing(mac);
-    }
+    doAction({callback: doPairing, args: [mac]});
   };
 
   function doHandoverRequest(ndef, session) {
@@ -521,41 +549,7 @@ function HandoverManager() {
 
   this.handleHandoverRequest = function handleHandoverRequest(ndef, session) {
     debug('handleHandoverRequest');
-    if (!self.bluetooth.enabled) {
-      debug('Bluetooth: not yet enabled');
-      this.actionQueue.push({callback: doHandoverRequest,
-                             args: [ndef, session]});
-      this.settings.createLock().set({'bluetooth.enabled': true});
-    } else {
-      doHandoverRequest(ndef, session);
-    }
-
-  };
-
-  this.bluetooth.addEventListener('adapteradded', function() {
-    debug('adapteradded');
-    var req = self.bluetooth.getDefaultAdapter();
-    req.onsuccess = function bt_getAdapterSuccess() {
-      self.defaultAdapter = req.result;
-      debug('MAC address: ' + self.defaultAdapter.address);
-      debug('MAC name: ' + self.defaultAdapter.name);
-      /*
-       * Call all actions that have queued up while Bluetooth
-       * was turned on.
-       */
-      for (var i = 0; i < self.actionQueue.length; i++) {
-        var action = self.actionQueue[i];
-        action.callback.apply(null, action.args);
-      }
-      self.actionQueue = new Array();
-    };
-  });
-
-  this.test = function(a) {
-    var buf = new Buffer(a);
-    var p = new NdefCodec();
-    var ndef = p.parse(buf);
-    return ndef;
+    doAction({callback: doHandoverRequest, args: [ndef, session]});
   };
 }
 

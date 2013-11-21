@@ -298,6 +298,10 @@ var NfcManager = {
     function nm_handleNdefDiscovered(tech, session, ndefMsg) {
 
       this._debug('handleNdefDiscovered: ' + JSON.stringify(ndefMsg));
+      if (ndefMsg == null) {
+        // Nothing to do
+        return;
+      }
       var records = ndefMsg;
       var action = this.handleNdefMessage(records);
       if (action == null) {
@@ -316,25 +320,13 @@ var NfcManager = {
       /*
        * Incoming P2P message carries a NDEF message. Dispatch
        * the NDEF message (this might bring another app to the
-       * foreground). First check for handover messages that
-       * are handled by the handover manager.
+       * foreground).
        */
-      var firstRecord = ndefMsg[0];
-      if ((firstRecord.tnf == NDEF.tnf_well_known) &&
-          NfcUtil.equalArrays(firstRecord.type, NDEF.rtd_handover_select)) {
-        this._debug('Handle Handover Select');
-        handoverManager.handleHandoverSelect(ndefMsg);
-        return;
-      }
-      if ((firstRecord.tnf == NDEF.tnf_well_known) &&
-          NfcUtil.equalArrays(firstRecord.type, NDEF.rtd_handover_request)) {
-        this._debug('Handle Handover Request');
-        handoverManager.handleHandoverRequest(ndefMsg, sessionToken);
-        return;
-      }
       this.handleNdefDiscovered(tech, sessionToken, ndefMsg);
       return;
     }
+//HOT FIX
+return;
      //
      // Incoming P2P message does not carry an NDEF message.
      // Check if the foreground app has registered an onpeerfound
@@ -395,6 +387,25 @@ var NfcManager = {
       ndefMsg = command.ndef[0];
     } else {
       this._debug('No NDEF Message sent to Technology Discovered');
+    }
+
+    if (ndefMsg != null) {
+      /* First check for handover messages that
+       * are handled by the handover manager.
+       */
+      var firstRecord = ndefMsg[0];
+      if ((firstRecord.tnf == NDEF.tnf_well_known) &&
+          NfcUtil.equalArrays(firstRecord.type, NDEF.rtd_handover_select)) {
+        this._debug('Handle Handover Select');
+        handoverManager.handleHandoverSelect(ndefMsg);
+        return;
+      }
+      if ((firstRecord.tnf == NDEF.tnf_well_known) &&
+          NfcUtil.equalArrays(firstRecord.type, NDEF.rtd_handover_request)) {
+        this._debug('Handle Handover Request');
+        handoverManager.handleHandoverRequest(ndefMsg, sessionToken);
+        return;
+      }
     }
 
     // Assign priority of tech handling. This list will expand with supported
