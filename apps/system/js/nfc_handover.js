@@ -16,7 +16,7 @@
  */
 function HandoverManager() {
 
-  this.DEBUG = true;
+  this.DEBUG = false;
   this.settings = window.navigator.mozSettings;
   this.bluetooth = window.navigator.mozBluetooth;
   this.nfc = window.navigator.mozNfc;
