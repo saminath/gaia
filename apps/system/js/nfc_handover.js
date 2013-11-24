@@ -16,7 +16,7 @@
  */
 function HandoverManager() {
 
-  this.DEBUG = false;
+  this.DEBUG = true;
   this.settings = window.navigator.mozSettings;
   this.bluetooth = window.navigator.mozBluetooth;
   this.nfc = window.navigator.mozNfc;
@@ -495,6 +495,7 @@ function HandoverManager() {
 
   navigator.mozSetMessageHandler('bluetooth-opp-receiving-file-confirmation',
       function(evt) {
+        debug('bluetooth-opp-receiving-file-confirmation');
         // Immediately accept incoming file transfer. No UI needed since
         // the user implicitly authorized the action by holding the device
         // close to another.
@@ -570,7 +571,7 @@ function HandoverManager() {
     debug('doHandoverRequest');
     var nfcPeer = self.nfc.getNFCPeer(session);
     var carrierPowerState = self.bluetooth.enabled ? 1 : 2;
-    var mac = '30:76:6F:3E:98:96'; //self.defaultAdapter.address
+    var mac = self.defaultAdapter.address;
     var hs = NdefHandoverCodec.encodeHandoverSelect(mac, carrierPowerState);
     nfcPeer.sendNDEF(hs);
   }
@@ -620,7 +621,7 @@ function HandoverManager() {
     var nfcPeer = self.nfc.getNFCPeer(session);
     var carrierPowerState = self.bluetooth.enabled ? 1 : 2;
     var rnd = 0xDEAD;
-    var mac = '30:76:6F:3E:98:96'; //self.defaultAdapter.address
+    var mac = self.defaultAdapter.address;
     var hr = NdefHandoverCodec.encodeHandoverRequest(mac, carrierPowerState,
                                                      rnd);
     nfcPeer.sendNDEF(hs);

@@ -137,7 +137,7 @@ var NDEF = {
 NDEF.init();
 
 var NfcManager = {
-  DEBUG: false,
+  DEBUG: true,
 
   NFC_HW_STATE_OFF: 0,
   NFC_HW_STATE_ON: 1,
