@@ -1175,6 +1175,14 @@ var WindowManager = (function() {
     setDisplayedApp(config.origin);
   });
 
+  window.addEventListener('request-nfc-permission-check-to-active-app',
+    function(evt) {
+      if (evt.detail && evt.detail.checkPermissionAndStartShrinkUI) {
+        var manifestURL = runningApps[displayedApp].manifestURL;
+        evt.detail.checkPermissionAndStartShrinkUI(manifestURL);
+      }
+  });
+
   // Stop running the app with the specified origin
   function kill(origin) {
     if (!isRunning(origin)) {

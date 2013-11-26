@@ -168,6 +168,7 @@ var NfcManager = {
     window.addEventListener('screenchange', this);
     window.addEventListener('lock', this);
     window.addEventListener('unlock', this);
+    window.addEventListener('shrinking-sent', this);
     var self = this;
     SettingsListener.observe('nfc.enabled', false, function(e) {
       var state = (e.settingValue === true) ? self.NFC_HW_STATE_ON :
@@ -208,6 +209,7 @@ var NfcManager = {
         } else {
           state = this.NFC_HW_STATE_DISABLE_DISCOVERY;
         }
+        this.dispatchHardwareChangeEvt(state);
         break;
       case 'lock': // Fall thorough
       case 'unlock':
@@ -216,9 +218,15 @@ var NfcManager = {
         } else {
           state = this.NFC_HW_STATE_DISABLE_DISCOVERY;
         }
+        this.dispatchHardwareChangeEvt(state);
+        break;
+      case 'shrinking-sent':
+        // Notify lower layers that User has acknowledged to send nfc (NDEF) msg
+        this.dispatchP2PUserResponse();
+        // Stop the P2P UI
+        window.dispatchEvent(new CustomEvent('shrinking-stop'));
         break;
     }
-    this.dispatchHardwareChangeEvt(state);
   },
 
   // An NDEF Message is an array of one or more NDEF records.
@@ -315,33 +323,46 @@ var NfcManager = {
   // NDEF only currently
   handleP2P: function handleP2P(tech, sessionToken, ndefMsg) {
     if (ndefMsg != null) {
-       //
        // Incoming P2P message carries a NDEF message. Dispatch
        // the NDEF message (this might bring another app to the
        // foreground).
-       //
       this.handleNdefDiscovered(tech, sessionToken, ndefMsg);
       return;
     }
-     //
-     // Incoming P2P message does not carry an NDEF message.
-     // Check if the foreground app has registered an onpeerfound
-     // and do the shrinking UI if needed.
-     //
-    var nfcdom = window.navigator.mozNfc;
 
-    // FIXME: Do P2P UI: Ask user if P2P event is acceptable in the app's
-    // current user context to accept a message via registered app
-    // callback/message. If so, fire P2P NDEF to app.
-    // If not, drop message.
+    // Incoming P2P message does not carry an NDEF message.
 
-    // This is a P2P notification with no ndef.
-    this._debug('P2P UI : Shrink UI');
-    // TODO: Upon user akcnowledgement on the shrunk UI,
-    //       system application notifies gecko of the top most window.
-
-    // Notify gecko of User's acknowledgement. TODO: Bug 933136
+    // Do P2P UI.
+    window.dispatchEvent(new CustomEvent(
+      'request-nfc-permission-check-to-active-app', {detail: this}));
   },
+
+  dispatchP2PUserResponse: function nm_dispatchP2PUserResponse() {
+    var currentAppManifestUrl =
+      WindowManager.getCurrentActiveAppWindow().manifestURL;
+    var detail = { manifestUrl: currentAppManifestUrl };
+    var evt = new CustomEvent('nfc-p2p-user-accept', {
+      bubbles: true, cancelable: true,
+      detail: detail
+    });
+    window.dispatchEvent(evt);
+  },
+
+  checkPermissionAndStartShrinkUI:
+    function nm_checkPermissionAndStartShrinkUI(manifestURL) {
+      var status = window.navigator.mozNfc.checkP2PRegistration(manifestURL);
+      var self = this;
+      status.onsuccess = function() {
+      // Top visible application's manifest Url is registered;
+      // Start Shrink / P2P UI and wait for user to accept P2P event
+      window.dispatchEvent(new CustomEvent('shrinking-start'));
+    };
+    status.onerror = function() {
+     // Do nothing!
+     self._debug('Top visible application manifest Url is NOT registered');
+    };
+  },
+
 
   fireTagDiscovered: function nm_fireTagDiscovered(command) {
     var self = this;
