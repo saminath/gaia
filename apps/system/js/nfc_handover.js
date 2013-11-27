@@ -382,69 +382,6 @@ function HandoverManager() {
         }
       }
       return btssp;
-    },
-
-    /**
-     * encodeHandoverRequest(): returns a NDEF message containing a Handover
-     * Request. Only a Bluetooth AC will be added to the Handover Request.
-     * 'mac': MAC address (string). 'cps': Carrier Power State.
-     * 'rnd': Random value for collision resolution
-     */
-    encodeHandoverRequest: function encodeHandoverRequest(mac, cps, rnd) {
-      var macVals = mac.split(':');
-      if (macVals.length != 6) {
-        return null;
-      }
-      var m = new Array();
-      for (var i = 5; i >= 0; i--) {
-        m.push(parseInt(macVals[i], 16));
-      }
-      var rndLSB = rnd & 0xff;
-      var rndMSB = rnd >>> 8;
-      var hr = [new MozNdefRecord(1,
-                                  new Uint8Array([72, 114]),
-                                  new Uint8Array([]),
-                                  new Uint8Array([18, 145, 2, 2, 99, 114,
-                                                  rndMSB, rndLSB, 81, 2, 4, 97,
-                                                  99, cps, 1, 98, 0])),
-                new MozNdefRecord(2,
-                                  new Uint8Array([97, 112, 112, 108, 105, 99,
-                                                  97, 116, 105, 111, 110, 47,
-                                                  118, 110, 100, 46, 98, 108,
-                                                  117, 101, 116, 111, 111, 116,
-                                                  104, 46, 101, 112, 46, 111,
-                                                  111, 98]),
-                                  new Uint8Array([98]),
-                                  new Uint8Array([8, 0, m[0], m[1], m[2], m[3],
-                                                  m[4], m[5]]))];
-      return hr;
-    },
-
-    encodeHandoverSelect: function encodeHandoverSelect(mac, cps) {
-      var macVals = mac.split(':');
-      if (macVals.length != 6) {
-        return null;
-      }
-      var m = new Array();
-      for (var i = 5; i >= 0; i--) {
-        m.push(parseInt(macVals[i], 16));
-      }
-      var hs = [new MozNdefRecord(NdefConsts.tnf_well_known,
-                                  NdefConsts.rtd_handover_select,
-                                  new Uint8Array([]),
-                                  new Uint8Array([0x12, 0xD1, 0x02, 0x04, 0x61,
-                                                0x63, cps, 0x01, 0x30, 0x00])),
-                new MozNdefRecord(NdefConsts.tnf_mime_media,
-                                  new Uint8Array([97, 112, 112, 108, 105, 99,
-                                                  97, 116, 105, 111, 110, 47,
-                                                  118, 110, 100, 46, 98, 108,
-                                                  117, 101, 116, 111, 111, 116,
-                                                  104, 46, 101, 112, 46, 111,
-                                                  111, 98]),
-                                  new Uint8Array([0x30]),
-                                  new Uint8Array([8, 0, m[0], m[1], m[2], m[3],
-                                                  m[4], m[5]]))];
-      return hs;
     }
   };
 
@@ -460,13 +397,6 @@ function HandoverManager() {
    * Bluetooth is turned on.
    */
   this.actionQueue = new Array();
-
-  /*
-   * sendFileRequest is set whenever an app called peer.sendFile(blob).
-   * It will be inspected in the handling of Handover Select messages
-   * to distinguish between static and negotiated handovers.
-   */
-  this.sendFileRequest = null;
 
   /*
    * settingsNotified is used to prevent triggering Settings multiple times.
@@ -492,31 +422,6 @@ function HandoverManager() {
       self.actionQueue = new Array();
     };
   });
-
-  navigator.mozSetMessageHandler('bluetooth-opp-receiving-file-confirmation',
-      function(evt) {
-        debug('bluetooth-opp-receiving-file-confirmation');
-        // Immediately accept incoming file transfer. No UI needed since
-        // the user implicitly authorized the action by holding the device
-        // close to another.
-        self.defaultAdapter.confirmReceivingFile(evt.address, true);
-      }
-  );
-
-  navigator.mozSetMessageHandler('bluetooth-opp-transfer-complete',
-      function(evt) {
-        if (self.sendFileRequest == null) {
-          // Handover Manager didn't trigger file transfer. Just ignore.
-          return;
-        }
-        if (evt.success) {
-          self.sendFileRequest.onsuccess(evt);
-        } else {
-          self.sendFileRequest.onerror(evt);
-        }
-        self.sendFileRequest = null;
-      }
-  );
 
   /*****************************************************************************
    *****************************************************************************
@@ -567,31 +472,6 @@ function HandoverManager() {
     self.defaultAdapter.sendFile(blob, mac);
   }
 
-  function doHandoverRequest(ndef, session) {
-    debug('doHandoverRequest');
-    var nfcPeer = self.nfc.getNFCPeer(session);
-    var carrierPowerState = self.bluetooth.enabled ? 1 : 2;
-    var mac = self.defaultAdapter.address;
-    var hs = NdefHandoverCodec.encodeHandoverSelect(mac, carrierPowerState);
-    nfcPeer.sendNDEF(hs);
-  }
-
-  function initiateFileTransfer(session, blob, onsuccess, onerror) {
-    /*
-     * Initiate a file transfer by sending a Handover Request to the
-     * remote device.
-     */
-    self.sendFileRequest = {blob: blob, onsuccess: onsuccess,
-                            onerror: onerror};
-    var nfcPeer = self.nfc.getNFCPeer(session);
-    var carrierPowerState = self.bluetooth.enabled ? 1 : 2;
-    var rnd = 0xDEAD;
-    var mac = self.defaultAdapter.address;
-    var hr = NdefHandoverCodec.encodeHandoverRequest(mac, carrierPowerState,
-                                                     rnd);
-    nfcPeer.sendNDEF(hs);
-  };
-
   /*****************************************************************************
    *****************************************************************************
    * Handover API
@@ -625,20 +505,6 @@ function HandoverManager() {
       doAction({callback: doPairing, args: [mac]});
     }
   };
-
-  this.handleHandoverRequest =
-                     function handleHandoverRequest(ndef, session) {
-    debug('handleHandoverRequest');
-    doAction({callback: doHandoverRequest, args: [ndef, session]});
-  };
-
-  this.handleFileTransfer =
-            function handleFileTransfer(session, blob, onsuccess, onerror) {
-    debug('handleFileTransfer');
-    doAction({callback: initiateFileTransfer, args: [session, blob,
-                                                     onsuccess, onerror]});
-  };
-
 }
 
 var handoverManager = new HandoverManager();
