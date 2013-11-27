@@ -16,7 +16,7 @@
  */
 function HandoverManager() {
 
-  this.DEBUG = true;
+  this.DEBUG = false;
   this.settings = window.navigator.mozSettings;
   this.bluetooth = window.navigator.mozBluetooth;
   this.nfc = window.navigator.mozNfc;
@@ -520,7 +520,7 @@ function HandoverManager() {
 
   /*****************************************************************************
    *****************************************************************************
-   * Handover API
+   * Private helper functions
    *****************************************************************************
    ****************************************************************************/
 
@@ -576,8 +576,29 @@ function HandoverManager() {
     nfcPeer.sendNDEF(hs);
   }
 
-  HandoverManager.prototype.handleHandoverSelect =
-                                 function handleHandoverSelect(ndef) {
+  function initiateFileTransfer(session, blob, onsuccess, onerror) {
+    /*
+     * Initiate a file transfer by sending a Handover Request to the
+     * remote device.
+     */
+    self.sendFileRequest = {blob: blob, onsuccess: onsuccess,
+                            onerror: onerror};
+    var nfcPeer = self.nfc.getNFCPeer(session);
+    var carrierPowerState = self.bluetooth.enabled ? 1 : 2;
+    var rnd = 0xDEAD;
+    var mac = self.defaultAdapter.address;
+    var hr = NdefHandoverCodec.encodeHandoverRequest(mac, carrierPowerState,
+                                                     rnd);
+    nfcPeer.sendNDEF(hs);
+  };
+
+  /*****************************************************************************
+   *****************************************************************************
+   * Handover API
+   *****************************************************************************
+   ****************************************************************************/
+
+  this.handleHandoverSelect = function handleHandoverSelect(ndef) {
     debug('handleHandoverSelect');
     var h = NdefHandoverCodec.parse(ndef);
     if (h == null) {
@@ -605,29 +626,13 @@ function HandoverManager() {
     }
   };
 
-  HandoverManager.prototype.handleHandoverRequest =
+  this.handleHandoverRequest =
                      function handleHandoverRequest(ndef, session) {
     debug('handleHandoverRequest');
     doAction({callback: doHandoverRequest, args: [ndef, session]});
   };
 
-  function initiateFileTransfer(session, blob, onsuccess, onerror) {
-    /*
-     * Initiate a file transfer by sending a Handover Request to the
-     * remote device.
-     */
-    self.sendFileRequest = {blob: blob, onsuccess: onsuccess,
-                            onerror: onerror};
-    var nfcPeer = self.nfc.getNFCPeer(session);
-    var carrierPowerState = self.bluetooth.enabled ? 1 : 2;
-    var rnd = 0xDEAD;
-    var mac = self.defaultAdapter.address;
-    var hr = NdefHandoverCodec.encodeHandoverRequest(mac, carrierPowerState,
-                                                     rnd);
-    nfcPeer.sendNDEF(hs);
-  };
-
-  HandoverManager.prototype.handleFileTransfer =
+  this.handleFileTransfer =
             function handleFileTransfer(session, blob, onsuccess, onerror) {
     debug('handleFileTransfer');
     doAction({callback: initiateFileTransfer, args: [session, blob,
